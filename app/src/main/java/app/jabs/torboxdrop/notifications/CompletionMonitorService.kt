@@ -54,11 +54,16 @@ class CompletionMonitorService : Service() {
     }
 
     private fun promoteToForeground(): Boolean = try {
+        val foregroundServiceType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        } else {
+            0
+        }
         ServiceCompat.startForeground(
             this,
             CompletionNotifications.FOREGROUND_NOTIFICATION_ID,
             CompletionNotifications.monitoring(this),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            foregroundServiceType,
         )
         true
     } catch (_: SecurityException) {

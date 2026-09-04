@@ -104,6 +104,7 @@ internal const val WIDE_LAYOUT_MIN_WIDTH_DP = 840
 @Composable
 fun DownloadsScreen(
     state: DownloadsUiState,
+    modifier: Modifier = Modifier,
     watchedDownloadIds: Set<String> = emptySet(),
     watchedDownloadKeys: Set<Pair<DownloadType, String>> = emptySet(),
     downloadKeysMatchingLoadedFiles: Set<String> = emptySet(),
@@ -121,7 +122,6 @@ fun DownloadsScreen(
     onDownloadMenu: (DownloadItem) -> Unit,
     onStartQueued: (QueuedDownload) -> Unit,
     onDeleteQueued: (QueuedDownload) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     var searchVisible by rememberSaveable { mutableStateOf(state.search.isNotEmpty()) }
     var densityMenuVisible by remember { mutableStateOf(false) }

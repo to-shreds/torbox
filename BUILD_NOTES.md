@@ -26,9 +26,9 @@ Verified 2026-09-04 artifacts:
 
 | Artifact | Result |
 | --- | --- |
-| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `a071ae00c419fd2802bbb5ccfd2c8fe3791807271b0e5a560a3d9ba97c585d66` |
-| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `3b6fc9c309f0b9ee4fa6f41e5f1313524d81e5e6493e478c3f7b0b07dc877819` |
-| Signed distribution APK | `release/TorBox-Drop-v2.0.0.apk`, 2,198,189 bytes, SHA-256 `8e0f76bfbb83d26bfb205801fd2cf63c255efc0260148fbac937ed535f03d1c1` |
+| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `df2e1d024e3875019264cbe5dd18b0bf50f6cc63f569cd4398e1260d3295ba62` |
+| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `b934cbf928f366daaea0105879593fc82ee151f8e51e8e97bc91a39ec9f4c8b9` |
+| Signed distribution APK | `release/TorBox-Drop-v2.0.0.apk`, 2,198,189 bytes, SHA-256 `80b2310cc92634cb3652427c96a8dd9d3b3e3f59ab58acec45f379702de6daf1` |
 
 `apksigner verify --verbose --print-certs` passed for the distribution APK with v1, v2, and v3 signatures. `zipalign -c -p 4` also passed.
 

@@ -233,7 +233,9 @@ class SecureBrowserController(
                 threatType: Int,
                 callback: SafeBrowsingResponse,
             ) {
-                callback.backToSafety(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    callback.backToSafety(true)
+                }
                 callbacks().onPageError("Unsafe page blocked")
             }
         }

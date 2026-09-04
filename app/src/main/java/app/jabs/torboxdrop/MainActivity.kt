@@ -225,7 +225,11 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             }
             NotificationCapabilityIssue.RUNTIME_PERMISSION_REQUIRED -> {
                 viewModel.rememberNotificationPermissionAction(action)
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    viewModel.completeNotificationPermission(granted = true)
+                }
             }
             else -> {
                 NotificationCapabilities.settingsIntent(
@@ -294,8 +298,15 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
                     val intent = NotificationCapabilities.settingsIntent(
                         context,
                         NotificationCapabilityUse.COMPLETION_ALERTS,
-                    ) ?: Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    ) ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    } else {
+                        Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", context.packageName, null),
+                        )
+                    }
                     runCatching { context.startActivity(intent) }
                 }
             }
