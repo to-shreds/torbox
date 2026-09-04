@@ -9,9 +9,9 @@ The application ID remains `app.jabs.torboxdrop`. The project contains no Usenet
 - Downloads opens first, with Active, Finished, Queue, and AirLock tabs.
 - Torrent and web downloads appear in one searchable, sortable list with optional type and state filters.
 - Compact is the default density. Cozy and Detailed can be selected from Downloads without refetching data.
-- Active rows show the real TorBox progress value, speed, ETA, and a thin progress bar.
+- Active rows show server-derived progress, speed, ETA, and a thin progress bar. Valid downloaded/total byte counts take precedence so the percentage agrees with the transfer totals.
 - A detail screen provides diagnostics, rename, tags, AirLock, Files, Share, Download/Open, Reannounce, Pause, Resume, and Delete only where supported.
-- The file browser supports large-list search, per-file temporary links, Android sharing, Android DownloadManager, and external media apps.
+- The file browser presents a real folder tree with breadcrumbs and Android Back-to-parent behavior. It also supports recursive search, exact extension filters such as MKV, name/size/type sorting, readable full-width filenames, per-file temporary links, Android sharing, Android DownloadManager, and external media apps.
 - Infected files are blocked from Share and Open; Download requires an explicit warning confirmation.
 - The queue is fetched separately for torrent and web-download records and supports Start and Delete.
 - Add accepts magnets, HTTP or HTTPS links, and `.torrent` content URIs from the picker or Android intents.
@@ -56,6 +56,7 @@ The browser has no JavaScript bridge. File and content access are disabled in We
 The implementation follows the current official TorBox Main API rather than inferring behavior from display labels.
 
 - Ready means both `download_finished` and `download_present` are true. A `download_state` value such as `completed` is not accepted as proof that files are ready.
+- TorBox's `progress` value is a `0.0..1.0` fraction. For unfinished items, the UI prefers a valid `total_downloaded / size` ratio, then falls back to that raw fraction. A ready-and-present item is authoritative at 100%. No value is advanced locally.
 - Before a live torrent refresh, the app can make the credential-free Relay request listed in TorBox's current official Postman workspace to ask the service to refresh that torrent's server-side statistics. Relay requests are best-effort and coalesced per account and torrent for 10 seconds across foreground and background callers. The route is not part of the Main API OpenAPI document, so the following authenticated `mylist?bypass_cache=true` response remains the only displayed truth.
 - Foreground Active refresh runs approximately every five seconds. Values are never interpolated between Main API responses.
 - Stable finished data uses normal cached list requests. Manual refresh and active monitoring ask TorBox for fresh data only where it helps.
@@ -78,7 +79,7 @@ From the repository root in a networked build environment:
 ./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for this release is `release/TorBox-Drop-v2.0.0.apk`; it is minified, resource-shrunk, zip-aligned, and signed with the new TorBox Drop v2 release key. The private key is deliberately not committed.
+The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for this release is `release/TorBox-Drop-v2.0.1.apk`; it is minified, resource-shrunk, zip-aligned, and signed with the TorBox Drop v2 release key. The private key is deliberately not committed.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 
@@ -86,14 +87,20 @@ See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [AC
 
 The supplied v1.0 APK's private signing key was not provided and cannot be recovered from the APK. Android will reject an APK with the same application ID when it is signed by a different key.
 
-Uninstall v1.0 before installing this replacement build:
+Uninstall the original WebView-based v1.0 before installing the native v2 line:
 
 ```bash
 adb uninstall app.jabs.torboxdrop
-adb install release/TorBox-Drop-v2.0.0.apk
+adb install release/TorBox-Drop-v2.0.1.apk
 ```
 
 Uninstalling removes the old WebView local-storage token, settings, and history. Enter the TorBox API token again in Settings. This project does not bypass Android signature verification and does not claim an in-place upgrade path.
+
+If TorBox Drop v2.0.0 is already installed, v2.0.1 uses the same package and signing certificate and can update it in place:
+
+```bash
+adb install -r release/TorBox-Drop-v2.0.1.apk
+```
 
 ## Platform limits
 

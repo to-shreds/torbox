@@ -63,7 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.jabs.torboxdrop.model.DownloadItem
 import app.jabs.torboxdrop.model.DownloadType
-import app.jabs.torboxdrop.ui.normalizedProgress
+import app.jabs.torboxdrop.ui.displayProgressFraction
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -220,7 +220,7 @@ fun DownloadDetailScreen(
 
 @Composable
 private fun DownloadHeader(download: DownloadItem) {
-    val fraction = normalizedProgress(download.progress)
+    val fraction = displayProgressFraction(download)
     val statusColors = statusColors(download)
 
     Card(
@@ -271,7 +271,7 @@ private fun DownloadHeader(download: DownloadItem) {
             } else {
                 MaterialTheme.colorScheme.primary
             }
-            if (download.progress == null || !download.progress.isFinite()) {
+            if (fraction == null) {
                 LinearProgressIndicator(
                     modifier = progressModifier,
                     color = progressColor,
@@ -293,8 +293,8 @@ private fun DownloadHeader(download: DownloadItem) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = download.progress?.takeIf(Double::isFinite)?.let {
-                        "${(fraction * 100).roundToLong()}%"
+                    text = fraction?.let { value ->
+                        "${(value * 100).roundToLong()}%"
                     } ?: "Progress unavailable",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,

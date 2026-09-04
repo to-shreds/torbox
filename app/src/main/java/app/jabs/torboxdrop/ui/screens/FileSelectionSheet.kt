@@ -1,6 +1,8 @@
 package app.jabs.torboxdrop.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,18 +19,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PictureAsPdf
@@ -42,6 +49,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -60,6 +69,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,6 +78,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.jabs.torboxdrop.model.DownloadFile
 import app.jabs.torboxdrop.model.DownloadItem
+import app.jabs.torboxdrop.util.FileBrowserEntry
+import app.jabs.torboxdrop.util.FileBrowserResult
+import app.jabs.torboxdrop.util.FileSort
+import app.jabs.torboxdrop.util.browseDownloadFiles
+import app.jabs.torboxdrop.util.parentFolder
 import java.util.Locale
 
 /**
@@ -95,24 +110,28 @@ fun FileSelectionSheet(
     onDownloadZip: (() -> Unit)? = null,
     zipEligible: Boolean = download.allowZip == true,
 ) {
-    var query by remember(download.id) { mutableStateOf("") }
+    var query by rememberSaveable(download.id) { mutableStateOf("") }
+    var currentFolder by rememberSaveable(download.id) { mutableStateOf("") }
+    var extensionFilter by rememberSaveable(download.id) { mutableStateOf<String?>(null) }
+    var sortName by rememberSaveable(download.id) { mutableStateOf(FileSort.NAME_ASC.name) }
     var selectionMode by remember(download.id) { mutableStateOf(false) }
     var selectedIds by remember(download.id) { mutableStateOf(emptySet<Long>()) }
     var infectedDownload by remember(download.id) { mutableStateOf<DownloadFile?>(null) }
     var pendingMultiShare by remember(download.id) { mutableStateOf<List<DownloadFile>?>(null) }
 
     val safeFiles = remember(files) { files.filterNot(DownloadFile::infected) }
-    val filteredFiles = remember(files, query) {
-        val needle = query.trim()
-        if (needle.isEmpty()) {
-            files
-        } else {
-            files.filter { file ->
-                file.name.contains(needle, ignoreCase = true) ||
-                    file.path.orEmpty().contains(needle, ignoreCase = true) ||
-                    file.mimeType.orEmpty().contains(needle, ignoreCase = true)
-            }
-        }
+    val fileSort = remember(sortName) {
+        FileSort.entries.firstOrNull { it.name == sortName } ?: FileSort.NAME_ASC
+    }
+    val browser = remember(files, currentFolder, query, extensionFilter, fileSort, download.name) {
+        browseDownloadFiles(
+            files = files,
+            currentFolder = currentFolder,
+            query = query,
+            extensionFilter = extensionFilter,
+            sort = fileSort,
+            downloadName = download.name,
+        )
     }
     val selectedFiles = remember(safeFiles, selectedIds) {
         safeFiles.filter { it.id in selectedIds }
@@ -132,6 +151,10 @@ fun FileSelectionSheet(
         if (validIds.size < 2) selectionMode = false
     }
 
+    LaunchedEffect(browser.currentFolder) {
+        if (currentFolder != browser.currentFolder) currentFolder = browser.currentFolder
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
@@ -144,6 +167,11 @@ fun FileSelectionSheet(
                 .navigationBarsPadding()
                 .imePadding(),
         ) {
+            // Register inside the sheet content so folder-up takes precedence over sheet dismissal.
+            BackHandler(enabled = currentFolder.isNotBlank()) {
+                currentFolder = parentFolder(currentFolder)
+            }
+
             FileSheetHeader(
                 title = download.name,
                 fileCount = files.size,
@@ -180,15 +208,25 @@ fun FileSelectionSheet(
                 shape = RoundedCornerShape(16.dp),
             )
 
+            FileBrowserControls(
+                browser = browser,
+                selectedExtension = extensionFilter,
+                selectedSort = fileSort,
+                onFolderSelected = { currentFolder = it },
+                onExtensionSelected = { extensionFilter = it },
+                onSortSelected = { sortName = it.name },
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
             ) {
                 FileSheetBody(
-                    files = filteredFiles,
+                    browser = browser,
                     allFilesEmpty = files.isEmpty(),
                     query = query,
+                    extensionFilter = extensionFilter,
                     isLoading = isLoading,
                     error = error,
                     selectionMode = selectionMode,
@@ -204,6 +242,7 @@ fun FileSelectionSheet(
                             }
                         }
                     },
+                    onOpenFolder = { currentFolder = it },
                     onOpenFile = onOpenFile,
                     onDownloadFile = onDownloadFile?.let { callback ->
                         { file ->
@@ -322,6 +361,135 @@ private fun FileSheetHeader(
 }
 
 @Composable
+private fun FileBrowserControls(
+    browser: FileBrowserResult,
+    selectedExtension: String?,
+    selectedSort: FileSort,
+    onFolderSelected: (String) -> Unit,
+    onExtensionSelected: (String?) -> Unit,
+    onSortSelected: (FileSort) -> Unit,
+) {
+    var showTypeMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            browser.breadcrumbs.forEachIndexed { index, crumb ->
+                if (index > 0) {
+                    Icon(
+                        Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = { onFolderSelected(crumb.path) }) {
+                    Text(
+                        text = crumb.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = if (index == browser.breadcrumbs.lastIndex) {
+                            FontWeight.SemiBold
+                        } else {
+                            FontWeight.Normal
+                        },
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box {
+                OutlinedButton(onClick = { showTypeMenu = true }) {
+                    Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(selectedExtension?.uppercase(Locale.getDefault()) ?: "All types")
+                }
+                DropdownMenu(
+                    expanded = showTypeMenu,
+                    onDismissRequest = { showTypeMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("All file types (${browser.scopeFileCount})") },
+                        leadingIcon = if (selectedExtension == null) {
+                            { Icon(Icons.Outlined.Check, contentDescription = null) }
+                        } else null,
+                        onClick = {
+                            onExtensionSelected(null)
+                            showTypeMenu = false
+                        },
+                    )
+                    browser.extensionCounts.forEach { (extension, count) ->
+                        DropdownMenuItem(
+                            text = { Text("${extension.uppercase(Locale.getDefault())} ($count)") },
+                            leadingIcon = if (selectedExtension.equals(extension, ignoreCase = true)) {
+                                { Icon(Icons.Outlined.Check, contentDescription = null) }
+                            } else null,
+                            onClick = {
+                                onExtensionSelected(extension)
+                                showTypeMenu = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            Box {
+                OutlinedButton(onClick = { showSortMenu = true }) {
+                    Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(selectedSort.displayLabel())
+                }
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false },
+                ) {
+                    FileSort.entries.forEach { sort ->
+                        DropdownMenuItem(
+                            text = { Text(sort.displayLabel()) },
+                            leadingIcon = if (sort == selectedSort) {
+                                { Icon(Icons.Outlined.Check, contentDescription = null) }
+                            } else null,
+                            onClick = {
+                                onSortSelected(sort)
+                                showSortMenu = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = if (browser.recursiveResults) {
+                    "${browser.matchingFileCount} match${if (browser.matchingFileCount == 1) "" else "es"}"
+                } else {
+                    "${browser.scopeFileCount} file${if (browser.scopeFileCount == 1) "" else "s"}"
+                },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun InfectedFilesBanner(count: Int) {
     Card(
         modifier = Modifier
@@ -356,9 +524,10 @@ private fun InfectedFilesBanner(count: Int) {
 
 @Composable
 private fun FileSheetBody(
-    files: List<DownloadFile>,
+    browser: FileBrowserResult,
     allFilesEmpty: Boolean,
     query: String,
+    extensionFilter: String?,
     isLoading: Boolean,
     error: String?,
     selectionMode: Boolean,
@@ -366,6 +535,7 @@ private fun FileSheetBody(
     contentReady: Boolean,
     onRetry: (() -> Unit)?,
     onToggleSelected: (DownloadFile) -> Unit,
+    onOpenFolder: (String) -> Unit,
     onOpenFile: ((DownloadFile) -> Unit)?,
     onDownloadFile: ((DownloadFile) -> Unit)?,
     onShareFile: ((DownloadFile) -> Unit)?,
@@ -378,9 +548,16 @@ private fun FileSheetBody(
             title = "No files",
             message = "This download does not contain any available files.",
         )
-        files.isEmpty() -> FileEmptyState(
+        browser.entries.isEmpty() -> FileEmptyState(
             title = "No matches",
-            message = "No files match “${query.trim()}”.",
+            message = when {
+                query.isNotBlank() && extensionFilter != null ->
+                    "No ${extensionFilter.uppercase(Locale.getDefault())} files match “${query.trim()}” here."
+                query.isNotBlank() -> "No files match “${query.trim()}” here."
+                extensionFilter != null ->
+                    "No ${extensionFilter.uppercase(Locale.getDefault())} files are in this folder."
+                else -> "This folder is empty."
+            },
         )
         else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
             if (error != null) {
@@ -389,23 +566,33 @@ private fun FileSheetBody(
                 }
             }
             items(
-                items = files,
-                key = { file -> "${file.downloadType}:${file.downloadId}:${file.id}:${file.path.orEmpty()}" },
-            ) { file ->
-                FileRow(
-                    file = file,
-                    selectionMode = selectionMode,
-                    selected = file.id in selectedIds,
-                    contentReady = contentReady,
-                    onToggleSelected = { onToggleSelected(file) },
-                    onOpen = onOpenFile?.let { callback -> { callback(file) } },
-                    onDownload = onDownloadFile?.let { callback -> { callback(file) } },
-                    downloadActionAvailable = contentReady && onDownloadFile != null,
-                    onShare = onShareFile?.let { callback -> { callback(file) } },
-                    onCopyTemporaryLink = onCopyTemporaryLink?.let { callback -> { callback(file) } },
-                )
+                items = browser.entries,
+                key = FileBrowserEntry::stableKey,
+            ) { entry ->
+                when (entry) {
+                    is FileBrowserEntry.Folder -> FolderRow(
+                        folder = entry,
+                        onOpen = { onOpenFolder(entry.path) },
+                    )
+                    is FileBrowserEntry.File -> {
+                        val file = entry.file
+                        FileRow(
+                            file = file,
+                            parentPath = entry.parentPath.takeIf { browser.recursiveResults && it.isNotBlank() },
+                            selectionMode = selectionMode,
+                            selected = file.id in selectedIds,
+                            contentReady = contentReady,
+                            onToggleSelected = { onToggleSelected(file) },
+                            onOpen = onOpenFile?.let { callback -> { callback(file) } },
+                            onDownload = onDownloadFile?.let { callback -> { callback(file) } },
+                            downloadActionAvailable = contentReady && onDownloadFile != null,
+                            onShare = onShareFile?.let { callback -> { callback(file) } },
+                            onCopyTemporaryLink = onCopyTemporaryLink?.let { callback -> { callback(file) } },
+                        )
+                    }
+                }
                 HorizontalDivider(
-                    modifier = Modifier.padding(start = if (selectionMode) 72.dp else 64.dp),
+                    modifier = Modifier.padding(start = if (selectionMode) 60.dp else 64.dp),
                     color = MaterialTheme.colorScheme.outlineVariant,
                 )
             }
@@ -415,8 +602,58 @@ private fun FileSheetBody(
 }
 
 @Composable
+private fun FolderRow(
+    folder: FileBrowserEntry.Folder,
+    onOpen: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(42.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(23.dp))
+            }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = folder.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = buildList {
+                    add(if (folder.fileCount == 1) "1 file" else "${folder.fileCount} files")
+                    folder.totalSize?.let { add(formatFileBytes(it)) }
+                }.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            Icons.Outlined.ChevronRight,
+            contentDescription = "Open ${folder.name}",
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun FileRow(
     file: DownloadFile,
+    parentPath: String?,
     selectionMode: Boolean,
     selected: Boolean,
     contentReady: Boolean,
@@ -434,56 +671,57 @@ private fun FileRow(
         else -> null
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = rowClick != null) { rowClick?.invoke() }
-            .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(start = 12.dp, end = 8.dp, top = 9.dp, bottom = 7.dp),
     ) {
-        if (selectionMode) {
-            Checkbox(
-                checked = selected,
-                onCheckedChange = { onToggleSelected() },
-                enabled = safe,
-            )
-        } else {
-            Surface(
-                modifier = Modifier.size(42.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = if (file.infected) {
-                    MaterialTheme.colorScheme.errorContainer
-                } else {
-                    MaterialTheme.colorScheme.secondaryContainer
-                },
-                contentColor = if (file.infected) {
-                    MaterialTheme.colorScheme.onErrorContainer
-                } else {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = fileTypeIcon(file),
-                        contentDescription = null,
-                        modifier = Modifier.size(23.dp),
-                    )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (selectionMode) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { onToggleSelected() },
+                    enabled = safe,
+                )
+            } else {
+                Surface(
+                    modifier = Modifier.size(42.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (file.infected) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    },
+                    contentColor = if (file.infected) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    },
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = fileTypeIcon(file),
+                            contentDescription = null,
+                            modifier = Modifier.size(23.dp),
+                        )
+                    }
                 }
             }
-        }
 
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            file.path
-                ?.takeIf { it.isNotBlank() && !it.equals(file.name, ignoreCase = true) }
-                ?.let { path ->
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                parentPath?.let { path ->
                     Text(
                         text = path,
                         style = MaterialTheme.typography.bodySmall,
@@ -492,79 +730,105 @@ private fun FileRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            val metadata = buildList {
-                file.size?.let { add(formatFileBytes(it)) }
-                fileTypeLabel(file)?.let(::add)
-            }.joinToString(" · ")
-            if (metadata.isNotBlank()) {
-                Text(
-                    text = metadata,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (file.infected) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.WarningAmber,
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                    Spacer(Modifier.width(4.dp))
+                val metadata = buildList {
+                    file.size?.let { add(formatFileBytes(it)) }
+                    fileTypeLabel(file)?.let(::add)
+                }.joinToString(" · ")
+                if (metadata.isNotBlank()) {
                     Text(
-                        "Potentially infected",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error,
+                        text = metadata,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                }
+                if (file.infected) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.WarningAmber,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "Potentially infected",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
         }
 
         if (!selectionMode) {
-            if (onOpen != null) {
-                IconButton(
-                    onClick = onOpen,
-                    enabled = safe && contentReady,
-                ) {
-                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "Open ${file.name}")
+            Row(
+                modifier = Modifier.padding(start = 48.dp, top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onOpen != null) {
+                    FileActionButton(
+                        icon = Icons.AutoMirrored.Outlined.OpenInNew,
+                        contentDescription = "Open ${file.name}",
+                        enabled = safe && contentReady,
+                        onClick = onOpen,
+                    )
                 }
-            }
-            if (onDownload != null) {
-                IconButton(
-                    onClick = onDownload,
-                    enabled = downloadActionAvailable,
-                ) {
-                    Icon(
-                        Icons.Outlined.Download,
+                if (onDownload != null) {
+                    FileActionButton(
+                        icon = Icons.Outlined.Download,
                         contentDescription = if (file.infected) {
                             "Review warning before downloading ${file.name}"
                         } else {
                             "Download ${file.name}"
                         },
                         tint = if (file.infected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        enabled = downloadActionAvailable,
+                        onClick = onDownload,
+                    )
+                }
+                if (onShare != null) {
+                    FileActionButton(
+                        icon = Icons.Outlined.Share,
+                        contentDescription = "Share ${file.name}",
+                        enabled = safe && contentReady,
+                        onClick = onShare,
+                    )
+                }
+                if (onCopyTemporaryLink != null) {
+                    FileActionButton(
+                        icon = Icons.Outlined.ContentCopy,
+                        contentDescription = "Copy temporary link for ${file.name}",
+                        enabled = safe && contentReady,
+                        onClick = onCopyTemporaryLink,
                     )
                 }
             }
-            if (onShare != null) {
-                IconButton(
-                    onClick = onShare,
-                    enabled = safe && contentReady,
-                ) {
-                    Icon(Icons.Outlined.Share, contentDescription = "Share ${file.name}")
-                }
-            }
-            if (onCopyTemporaryLink != null) {
-                IconButton(
-                    onClick = onCopyTemporaryLink,
-                    enabled = safe && contentReady,
-                ) {
-                    Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy temporary link for ${file.name}")
-                }
-            }
         }
+    }
+}
+
+@Composable
+private fun FileActionButton(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(48.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(20.dp),
+            tint = tint,
+        )
     }
 }
 
@@ -789,6 +1053,14 @@ private fun fileTypeLabel(file: DownloadFile): String? {
     return file.name.substringAfterLast('.', missingDelimiterValue = "")
         .takeIf(String::isNotBlank)
         ?.uppercase(Locale.getDefault())
+}
+
+private fun FileSort.displayLabel(): String = when (this) {
+    FileSort.NAME_ASC -> "Name A–Z"
+    FileSort.NAME_DESC -> "Name Z–A"
+    FileSort.SIZE_DESC -> "Largest"
+    FileSort.SIZE_ASC -> "Smallest"
+    FileSort.TYPE -> "File type"
 }
 
 private fun zipUnavailableReason(

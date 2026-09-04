@@ -27,7 +27,7 @@ data class DownloadItem(
     val name: String,
     val rawState: String = "",
     val friendlyState: String = "Unknown",
-    /** Percentage in TorBox's documented 0..100 scale, or null when the API omitted it. */
+    /** Progress in TorBox's documented 0.0..1.0 fraction, or null when the API omitted it. */
     val progress: Double? = null,
     val totalSize: Long? = null,
     val downloadedBytes: Long? = null,

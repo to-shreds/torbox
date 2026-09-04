@@ -1,11 +1,11 @@
-# TorBox Drop 2.0 build notes
+# TorBox Drop 2.0.1 build notes
 
 ## Build identity
 
 | Property | Value |
 | --- | --- |
 | Application ID | `app.jabs.torboxdrop` |
-| Version | `2.0.0` (`versionCode 20000`) |
+| Version | `2.0.1` (`versionCode 20001`) |
 | Minimum Android | API 23 |
 | Target and compile SDK | API 36 |
 | Build Tools | 36.0.0 |
@@ -26,11 +26,21 @@ Verified 2026-09-04 artifacts:
 
 | Artifact | Result |
 | --- | --- |
-| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `df2e1d024e3875019264cbe5dd18b0bf50f6cc63f569cd4398e1260d3295ba62` |
-| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `b934cbf928f366daaea0105879593fc82ee151f8e51e8e97bc91a39ec9f4c8b9` |
-| Signed distribution APK | `release/TorBox-Drop-v2.0.0.apk`, 2,198,189 bytes, SHA-256 `80b2310cc92634cb3652427c96a8dd9d3b3e3f59ab58acec45f379702de6daf1` |
+| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `1226f01112ca83ffa37d1af806a22021612c74054043e023e87f04420aa32da6` |
+| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `285c856da76bd7f28fbb48b782b996dcf4f3bc13063bbd4ef3d5410c29d6203c` |
+| Signed distribution APK | `release/TorBox-Drop-v2.0.1.apk`, 2,214,573 bytes, SHA-256 `5bac134ce344b317cc7c8cb037b4f4b14484238b6bb9a63491201c941541c4d9` |
 
 `apksigner verify --verbose --print-certs` passed for the distribution APK with v1, v2, and v3 signatures. `zipalign -c -p 4` also passed.
+
+The v2.0.1 APK uses the same signing certificate as v2.0.0, so it is a valid in-place update for an installed v2 build. The unavailable v1.0 private key limitation remains unchanged.
+
+## v2.0.1 corrective release
+
+- Removed the fixed bottom-navigation height that compressed Material 3 content into Samsung's three-button system-navigation inset, and explicitly selected dark system-bar icon styling.
+- Corrected TorBox progress handling to its documented `0.0..1.0` fraction. For unfinished downloads, a valid server `total_downloaded / size` ratio takes precedence so the displayed percentage and byte totals agree. The reported `303 MB of 592 MB` case now resolves to 51%.
+- Rebuilt the file sheet as a folder browser with breadcrumbs, Android Back-to-parent handling, recursive search, exact extension filtering, and name, size, or type sorting.
+- Moved each file's compact Open, Download, Share, and Copy actions underneath a filename area that can use the row width. Visible icons remain small while touch targets remain 48dp.
+- Preserved infected-file restrictions across navigation, sorting, filtering, selection, and ZIP eligibility.
 
 ## Supplied v1.0 APK inventory
 
@@ -94,7 +104,7 @@ Documentation was rechecked on 2026-09-04 against the [TorBox API documentation]
 - This app conservatively requires both `download_finished` and `download_present` before an item moves to Finished or triggers a notification.
 - For active torrents, the client can first call the credential-free Relay route listed in TorBox's current official Postman workspace to request a server-side statistics refresh. The validated account user ID and torrent ID are path segments; the API token is never attached to this request. This Relay route is not included in the Main API OpenAPI document.
 - Relay is therefore strictly best-effort. Repository requests for the same account and torrent are atomically coalesced within 10 seconds across foreground and background callers. The visible foreground monitor waits approximately 15 seconds after each completed pass. The following authenticated `mylist?bypass_cache=true` response, at an approximately five-second Active-screen cadence, is the only source used to display state and progress.
-- The progress field comes from TorBox responses and is clamped to the valid 0 through 100 display range. The app does not advance it based on elapsed time.
+- The progress field is TorBox's `0.0..1.0` fraction. For unfinished items, a valid server byte ratio takes display precedence; ready-and-present state is authoritative at 100%. Values are clamped for display and never advanced based on elapsed time.
 - Current published rate limits include 300 requests per minute per endpoint and stricter creation limits. See [API rate limits](https://support.torbox.app/en/articles/13726368-api-rate-limits).
 
 ### Supported actions
@@ -170,8 +180,8 @@ The v2 distribution APK is signed with a newly generated RSA-4096 release key wh
 
 ## Verification scope
 
-The clean local build completed `testDebugUnitTest`, debug assembly, and minified/resource-shrunk release assembly with 113 tests, 0 failures, 0 errors, and 0 skipped. Release lint-vital was excluded only because the isolated offline cache lacks `com.android.tools.lint:lint-gradle:31.13.2`; an installed standalone lint compatibility pass found no remaining app findings after its notification-permission findings were fixed. The checked-in CI workflow runs the complete current Gradle lint task in a networked environment.
+The clean local build completed `testDebugUnitTest`, full `lintDebug`, debug assembly, release lint-vital, and minified/resource-shrunk release assembly with 136 tests, 0 failures, 0 errors, and 0 skipped. Android lint completed with 0 errors and 8 non-blocking warnings.
 
-JVM tests cover TorBox request construction and parsing, readiness truth tables, AirLock full-state editing, queue type isolation, temporary-link token rejection, sanitized errors, completion claim and duplicate-suppression behavior, link and file-name parsing, formatting, list filtering and sorting, bencode validation, and static manifest and source security invariants.
+JVM tests cover TorBox request construction and parsing, readiness truth tables, byte-consistent progress, AirLock full-state editing, queue type isolation, temporary-link token rejection, sanitized errors, completion claim and duplicate-suppression behavior, link and file-name parsing, folder-tree navigation, path normalization, extension filtering, file sorting, bencode validation, and static manifest and source security invariants.
 
 The API 36 emulator reached ADB and core Android services under software-only emulation but did not reach `sys.boot_completed` within the bounded test window, so no emulator row is claimed as passed. JVM tests do not prove Android UI geometry, WebView behavior, background execution across device vendors, DownloadManager handoff, external-app intents, or live TorBox account behavior. Those remain device or account tests and are labeled that way in [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md).

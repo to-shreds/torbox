@@ -11,9 +11,7 @@ Date: 2026-09-04
 | Requires real TorBox account/device/manual | Supporting code may be present, but the complete flow still needs the named runtime environment and human verification. It is not claimed as passed. |
 | API limitation | The current official TorBox or Android contract prevents the exact requested behavior; the closest legitimate behavior is documented. |
 
-The final JVM suite contains 113 tests with 0 failures, 0 errors, and 0 skipped tests. A clean build produced both debug and minified release APKs. An API 36 emulator was started twice under software-only emulation; it reached ADB, zygote, service manager, and SurfaceFlinger but did not reach `sys.boot_completed` within the bounded test window. No physical device or live TorBox account was available. Accordingly, no row is marked Emulator / pass, and complete Android or account flows remain manual even when unit tests cover part of the implementation.
-
-Gradle's lint integration could not resolve `com.android.tools.lint:lint-gradle:31.13.2` from the isolated offline cache. The installed standalone lint compatibility pass reported no remaining app findings after two notification-permission findings were corrected, but it is not represented as a full current-lint pass. The repository CI runs the complete Gradle lint task with networked dependency resolution.
+The final JVM suite contains 136 tests with 0 failures, 0 errors, and 0 skipped tests. A clean build produced both debug and minified release APKs. Full Android lint and release lint-vital completed with 0 errors; `lintDebug` reported 8 non-blocking warnings. An API 36 emulator was started twice during the original v2.0 verification under software-only emulation; it reached ADB, zygote, service manager, and SurfaceFlinger but did not reach `sys.boot_completed` within the bounded test window. No physical device or live TorBox account was available for this patch. Accordingly, no row is marked Emulator / pass, and complete Android or account flows remain manual even when unit tests cover part of the implementation.
 
 ## Criteria 1 through 50
 
@@ -24,8 +22,8 @@ Gradle's lint integration could not resolve `com.android.tools.lint:lint-gradle:
 | 3 | Ordinary web URL can be added | Requires real TorBox account/device/manual | Mock-server creation body is covered; current production account response remains. |
 | 4 | `.torrent` file can be selected and uploaded | Requires real TorBox account/device/manual | OpenDocument, secure content-URI reader, bencode validation, and multipart creation are present; picker flow remains. |
 | 5 | `.torrent` intent is accepted | Requires real TorBox account/device/manual | Manifest SEND and VIEW torrent intent filters exist; provider-to-app interoperability remains. |
-| 6 | Active rows render API progress, speed, and ETA | Requires real TorBox account/device/manual | Mock parsing verifies all three fields and Compose rows consume them; real account rendering remains. |
-| 7 | Progress refresh never fabricates values | Automated / pass | The client uses server-supplied progress on TorBox's 0 through 100 scale, preserves an omitted value as unknown, safely clamps invalid display values, and contains no elapsed-time interpolation. |
+| 6 | Active rows render API progress, speed, and ETA | Requires real TorBox account/device/manual | Mock parsing verifies all three fields and Compose rows consume them. Unit coverage proves the reported 303 MB of 592 MB case displays 51%; real account rendering remains. |
+| 7 | Progress refresh never fabricates values | Automated / pass | Unfinished items use a valid server `total_downloaded / size` ratio, then TorBox's raw `0.0..1.0` fraction. Omitted values remain unknown, display values are safely clamped, and source invariants exclude elapsed-time interpolation. |
 | 8 | Ready item automatically moves Active to Finished | Requires real TorBox account/device/manual | Tab derivation is readiness-based and five-second refresh updates the list; live transition remains. |
 | 9 | Completion follows current readiness semantics | Automated / pass | Truth-table tests require `download_finished && download_present`; completed display state alone is rejected. |
 | 10 | Notify When Complete can be armed | Requires real TorBox account/device/manual | UI, permission request, SQLite subscription, and service start are present; Android runtime flow remains. |
@@ -48,7 +46,7 @@ Gradle's lint integration could not resolve `com.android.tools.lint:lint-gradle:
 | 27 | Bad token shows a useful state | Requires real TorBox account/device/manual | Mock API test proves typed, sanitized bad-token handling; Compose state presentation remains. |
 | 28 | Offline launch shows honest last-known data | Requires real TorBox account/device/manual | SQLite-first load and stale/offline state exist; airplane-mode relaunch remains. |
 | 29 | No Usenet UI, calls, or terminology | Automated / pass | Static production-source test and mock queue requests exclude Usenet and NZB paths or terms. |
-| 30 | Project builds from clean state | Automated / pass | `clean testDebugUnitTest assembleDebug assembleRelease` completed with release lint-vital excluded because its Gradle integration artifact was unavailable in the isolated offline cache. Debug and minified release APKs were produced; the signed APK separately passed `zipalign` and `apksigner` verification. |
+| 30 | Project builds from clean state | Automated / pass | `clean testDebugUnitTest lintDebug assembleDebug assembleRelease` completed. Debug and minified release APKs were produced; the signed APK separately passed `zipalign` and APK Signature Scheme v1, v2, and v3 verification. |
 | 31 | Downloads exposes Compact, Cozy, Detailed directly | Requires real TorBox account/device/manual | Toolbar density control and all row implementations exist; interaction remains. |
 | 32 | Compact is the initial default | Automated / pass | `DownloadsUiState` and native preference fallback both use Compact. |
 | 33 | Density persists across navigation and restart | Requires real TorBox account/device/manual | Preference write/read path exists; process restart remains. |
@@ -82,6 +80,16 @@ No acceptance row is silently omitted because of an API limitation. The closest 
 - WebView request interception supports useful host blocking, not complete extension-style or cosmetic ad blocking.
 - Current TorBox sources disagree on temporary-link lifetime. The app generates a fresh link for every action and does not persist it.
 
+## v2.0.1 screenshot-regression checks
+
+| Reported issue | Status | Evidence or remaining check |
+| --- | --- | --- |
+| Bottom navigation is obscured by Samsung three-button navigation | Automated source guard / device recheck recommended | The fixed 64dp `NavigationBar` height was removed, Material 3 now owns its system inset, and both system bars explicitly use dark styling. A source invariant prevents reintroducing the fixed height. Samsung device geometry should be visually rechecked after install. |
+| 303 MB of 592 MB displays as 1% | Automated / pass | Formatter regression test asserts the server byte ratio displays 51%, and list/detail progress bars and labels share the same helper. Ready-and-present state remains authoritative at 100%. |
+| Filenames are unreadable beside four actions | Build and source review / device recheck recommended | Filenames now receive the row width with up to three lines; compact 20dp action icons are placed in a separate row underneath with 48dp touch targets. Final display-scale QA remains visual. |
+| Files are not separated by folder | Automated / pass | Seventeen file-browser tests cover TorBox path cleanup, root/direct-child views, nested folders, breadcrumbs, parent navigation, custom titles, directory-only paths, duplicate filenames, and stable keys. |
+| Need MKV filtering and sorting | Automated / pass | Exact case-insensitive extension filtering, recursive search, dynamic type counts, and name/size/type sorting are unit tested. |
+
 ## Automated suite coverage
 
 Executed JVM test classes:
@@ -95,7 +103,7 @@ Executed JVM test classes:
 - `NotificationCapabilitySnapshotTest`: 3 tests
 - `QueuedSubscriptionMatcherTest`: 8 tests
 - `ProjectSecurityInvariantsTest`: 10 tests
-- Downloads UI and formatter tests: 9 tests
-- parser, URL-safety, display, file, list, and torrent-payload utility tests: 36 tests
+- Downloads UI, activity inset, and formatter tests: 15 tests
+- parser, URL-safety, display, file, folder-browser, list, and torrent-payload utility tests: 53 tests
 
 The static invariant suite checks manifest share and torrent intents, foreground-service declarations, cleartext disablement, lack of a JavaScript bridge, readiness conjunction, server-derived progress, non-redirecting temporary-link requests, representable wire-operation vocabulary, and production exclusion of Usenet and NZB code paths.

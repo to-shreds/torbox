@@ -76,7 +76,7 @@ class TorBoxApiClientTest {
                   "id": 7,
                   "name": "Still processing",
                   "download_state": "completed",
-                  "progress": 100,
+                  "progress": 1,
                   "download_finished": false,
                   "download_present": false
                 }""",
@@ -274,7 +274,7 @@ class TorBoxApiClientTest {
           "id":"99",
           "name":"Bundle",
           "download_state":"downloading",
-          "progress":"68.5",
+          "progress":"0.685",
           "size":"123456",
           "download_speed":"11400000",
           "eta":"240",
@@ -299,7 +299,7 @@ class TorBoxApiClientTest {
         val item = api.getDownload(DownloadType.WEB, "99")!!
         val files = api.getFiles(DownloadType.WEB, "99")
 
-        assertThat(item.progress).isEqualTo(68.5)
+        assertThat(item.progress).isEqualTo(0.685)
         assertThat(item.totalSize).isEqualTo(123456L)
         assertThat(item.downloadSpeed).isEqualTo(11400000L)
         assertThat(item.etaSeconds).isEqualTo(240L)

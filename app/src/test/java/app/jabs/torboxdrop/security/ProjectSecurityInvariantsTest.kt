@@ -106,7 +106,8 @@ class ProjectSecurityInvariantsTest {
         assertThat(repositorySource).doesNotContain("copy(progress =")
         assertThat(viewModelSource).doesNotContain("copy(progress =")
         assertThat(viewModelSource).doesNotContain("progress = item.progress +")
-        assertThat(formatterSource).contains("progress / 100.0")
+        assertThat(formatterSource).contains("progress.coerceIn(0.0, 1.0)")
+        assertThat(formatterSource).contains("downloaded.toDouble() / total.toDouble()")
         assertThat(formatterSource).doesNotContain("System.currentTimeMillis")
         assertThat(formatterSource).doesNotContain("elapsedRealtime")
     }

@@ -663,7 +663,7 @@ private fun WideDownloadRow(
                         modifier = Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(50)),
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(percentLabel(item.progress), style = MaterialTheme.typography.labelSmall)
+                    Text(percentLabel(item), style = MaterialTheme.typography.labelSmall)
                 }
             } else if (density == DownloadDensity.DETAILED && item.tags.isNotEmpty()) {
                 Text(item.tags.joinToString(", "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -757,7 +757,7 @@ private fun CompactDownloadRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (active) {
-                    Text(percentLabel(item.progress), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text(percentLabel(item), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
             }
             if (active) {
@@ -846,7 +846,7 @@ private fun CozyDownloadRow(
                         modifier = Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(50)),
                     )
                     Spacer(Modifier.width(9.dp))
-                    Text(percentLabel(item.progress), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text(percentLabel(item), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(activeMetadata(item), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -919,7 +919,7 @@ private fun DetailedDownloadRow(
                         modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(50)),
                     )
                     Spacer(Modifier.width(10.dp))
-                    Text(percentLabel(item.progress), fontWeight = FontWeight.Bold)
+                    Text(percentLabel(item), fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(detailedActiveMetadata(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1202,7 +1202,8 @@ private fun DownloadSort.queueComparator(): Comparator<QueuedDownload> = when (t
 @Composable
 private fun DownloadProgressIndicator(item: DownloadItem, modifier: Modifier = Modifier) {
     val color = stateColor(item)
-    if (item.progress == null || !item.progress.isFinite()) {
+    val fraction = displayProgressFraction(item)
+    if (fraction == null) {
         LinearProgressIndicator(
             modifier = modifier,
             color = color,
@@ -1210,7 +1211,7 @@ private fun DownloadProgressIndicator(item: DownloadItem, modifier: Modifier = M
         )
     } else {
         LinearProgressIndicator(
-            progress = { normalizedProgress(item.progress) },
+            progress = { fraction },
             modifier = modifier,
             color = color,
             trackColor = MaterialTheme.colorScheme.surfaceVariant,

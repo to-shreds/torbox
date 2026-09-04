@@ -90,7 +90,7 @@ fun activeMetadata(item: DownloadItem): String = buildList {
 
 fun normalizedProgress(progress: Double?): Float {
     if (progress == null || !progress.isFinite()) return 0f
-    return (progress / 100.0).coerceIn(0.0, 1.0).toFloat()
+    return progress.coerceIn(0.0, 1.0).toFloat()
 }
 
 fun percentLabel(progress: Double?): String = if (progress == null || !progress.isFinite()) {
@@ -98,3 +98,28 @@ fun percentLabel(progress: Double?): String = if (progress == null || !progress.
 } else {
     "%.0f%%".format(Locale.getDefault(), normalizedProgress(progress) * 100f)
 }
+
+/**
+ * Returns the best server-derived fraction available for display without interpolating progress.
+ *
+ * Authoritative ready-and-present state displays 100%. For unfinished items, valid byte counts
+ * take precedence so the percentage, progress bar, and adjacent "downloaded of total" text cannot
+ * contradict one another. The API's raw 0.0..1.0 progress remains the fallback for records without
+ * usable byte counts.
+ */
+fun displayProgressFraction(item: DownloadItem): Float? {
+    if (item.isReady) return 1f
+
+    val total = item.totalSize
+    val downloaded = item.downloadedBytes
+    if (total != null && total > 0L && downloaded != null && downloaded in 0L..total) {
+        return (downloaded.toDouble() / total.toDouble()).coerceIn(0.0, 1.0).toFloat()
+    }
+
+    item.progress?.takeIf(Double::isFinite)?.let { return normalizedProgress(it) }
+    return null
+}
+
+fun percentLabel(item: DownloadItem): String = displayProgressFraction(item)?.let { fraction ->
+    "%.0f%%".format(Locale.getDefault(), fraction * 100f)
+} ?: "—"
