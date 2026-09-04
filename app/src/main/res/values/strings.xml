@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">TorBox Drop</string>
+    <string name="monitor_channel_name">Completion monitoring</string>
+    <string name="monitor_channel_description">Checks downloads you asked TorBox Drop to watch</string>
+    <string name="ready_channel_name">Downloads ready</string>
+    <string name="ready_channel_description">Alerts when a watched TorBox download is ready</string>
+</resources>

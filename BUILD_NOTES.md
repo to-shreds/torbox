@@ -1,0 +1,177 @@
+# TorBox Drop 2.0 build notes
+
+## Build identity
+
+| Property | Value |
+| --- | --- |
+| Application ID | `app.jabs.torboxdrop` |
+| Version | `2.0.0` (`versionCode 20000`) |
+| Minimum Android | API 23 |
+| Target and compile SDK | API 36 |
+| Build Tools | 36.0.0 |
+| Language and UI | Kotlin 2.2.21, Jetpack Compose, Material 3 |
+| Java toolchain | JDK 17 |
+| Android Gradle Plugin | 8.13.2 |
+| Gradle wrapper | 8.13 |
+
+Build and verification commands:
+
+```bash
+./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
+```
+
+The CI workflow runs the same clean unit-test, lint, debug-APK, and release shrinking tasks on pushes and pull requests. It uploads test reports and the debug APK as workflow artifacts. The CI release output is an unsigned verification artifact and is not distributed.
+
+Verified 2026-09-04 artifacts:
+
+| Artifact | Result |
+| --- | --- |
+| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `a071ae00c419fd2802bbb5ccfd2c8fe3791807271b0e5a560a3d9ba97c585d66` |
+| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `3b6fc9c309f0b9ee4fa6f41e5f1313524d81e5e6493e478c3f7b0b07dc877819` |
+| Signed distribution APK | `release/TorBox-Drop-v2.0.0.apk`, 2,198,189 bytes, SHA-256 `8e0f76bfbb83d26bfb205801fd2cf63c255efc0260148fbac937ed535f03d1c1` |
+
+`apksigner verify --verbose --print-certs` passed for the distribution APK with v1, v2, and v3 signatures. `zipalign -c -p 4` also passed.
+
+## Supplied v1.0 APK inventory
+
+The supplied APK was inspected rather than treated as disposable.
+
+| Property | Observed value |
+| --- | --- |
+| Package | `app.jabs.torboxdrop` |
+| Version | `1.0` (`versionCode 1`) |
+| SDK range | minSdk 23, targetSdk 35 |
+| APK SHA-256 | `6a02eb89cedbcf45d4861b8562381ed6158581247b2006d91f61deebe18c1272` |
+| Components | One exported, `singleTop` `MainActivity`; no service, receiver, or provider |
+| Permission | `android.permission.INTERNET` only |
+| UI architecture | One full-screen WebView containing app UI and the mini-browser |
+| Local data | WebView local storage for token, settings, recent sends, and browser home |
+
+Confirmed working v1.0 behavior:
+
+- launcher app
+- `ACTION_SEND` `text/*` through `EXTRA_TEXT`
+- browsable `magnet:` `ACTION_VIEW`
+- foreground clipboard detection for magnet text
+- magnet and HTTP or HTTPS distinction
+- TorBox magnet creation and web-download creation
+- Queue and Cached Only options
+- recent successful-send history capped at 30
+- mini-browser, Downloads, and Settings views
+- token validation through `/user/me`
+- torrent and web-download list requests
+
+Confirmed v1.0 limitations that are intentionally replaced:
+
+- token and app logic shared a WebView storage and execution context
+- third-party cookies were enabled in the browser
+- no request-level blocker, bookmarks, `.torrent` intent, file actions, queue management, AirLock, or notifications
+- no durable native download cache or active polling loop
+- readiness could be inferred from `progress >= 100` or display states such as completed, cached, or uploading
+
+## Native replacement summary
+
+The replacement separates responsibilities:
+
+- `TorBoxApiClient` performs authenticated Main API requests and parses typed models.
+- `TorBoxRepository` coordinates remote data, stable refreshes, and the local cache.
+- `SecureTokenStore` keeps only AES-GCM ciphertext on disk, outside backup scope. Its key is non-exportable and held by Android Keystore.
+- `LocalStore` keeps download snapshots, queue records, file metadata, recent sends, bookmarks, and durable notification-delivery state in SQLite.
+- `AppPreferences` persists density, tab, sort, add defaults, and browser privacy choices.
+- `MainViewModel` owns application state and foreground polling.
+- `SecureBrowserController` owns the dedicated browser WebView. It receives no API client or token.
+- `CompletionMonitorService` and `CompletionMonitorWorker` share one durable, duplicate-resistant monitor runner.
+
+The native UI uses four bottom destinations: Downloads, Add, Browser, and Settings. Downloads is the initial destination.
+
+## API behavior verified against current official documentation
+
+Documentation was rechecked on 2026-09-04 against the [TorBox API documentation](https://api-docs.torbox.app/), [official OpenAPI document](https://api.torbox.app/openapi.json), [official Postman workspace](https://www.postman.com/torbox/torbox-api/overview), and current TorBox support articles.
+
+### Readiness and freshness
+
+- TorBox documents `completed` as a qBittorrent state and warns clients not to use it as download-completion status.
+- This app conservatively requires both `download_finished` and `download_present` before an item moves to Finished or triggers a notification.
+- For active torrents, the client can first call the credential-free Relay route listed in TorBox's current official Postman workspace to request a server-side statistics refresh. The validated account user ID and torrent ID are path segments; the API token is never attached to this request. This Relay route is not included in the Main API OpenAPI document.
+- Relay is therefore strictly best-effort. Repository requests for the same account and torrent are atomically coalesced within 10 seconds across foreground and background callers. The visible foreground monitor waits approximately 15 seconds after each completed pass. The following authenticated `mylist?bypass_cache=true` response, at an approximately five-second Active-screen cadence, is the only source used to display state and progress.
+- The progress field comes from TorBox responses and is clamped to the valid 0 through 100 display range. The app does not advance it based on elapsed time.
+- Current published rate limits include 300 requests per minute per endpoint and stricter creation limits. See [API rate limits](https://support.torbox.app/en/articles/13726368-api-rate-limits).
+
+### Supported actions
+
+| Record | Operations represented in the app |
+| --- | --- |
+| Torrent | Reannounce, Pause, Resume, Delete |
+| Web download | Delete |
+| Queue | Start, Delete |
+| Torrent and web edit | Rename, tags, AirLock through full-state read-modify-write |
+
+Queue list calls are made separately with `type=torrent` and `type=webdl`.
+
+### Temporary file URLs
+
+TorBox `requestdl` authenticates with a query token. To keep that request private, the app:
+
+1. calls `requestdl` inside the native API layer with `redirect=false`;
+2. extracts the returned temporary URL;
+3. requires HTTPS and rejects URL user-info;
+4. rejects the raw token, URL-encoded token, and repeatedly decoded forms;
+5. returns only the checked temporary URL to Share, Copy, DownloadManager, or `ACTION_VIEW`;
+6. does not store the URL in durable file metadata.
+
+Current TorBox documentation is inconsistent about whether a generated URL lasts one hour or three hours. The app therefore requests a new URL for every action and makes no lifetime promise.
+
+## Android completion monitoring
+
+When the user first enables a completion alert, the app asks for Android notification permission at that moment.
+
+While the app is foregrounded on Active, refresh runs on an approximate five-second cadence and detects readiness. An explicitly armed unfinished item can also start a visible `dataSync` foreground service from that user action. The service waits 15 seconds after each completed pass before starting another, displays an ongoing notification, and stops once nothing remains armed.
+
+WorkManager schedules a network-constrained periodic fallback. Its minimum repeat interval is 15 minutes, and Android may defer execution for battery and system conditions. It is not exact or second-by-second monitoring.
+
+Normal duplicate delivery is suppressed with durable claim state and a stable per-subscription notification identity. Android does not offer one atomic transaction that both posts through `NotificationManager` and commits SQLite state. A process death inside that narrow post/commit boundary makes a strict mathematical exactly-once guarantee impossible. End-to-end duplicate behavior across process death remains a device acceptance test.
+
+For Android 15 and later:
+
+- background `dataSync` foreground-service time is limited to six hours in a rolling 24-hour period;
+- `onTimeout` schedules the fallback and stops the service promptly;
+- the boot receiver schedules WorkManager and does not launch a prohibited `dataSync` foreground service from `BOOT_COMPLETED`.
+
+See Android's official [service-type requirements](https://developer.android.com/develop/background-work/services/fgs/service-types), [foreground-service timeouts](https://developer.android.com/develop/background-work/services/fgs/timeout), and [persistent-work guidance](https://developer.android.com/develop/background-work/background-tasks/persistent).
+
+TorBox's notification feed does not currently provide a documented third-party push hook with stable item IDs. Polling is therefore the closest legitimate behavior.
+
+## Browser boundary
+
+- The blocker evaluates canonical hosts and subdomains from a bundled baseline list. It does not use unsafe substring matching.
+- Third-party cookies default off.
+- WebView file access, content access, file-URL cross-origin access, mixed content, popup windows, and automatic JavaScript windows are disabled.
+- Safe Browsing is enabled where available.
+- SSL errors call `cancel()` with no Continue Anyway path.
+- There is no `addJavascriptInterface` bridge.
+- Magnets and long-pressed HTTP or HTTPS links cross into the native Add flow only through narrow callbacks.
+
+This design cannot provide browser-extension-level cosmetic filtering or guarantee that every ad is removed.
+
+## Signing and migration
+
+The v1.0 APK has a valid self-signed RSA-3072 certificate using APK Signature Scheme v1 and v2. Its subject is `CN=TorBox Drop, O=Jabs`.
+
+Certificate fingerprints:
+
+- SHA-256: `D7:5E:5A:55:AC:62:1F:51:96:4D:21:FF:A5:84:50:02:2D:53:96:A9:82:23:47:58:B5:1A:C7:42:21:97:A5:9B`
+- SHA-1: `D3:D7:17:EB:6C:D7:DD:C4:07:94:E0:2C:A6:E4:28:09:CB:D2:E8:38`
+
+The matching private key and keystore were not present in the APK or supplied workspace. A new build cannot update v1.0 in place even though the package name is unchanged. Android requires v1.0 to be uninstalled before installing a differently signed replacement.
+
+There is no legitimate automatic migration from the old WebView local storage after uninstall. The user must re-enter the API token and preferences. No code attempts to bypass Android signature checks.
+
+The v2 distribution APK is signed with a newly generated RSA-4096 release key whose certificate subject is `CN=TorBox Drop, O=Jabs`. Its certificate SHA-256 fingerprint is `AA:AE:1A:1A:53:DE:80:CA:FE:F3:FF:98:B9:30:BF:83:A6:34:F8:6C:8B:F9:5F:D1:88:92:3B:4F:1A:C2:07:F7`. The private key and credentials are preserved separately and are not committed. Future v2 updates must use this exact key.
+
+## Verification scope
+
+The clean local build completed `testDebugUnitTest`, debug assembly, and minified/resource-shrunk release assembly with 113 tests, 0 failures, 0 errors, and 0 skipped. Release lint-vital was excluded only because the isolated offline cache lacks `com.android.tools.lint:lint-gradle:31.13.2`; an installed standalone lint compatibility pass found no remaining app findings after its notification-permission findings were fixed. The checked-in CI workflow runs the complete current Gradle lint task in a networked environment.
+
+JVM tests cover TorBox request construction and parsing, readiness truth tables, AirLock full-state editing, queue type isolation, temporary-link token rejection, sanitized errors, completion claim and duplicate-suppression behavior, link and file-name parsing, formatting, list filtering and sorting, bencode validation, and static manifest and source security invariants.
+
+The API 36 emulator reached ADB and core Android services under software-only emulation but did not reach `sys.boot_completed` within the bounded test window, so no emulator row is claimed as passed. JVM tests do not prove Android UI geometry, WebView behavior, background execution across device vendors, DownloadManager handoff, external-app intents, or live TorBox account behavior. Those remain device or account tests and are labeled that way in [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md).
