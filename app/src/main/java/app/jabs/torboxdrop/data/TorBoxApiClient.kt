@@ -8,6 +8,7 @@ import app.jabs.torboxdrop.model.DownloadItem
 import app.jabs.torboxdrop.model.DownloadType
 import app.jabs.torboxdrop.model.QueuedDownload
 import app.jabs.torboxdrop.util.TorBoxStateMapper
+import app.jabs.torboxdrop.util.UrlSafety
 import java.io.IOException
 import java.net.URLDecoder
 import java.time.Instant
@@ -790,7 +791,8 @@ class TorBoxApiClient(
                 ?.takeUnless { it == previous }
         }.take(MAX_DECODE_PASSES).toList()
         val encodedToken = java.net.URLEncoder.encode(apiToken, Charsets.UTF_8.name())
-        if (decodedCandidates.any { it.contains(apiToken) || it.contains(encodedToken) }) {
+        val containsCredential = decodedCandidates.any { it.contains(apiToken) || it.contains(encodedToken) }
+        if (containsCredential && !UrlSafety.isExpectedTorBoxCredentialDownloadUrl(candidate, apiToken)) {
             throw TorBoxUnsafeDownloadUrlException("TorBox returned a URL containing the API credential.")
         }
         return url.toString()

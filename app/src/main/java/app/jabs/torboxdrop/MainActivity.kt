@@ -53,7 +53,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -203,12 +205,28 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val destinationStateHolder = rememberSaveableStateHolder()
+    var pendingCredentialShare by remember { mutableStateOf<MainEvent.ShareText?>(null) }
+
+    fun configuredApiToken(): String? =
+        (context.applicationContext as TorBoxDropApplication).container.tokenStore.read()
 
     fun allowsExternalUrl(url: String, required: Boolean): Boolean {
         if (!required) return true
-        val token = (context.applicationContext as TorBoxDropApplication).container.tokenStore.read()
-        return UrlSafety.isSafeToShare(url, token)
+        return UrlSafety.isSafeToShare(url, configuredApiToken())
     }
+
+    fun launchShare(event: MainEvent.ShareText): Boolean = runCatching {
+        context.startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, event.text)
+                    putExtra(Intent.EXTRA_TITLE, event.title)
+                },
+                event.title,
+            ),
+        )
+    }.isSuccess
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -254,20 +272,19 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             when (event) {
                 is MainEvent.Message -> snackbarHostState.showSnackbar(event.text)
                 is MainEvent.ShareText -> {
-                    if (!allowsExternalUrl(event.text, event.requiresTorBoxUrlSafety)) {
-                        snackbarHostState.showSnackbar("Unsafe credential-bearing link was blocked.")
-                    } else runCatching {
-                        context.startActivity(
-                            Intent.createChooser(
-                                Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, event.text)
-                                    putExtra(Intent.EXTRA_TITLE, event.title)
-                                },
-                                event.title,
-                            ),
-                        )
-                    }.onFailure { snackbarHostState.showSnackbar("No compatible sharing app is available.") }
+                    val token = configuredApiToken()
+                    when {
+                        allowsExternalUrl(event.text, event.requiresTorBoxUrlSafety) -> {
+                            if (!launchShare(event)) {
+                                snackbarHostState.showSnackbar("No compatible sharing app is available.")
+                            }
+                        }
+                        event.requiresTorBoxUrlSafety &&
+                            UrlSafety.isExpectedTorBoxCredentialDownloadUrl(event.text, token) -> {
+                            pendingCredentialShare = event
+                        }
+                        else -> snackbarHostState.showSnackbar("Unsafe credential-bearing link was blocked.")
+                    }
                 }
                 is MainEvent.CopyText -> {
                     if (!allowsExternalUrl(event.text, event.requiresTorBoxUrlSafety)) {
@@ -534,6 +551,34 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             magnet = magnet,
             onDismiss = viewModel::dismissBrowserMagnet,
             onConfirm = viewModel::confirmBrowserMagnet,
+        )
+    }
+
+    pendingCredentialShare?.let { event ->
+        AlertDialog(
+            onDismissRequest = { pendingCredentialShare = null },
+            title = { Text("Share link containing API key?") },
+            text = {
+                Text(
+                    "TorBox included your API key in this temporary download link. " +
+                        "Anyone you send it to can recover that key and use your TorBox account. " +
+                        "The download link may expire, but your API key does not expire with it. " +
+                        "Only continue if you trust the recipient.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingCredentialShare = null
+                        if (!launchShare(event)) {
+                            viewModel.emitMessage("No compatible sharing app is available.")
+                        }
+                    },
+                ) { Text("Share anyway") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingCredentialShare = null }) { Text("Cancel") }
+            },
         )
     }
 }
