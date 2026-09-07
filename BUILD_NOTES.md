@@ -32,13 +32,13 @@ Verified 2026-09-07 artifacts:
 
 | Artifact | Result |
 | --- | --- |
-| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `e661a84c46d88eb581cca26d83a58c30c0645d494b3aff6ae86496bc04cf5f33` |
-| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `ffe5e15b50b113303a65724607e72015ba19de90605b60118628d3ddba3ac065` |
-| Signed distribution APK | `release/TorBox-Drop-v2.0.2.apk`, 2,214,573 bytes, SHA-256 `51a74a4306acc7c826cdb27eac01aaa9111426ee2c4c6aab314a0b0ed8094b77` |
+| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `96a3f427ab21521615e0d050ed1fa297199b8a440c0a18a1cd8591cbc93c8a58` |
+| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `7fea047439b5b79b3df768bebcea0e97dd9ae2ae77d496d772024f63c7ce9e19` |
+| Signed distribution APK | `release/TorBox-Drop-v2.0.3.apk`, 2,214,573 bytes, SHA-256 `0073b3a6b43d87d012a65c3a93c5a55141c9ac4a575d9b975367e7a7adec1d77` |
 
 `apksigner verify --verbose --print-certs` passed for the distribution APK with v1, v2, and v3 signatures. `zipalign -c -p 4` also passed.
 
-The v2.0.2 APK uses the same signing certificate as v2.0.0 and v2.0.1, so it is a valid in-place update for an installed v2 build. The unavailable v1.0 private key limitation remains unchanged.
+The v2.0.3 APK uses the same signing certificate as every prior v2 release, so it is a valid in-place update for an installed v2 build. The unavailable v1.0 private key limitation remains unchanged.
 
 ## v2.0.2 corrective release
 
