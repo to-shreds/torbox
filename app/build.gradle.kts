@@ -13,13 +13,18 @@ android {
         applicationId = "app.jabs.torboxdrop"
         minSdk = 23
         targetSdk = 36
-        versionCode = 20003
-        versionName = "2.0.3"
+        versionCode = 20100
+        versionName = "2.1.0"
 
         vectorDrawables.useSupportLibrary = true
     }
 
     buildTypes {
+        debug {
+            // The release signing key is not in this repository. Keep previews side-by-side.
+            applicationIdSuffix = ".preview"
+            versionNameSuffix = "-discover-preview"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
