@@ -354,7 +354,7 @@ fun AddScreen(
                         } else {
                             Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null)
                             Spacer(Modifier.width(9.dp))
-                            Text(if (pendingTorrentName != null) "Upload .torrent" else "Send to TorBox")
+                            Text("Add to TorBox")
                         }
                     }
                 }

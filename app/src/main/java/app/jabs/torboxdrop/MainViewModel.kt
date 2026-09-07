@@ -37,6 +37,7 @@ import app.jabs.torboxdrop.notifications.StartResult
 import app.jabs.torboxdrop.ui.screens.SettingsUiState
 import app.jabs.torboxdrop.ui.screens.TokenValidationStatus
 import app.jabs.torboxdrop.util.InputParser
+import app.jabs.torboxdrop.util.RecentAdditions
 import app.jabs.torboxdrop.util.inferredMimeType
 import app.jabs.torboxdrop.util.TorrentPayloadReader
 import app.jabs.torboxdrop.util.TorrentPayload
@@ -46,6 +47,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -58,6 +60,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.supervisorScope
 
 enum class AppDestination { DOWNLOADS, ADD, BROWSER, SETTINGS }
 
@@ -160,6 +163,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var tokenRejected = false
     // Deliberately transient: retain history across UI recreation without persisting browsing data.
     private var browserWebViewSnapshot: Pair<Int, Bundle>? = null
+    private val recentlyAddedDownloads = LinkedHashMap<String, DownloadItem>()
+    private val recentlyQueuedDownloads = LinkedHashMap<String, QueuedDownload>()
 
     init {
         _uiState.update { state ->
@@ -325,7 +330,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 val explicitlyChosenHere = source == "file-picker"
-                if (container.tokenStore.hasToken() && (explicitlyChosenHere || !preferences.confirmBeforeSending)) {
+                if (
+                    container.tokenStore.hasToken() &&
+                    !explicitlyChosenHere &&
+                    !preferences.confirmBeforeSending
+                ) {
                     submitPendingTorrent(options)
                 }
             } catch (error: CancellationException) {
@@ -352,7 +361,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val result = repository.createTorrent(payload.bytes, payload.fileName, options, source)
                 pendingTorrentPayload = null
-                finishSuccessfulAdd(result, DownloadType.TORRENT, options, payload.fileName)
+                finishSuccessfulAdd(
+                    result = result,
+                    type = DownloadType.TORRENT,
+                    options = options,
+                    fallbackName = payload.fileName,
+                    navigateAfterSuccess = true,
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
@@ -373,6 +388,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onClipboardText(value: String) {
         val parsed = InputParser.firstLink(value) ?: return
+        // The Add destination is always explicit: detecting clipboard content may populate the
+        // field, but only its Add button is allowed to submit it.
+        if (_uiState.value.destination == AppDestination.ADD) {
+            if (_uiState.value.addCandidate.isBlank()) {
+                _uiState.update { it.copy(addCandidate = parsed.value, addResult = null, addError = null) }
+            }
+            return
+        }
         if (parsed.kind == InputParser.Kind.MAGNET && preferences.autoSendClipboardMagnets) {
             receiveText(parsed.value, "clipboard")
         } else if (_uiState.value.addCandidate.isBlank()) {
@@ -1048,19 +1071,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (showSpinner) _uiState.update { it.copy(downloads = it.downloads.copy(refreshing = true)) }
         try {
             if (bypassCache) requestRelayRefresh()
-            val snapshot = repository.refresh(bypassCache)
+            val (downloadsResult, queueResult) = supervisorScope {
+                val downloads = async { captureRefreshResult { repository.refreshDownloads(bypassCache) } }
+                val queue = async { captureRefreshResult { repository.refreshQueue(bypassCache) } }
+                downloads.await() to queue.await()
+            }
+            val rawDownloads = downloadsResult.getOrElse { throw it }
+            val reconciledDownloads = reconcileRecentlyAddedDownloads(rawDownloads)
+            val refreshedQueue = queueResult.getOrElse { _uiState.value.downloads.queue }
+            val reconciledQueue = reconcileRecentlyQueuedDownloads(refreshedQueue)
+            val refreshedAt = Instant.now()
             _uiState.update { state ->
-                val merged = mergeStable(state.downloads.downloads, snapshot.downloads)
+                val merged = mergeStable(state.downloads.downloads, reconciledDownloads)
                 state.copy(
                     downloads = state.downloads.copy(
                         downloads = merged,
-                        queue = if (state.downloads.queue == snapshot.queue) state.downloads.queue else snapshot.queue,
+                        queue = if (state.downloads.queue == reconciledQueue) state.downloads.queue else reconciledQueue,
                         refreshing = false,
                         initialLoading = false,
                         offline = false,
                         stale = false,
-                        lastUpdated = snapshot.lastUpdated,
-                        error = null,
+                        lastUpdated = refreshedAt,
+                        error = queueResult.exceptionOrNull()?.let {
+                            "Downloads refreshed, but the queue could not be refreshed: ${safeMessage(it)}"
+                        },
                     ),
                     selectedDownload = state.selectedDownload?.let { selected ->
                         merged.firstOrNull { it.key == selected.key } ?: selected
@@ -1073,7 +1107,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             pollingDelayMillis = ACTIVE_REFRESH_MILLIS
-            runForegroundCompletionPass(snapshot.downloads, snapshot.queue)
+            runForegroundCompletionPass(reconciledDownloads, reconciledQueue)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
@@ -1097,11 +1131,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         try {
             requestRelayRefresh()
             val monitored = localStore.monitoredSubscriptions()
-            val snapshot = if (monitored.any { it.queueId != null }) {
-                repository.refresh(bypassCache = true)
-            } else null
-            val downloads = snapshot?.downloads ?: repository.refreshDownloads(bypassCache = true)
-            val queue = snapshot?.queue ?: _uiState.value.downloads.queue
+            val downloads = reconcileRecentlyAddedDownloads(
+                repository.refreshDownloads(bypassCache = true),
+            )
+            val queue = if (monitored.any { it.queueId != null }) {
+                try {
+                    reconcileRecentlyQueuedDownloads(repository.refreshQueue(bypassCache = true))
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Throwable) {
+                    reconcileRecentlyQueuedDownloads(_uiState.value.downloads.queue)
+                }
+            } else {
+                reconcileRecentlyQueuedDownloads(_uiState.value.downloads.queue)
+            }
             _uiState.update { state ->
                 val merged = mergeStable(state.downloads.downloads, downloads)
                 state.copy(
@@ -1250,8 +1293,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     InputParser.Kind.MAGNET -> repository.createMagnet(parsed.value, options, source)
                     InputParser.Kind.HTTP_URL -> repository.createWebDownload(parsed.value, options, source)
                 }
-                finishSuccessfulAdd(result, parsed.downloadType, options, parsed.value)
-                if (remainInBrowser) emitMessage(result.detail)
+                finishSuccessfulAdd(
+                    result = result,
+                    type = parsed.downloadType,
+                    options = options,
+                    fallbackName = parsed.value,
+                    navigateAfterSuccess = !remainInBrowser,
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
@@ -1266,16 +1314,64 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         type: DownloadType,
         options: AddOptions,
         fallbackName: String,
+        navigateAfterSuccess: Boolean,
     ) {
-        _uiState.update {
-            it.copy(
-                addSubmitting = false,
-                addResult = result,
-                addError = null,
-                pendingTorrentName = null,
-                recentSends = localStore.recentSends(),
+        val displayName = result.name ?: fallbackDisplayName(type, fallbackName)
+        val targetTab = when {
+            result.id != null -> DownloadTab.ACTIVE
+            result.queuedId != null || result.queued -> DownloadTab.QUEUE
+            else -> DownloadTab.ACTIVE
+        }
+        val provisionalDownload = result.id?.let { id ->
+            DownloadItem(
+                id = id,
+                type = type,
+                name = displayName,
+                rawState = "waiting_for_torbox",
+                friendlyState = "Waiting for TorBox",
+                createdAt = Instant.now(),
+                hash = result.sourceHash,
             )
         }
+        val provisionalQueue = result.queuedId?.let { id ->
+            QueuedDownload(
+                id = id,
+                type = type,
+                name = displayName,
+                queuedAt = Instant.now(),
+                source = fallbackName,
+            )
+        }
+        provisionalDownload?.let { recentlyAddedDownloads[it.key] = it }
+        provisionalQueue?.let { recentlyQueuedDownloads[it.key] = it }
+        if (navigateAfterSuccess) preferences.downloadsTab = targetTab
+        val recentSends = localStore.recentSends()
+        _uiState.update {
+            val downloads = provisionalDownload?.let { added ->
+                RecentAdditions.mergeDownloads(it.downloads.downloads, listOf(added))
+            } ?: it.downloads.downloads
+            val queue = provisionalQueue?.let { added ->
+                RecentAdditions.mergeQueue(it.downloads.queue, listOf(added))
+            } ?: it.downloads.queue
+            it.copy(
+                destination = if (navigateAfterSuccess) AppDestination.DOWNLOADS else it.destination,
+                addSubmitting = false,
+                addCandidate = "",
+                addResult = null,
+                addError = null,
+                pendingTorrentName = null,
+                recentSends = recentSends,
+                downloads = it.downloads.copy(
+                    downloads = downloads,
+                    queue = queue,
+                    selectedTab = if (navigateAfterSuccess) targetTab else it.downloads.selectedTab,
+                    search = if (navigateAfterSuccess) "" else it.downloads.search,
+                    filter = if (navigateAfterSuccess) DownloadFilter() else it.downloads.filter,
+                ),
+            )
+        }
+        emitMessage(result.detail)
+        updatePolling()
         if (options.notifyWhenComplete && !notificationsAllowed()) {
             emitMessage("Download added, but its completion alert was not armed because notifications are disabled.")
         } else if (options.notifyWhenComplete && result.id != null) {
@@ -1326,6 +1422,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (error: CancellationException) {
             throw error
         }
+    }
+
+    private suspend fun reconcileRecentlyAddedDownloads(
+        serverDownloads: List<DownloadItem>,
+    ): List<DownloadItem> {
+        val serverKeys = serverDownloads.mapTo(HashSet()) { it.key }
+        recentlyAddedDownloads.keys.removeAll(serverKeys)
+        val pendingKeys = recentlyAddedDownloads.keys.toList()
+        pendingKeys.forEach { pendingKey ->
+            val pending = recentlyAddedDownloads[pendingKey] ?: return@forEach
+            val current = try {
+                repository.getDownload(pending.type, pending.id, bypassCache = true)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Throwable) {
+                null
+            }
+            if (current != null) recentlyAddedDownloads[pendingKey] = current
+        }
+        return RecentAdditions.mergeDownloads(serverDownloads, recentlyAddedDownloads.values)
+    }
+
+    private fun reconcileRecentlyQueuedDownloads(
+        serverQueue: List<QueuedDownload>,
+    ): List<QueuedDownload> {
+        val serverKeys = serverQueue.mapTo(HashSet()) { it.key }
+        recentlyQueuedDownloads.keys.removeAll(serverKeys)
+        return RecentAdditions.mergeQueue(serverQueue, recentlyQueuedDownloads.values)
+    }
+
+    private suspend fun <T> captureRefreshResult(block: suspend () -> T): Result<T> = try {
+        Result.success(block())
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Throwable) {
+        Result.failure(error)
     }
 
     private fun finishFailedAdd(error: Throwable) {
@@ -1681,6 +1813,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val DownloadItem.key: String get() = key(type, id)
     private val DownloadFile.key: String get() = key(downloadType, downloadId)
+    private val QueuedDownload.key: String get() = key(type, id)
     private fun key(type: DownloadType, id: String) = "${type.name}:$id"
 
     private fun maskToken(token: String): String = "•••• ${token.takeLast(4)}"
