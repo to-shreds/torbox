@@ -75,10 +75,11 @@ jobs:
       - name: Bundle APK signing utilities
         if: success()
         run: |
-          mkdir -p signing-tools/lib
+          mkdir -p signing-tools/lib signing-tools/lib64
           cp "$ANDROID_HOME/build-tools/36.0.0/apksigner" signing-tools/
           cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" signing-tools/
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" signing-tools/lib/
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib64/libc++.so" signing-tools/lib64/
 
       - name: Upload APK signing utilities
         if: success()
