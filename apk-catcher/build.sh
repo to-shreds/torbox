@@ -38,7 +38,7 @@ from zipfile import ZipFile
 b=Path('out/badging.txt').read_text()
 m=Path('out/manifest.txt').read_text()
 assert "package: name='app.jabs.apkcatcher'" in b
-assert "sdkVersion:'26'" in b and "targetSdkVersion:'36'" in b
+assert ("minSdkVersion:'26'" in b or "sdkVersion:'26'" in b) and "targetSdkVersion:'36'" in b, "Unexpected SDK levels"
 assert 'launchable-activity:' not in b
 assert 'android.intent.category.LAUNCHER' not in m
 assert 'android.permission.REQUEST_INSTALL_PACKAGES' in b
