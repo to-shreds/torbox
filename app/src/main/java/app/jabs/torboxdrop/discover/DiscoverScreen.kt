@@ -46,6 +46,11 @@ fun DiscoverScreen(onAddCached: (String) -> Unit, onOpenSettings: () -> Unit) {
     var query by rememberSaveable { mutableStateOf(state.filter.query) }
     var season by rememberSaveable { mutableStateOf(state.filter.season.toString()) }
     var episode by rememberSaveable { mutableStateOf(state.filter.episode.toString()) }
+    LaunchedEffect(state.filter.season, state.filter.episode) {
+        season = state.filter.season.toString()
+        episode = state.filter.episode.toString()
+    }
+    LaunchedEffect(state.filter.query) { query = state.filter.query }
     var density by rememberSaveable { mutableStateOf("Compact") }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var quality by rememberSaveable { mutableStateOf("All quality") }
@@ -126,7 +131,7 @@ fun DiscoverScreen(onAddCached: (String) -> Unit, onOpenSettings: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 16.dp))
             }
             items(rows, key = { it.title.id }) { row ->
-                Column(Modifier.fillMaxWidth().clickable { selectedId = row.title.id }
+                Column(Modifier.fillMaxWidth().clickable { if (state.busy) model.cancel(); selectedId = row.title.id }
                     .padding(vertical = if (density == "Compact") 7.dp else 12.dp)) {
                     Text(row.title.title, style = MaterialTheme.typography.titleSmall,
                         maxLines = if (density == "Compact") 1 else 2, overflow = TextOverflow.Ellipsis)
@@ -152,7 +157,7 @@ fun DiscoverScreen(onAddCached: (String) -> Unit, onOpenSettings: () -> Unit) {
     val selected = state.rows.firstOrNull { it.title.id == selectedId }
     if (selected != null) {
         var sort by rememberSaveable(selected.title.id) { mutableStateOf("Smallest") }
-        ModalBottomSheet(onDismissRequest = { if (state.adding == null) selectedId = null }) {
+        ModalBottomSheet(onDismissRequest = { if (state.adding != null) model.cancel(); selectedId = null }) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).fillMaxHeight(0.85f)) {
                 Text(selected.title.title, style = MaterialTheme.typography.titleLarge)
                 Text("${selected.scope} • Sizes are whole torrents, including season packs.", style = MaterialTheme.typography.bodySmall)
