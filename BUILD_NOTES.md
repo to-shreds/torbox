@@ -1,11 +1,11 @@
-# TorBox Drop 2.0.1 build notes
+# TorBox Drop 2.0.2 build notes
 
 ## Build identity
 
 | Property | Value |
 | --- | --- |
 | Application ID | `app.jabs.torboxdrop` |
-| Version | `2.0.1` (`versionCode 20001`) |
+| Version | `2.0.2` (`versionCode 20002`) |
 | Minimum Android | API 23 |
 | Target and compile SDK | API 36 |
 | Build Tools | 36.0.0 |
@@ -22,17 +22,25 @@ Build and verification commands:
 
 The CI workflow runs the same clean unit-test, lint, debug-APK, and release shrinking tasks on pushes and pull requests. It uploads test reports and the debug APK as workflow artifacts. The CI release output is an unsigned verification artifact and is not distributed.
 
-Verified 2026-09-04 artifacts:
+Verified 2026-09-07 artifacts:
 
 | Artifact | Result |
 | --- | --- |
-| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `1226f01112ca83ffa37d1af806a22021612c74054043e023e87f04420aa32da6` |
-| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `285c856da76bd7f28fbb48b782b996dcf4f3bc13063bbd4ef3d5410c29d6203c` |
-| Signed distribution APK | `release/TorBox-Drop-v2.0.1.apk`, 2,214,573 bytes, SHA-256 `5bac134ce344b317cc7c8cb037b4f4b14484238b6bb9a63491201c941541c4d9` |
+| Debug APK | `app/build/outputs/apk/debug/app-debug.apk`, SHA-256 `e661a84c46d88eb581cca26d83a58c30c0645d494b3aff6ae86496bc04cf5f33` |
+| Unsigned minified APK | `app/build/outputs/apk/release/app-release-unsigned.apk`, SHA-256 `ffe5e15b50b113303a65724607e72015ba19de90605b60118628d3ddba3ac065` |
+| Signed distribution APK | `release/TorBox-Drop-v2.0.2.apk`, 2,214,573 bytes, SHA-256 `51a74a4306acc7c826cdb27eac01aaa9111426ee2c4c6aab314a0b0ed8094b77` |
 
 `apksigner verify --verbose --print-certs` passed for the distribution APK with v1, v2, and v3 signatures. `zipalign -c -p 4` also passed.
 
-The v2.0.1 APK uses the same signing certificate as v2.0.0, so it is a valid in-place update for an installed v2 build. The unavailable v1.0 private key limitation remains unchanged.
+The v2.0.2 APK uses the same signing certificate as v2.0.0 and v2.0.1, so it is a valid in-place update for an installed v2 build. The unavailable v1.0 private key limitation remains unchanged.
+
+## v2.0.2 corrective release
+
+- A successful manual Add now clears the candidate, closes Add, returns to Downloads, selects Active or Queue as appropriate, and shows TorBox's success detail in the app snackbar.
+- Clipboard detection while Add is visible now fills the field but never submits it. Choosing a `.torrent` file from Add likewise stages the file until the user presses Add to TorBox. Android share-intent auto-send remains governed by its existing setting.
+- A server-accepted active or queued item is inserted into the visible list immediately from the create response.
+- Until TorBox's aggregate list includes a newly accepted active item, refresh also requests that returned item ID directly and retains the most recent real record. This prevents an eventually consistent list response from making a successful addition disappear.
+- Downloads and queue refreshes are isolated. A transient queue failure no longer prevents a successful torrent and web-download refresh from reaching the screen.
 
 ## v2.0.1 corrective release
 
@@ -180,7 +188,7 @@ The v2 distribution APK is signed with a newly generated RSA-4096 release key wh
 
 ## Verification scope
 
-The clean local build completed `testDebugUnitTest`, full `lintDebug`, debug assembly, release lint-vital, and minified/resource-shrunk release assembly with 136 tests, 0 failures, 0 errors, and 0 skipped. Android lint completed with 0 errors and 8 non-blocking warnings.
+GitHub Actions completed `testDebugUnitTest`, full `lintDebug`, debug assembly, release lint-vital, and minified/resource-shrunk release assembly with 141 tests, 0 failures, 0 errors, and 0 skipped. Android lint completed with 0 errors and 22 non-blocking dependency, API-level, and KTX suggestions.
 
 JVM tests cover TorBox request construction and parsing, readiness truth tables, byte-consistent progress, AirLock full-state editing, queue type isolation, temporary-link token rejection, sanitized errors, completion claim and duplicate-suppression behavior, link and file-name parsing, folder-tree navigation, path normalization, extension filtering, file sorting, bencode validation, and static manifest and source security invariants.
 

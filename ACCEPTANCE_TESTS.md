@@ -11,7 +11,7 @@ Date: 2026-09-04
 | Requires real TorBox account/device/manual | Supporting code may be present, but the complete flow still needs the named runtime environment and human verification. It is not claimed as passed. |
 | API limitation | The current official TorBox or Android contract prevents the exact requested behavior; the closest legitimate behavior is documented. |
 
-The final JVM suite contains 136 tests with 0 failures, 0 errors, and 0 skipped tests. A clean build produced both debug and minified release APKs. Full Android lint and release lint-vital completed with 0 errors; `lintDebug` reported 8 non-blocking warnings. An API 36 emulator was started twice during the original v2.0 verification under software-only emulation; it reached ADB, zygote, service manager, and SurfaceFlinger but did not reach `sys.boot_completed` within the bounded test window. No physical device or live TorBox account was available for this patch. Accordingly, no row is marked Emulator / pass, and complete Android or account flows remain manual even when unit tests cover part of the implementation.
+The final JVM suite contains 141 tests with 0 failures, 0 errors, and 0 skipped tests. A clean GitHub Actions build produced both debug and minified release APKs. Full Android lint and release lint-vital completed with 0 errors; `lintDebug` reported 22 non-blocking dependency, API-level, and KTX suggestions. An API 36 emulator was started twice during the original v2.0 verification under software-only emulation; it reached ADB, zygote, service manager, and SurfaceFlinger but did not reach `sys.boot_completed` within the bounded test window. No physical device or live TorBox account was available for this patch. Accordingly, no row is marked Emulator / pass, and complete Android or account flows remain manual even when unit tests cover part of the implementation.
 
 ## Criteria 1 through 50
 
@@ -90,6 +90,15 @@ No acceptance row is silently omitted because of an API limitation. The closest 
 | Files are not separated by folder | Automated / pass | Seventeen file-browser tests cover TorBox path cleanup, root/direct-child views, nested folders, breadcrumbs, parent navigation, custom titles, directory-only paths, duplicate filenames, and stable keys. |
 | Need MKV filtering and sorting | Automated / pass | Exact case-insensitive extension filtering, recursive search, dynamic type counts, and name/size/type sorting are unit tested. |
 
+## v2.0.2 refresh and Add-flow regression checks
+
+| Reported behavior | Status | Evidence or remaining check |
+| --- | --- | --- |
+| Successful Add remains on the form | Automated source guard / pass | Manual Add success clears the candidate and pending file, returns to Downloads, and emits TorBox's success detail. |
+| Add occurs before pressing its button | Automated source guard / pass | Clipboard detection inside Add only populates the candidate; the in-app `.torrent` picker only stages its payload. |
+| Newly accepted torrent is absent while the aggregate list lags | Automated / pass | The create-response ID produces an immediate provisional row; refresh supplements the aggregate list with a direct ID lookup until the server list includes it. |
+| Queue failure blocks otherwise valid downloads | Build and source review / pass | Download and queue refresh results are isolated, with an explicit partial-refresh warning. |
+
 ## Automated suite coverage
 
 Executed JVM test classes:
@@ -105,5 +114,6 @@ Executed JVM test classes:
 - `ProjectSecurityInvariantsTest`: 10 tests
 - Downloads UI, activity inset, and formatter tests: 15 tests
 - parser, URL-safety, display, file, folder-browser, list, and torrent-payload utility tests: 53 tests
+- Add completion and recent-addition reconciliation regression tests: 5 tests
 
 The static invariant suite checks manifest share and torrent intents, foreground-service declarations, cleartext disablement, lack of a JavaScript bridge, readiness conjunction, server-derived progress, non-redirecting temporary-link requests, representable wire-operation vocabulary, and production exclusion of Usenet and NZB code paths.

@@ -79,7 +79,7 @@ From the repository root in a networked build environment:
 ./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for this release is `release/TorBox-Drop-v2.0.1.apk`; it is minified, resource-shrunk, zip-aligned, and signed with the TorBox Drop v2 release key. The private key is deliberately not committed.
+The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for this release is `release/TorBox-Drop-v2.0.2.apk`; it is minified, resource-shrunk, zip-aligned, and signed with the TorBox Drop v2 release key. The private key is deliberately not committed.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 
@@ -91,15 +91,15 @@ Uninstall the original WebView-based v1.0 before installing the native v2 line:
 
 ```bash
 adb uninstall app.jabs.torboxdrop
-adb install release/TorBox-Drop-v2.0.1.apk
+adb install release/TorBox-Drop-v2.0.2.apk
 ```
 
 Uninstalling removes the old WebView local-storage token, settings, and history. Enter the TorBox API token again in Settings. This project does not bypass Android signature verification and does not claim an in-place upgrade path.
 
-If TorBox Drop v2.0.0 is already installed, v2.0.1 uses the same package and signing certificate and can update it in place:
+If TorBox Drop v2.0.0 or v2.0.1 is already installed, v2.0.2 uses the same package and signing certificate and can update it in place:
 
 ```bash
-adb install -r release/TorBox-Drop-v2.0.1.apk
+adb install -r release/TorBox-Drop-v2.0.2.apk
 ```
 
 ## Platform limits
