@@ -2,7 +2,9 @@
 
 Share-only Android helper. There is no launcher screen, account, background service, analytics, or broad storage permission.
 
-The GitHub Android app commonly shares a GitHub file-view URL instead of the APK bytes. APK Catcher 1.1 accepts either form:
+APK Catcher 1.2 adds a proper adaptive app icon so the share target is recognizable instead of appearing as a blank white system icon.
+
+The GitHub Android app commonly shares a GitHub file-view URL instead of the APK bytes. APK Catcher accepts either form:
 
 - an actual shared APK or ZIP containing exactly one APK; or
 - a public GitHub HTTPS link shared by the GitHub app.

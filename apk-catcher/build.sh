@@ -43,7 +43,7 @@ from zipfile import ZipFile
 b=Path('out/badging.txt').read_text()
 m=Path('out/manifest.txt').read_text()
 assert "package: name='app.jabs.apkcatcher'" in b
-assert "versionCode='2'" in b and "versionName='1.1'" in b
+assert "versionCode='3'" in b and "versionName='1.2'" in b
 assert ("minSdkVersion:'26'" in b or "sdkVersion:'26'" in b) and "targetSdkVersion:'36'" in b
 assert 'launchable-activity:' not in b
 assert 'android.intent.category.LAUNCHER' not in m
@@ -51,8 +51,10 @@ assert 'android.permission.REQUEST_INSTALL_PACKAGES' in b
 assert 'android.permission.INTERNET' in m
 assert 'READ_EXTERNAL_STORAGE' not in m and 'MANAGE_EXTERNAL_STORAGE' not in m
 with ZipFile('out/APK-Catcher-unsigned.apk') as z:
+    names = z.namelist()
     assert z.testzip() is None
     assert z.read('classes.dex').startswith(b'dex\n')
-print('APK structure and manifest checks passed')
+    assert any('ic_launcher' in name for name in names), 'App icon resource missing from APK'
+print('APK structure, icon, and manifest checks passed')
 PY
 cp "$TOOLS/lib/apksigner.jar" out/apksigner.jar
