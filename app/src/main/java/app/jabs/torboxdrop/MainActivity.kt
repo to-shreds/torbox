@@ -19,6 +19,7 @@ import android.webkit.WebView
 import android.webkit.WebViewDatabase
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
@@ -34,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Settings
@@ -54,6 +56,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -62,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.jabs.torboxdrop.discover.DiscoverScreen
 import app.jabs.torboxdrop.browser.BrowserCallbacks
 import app.jabs.torboxdrop.browser.BrowserDownloadRequest
 import app.jabs.torboxdrop.browser.BrowserScreen
@@ -203,6 +209,15 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val destinationStateHolder = rememberSaveableStateHolder()
+    var discoverSelected by rememberSaveable { mutableStateOf(false) }
+    var previousDestination by rememberSaveable { mutableStateOf(state.destination.name) }
+    LaunchedEffect(state.destination) {
+        if (previousDestination != state.destination.name) discoverSelected = false
+        previousDestination = state.destination.name
+    }
+    BackHandler(enabled = discoverSelected && state.selectedDownload == null) {
+        discoverSelected = false
+    }
 
     fun allowsExternalUrl(url: String, required: Boolean): Boolean {
         if (!required) return true
@@ -354,13 +369,25 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             bottomBar = {
                 CompactBottomNavigation(
                     selected = state.destination,
-                    onSelected = viewModel::navigate,
+                    onSelected = { discoverSelected = false; viewModel.navigate(it) },
+                    discoverSelected = discoverSelected,
+                    onDiscover = { discoverSelected = true },
                 )
             },
         ) { innerPadding ->
             Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                destinationStateHolder.SaveableStateProvider(state.destination.name) {
-                    when (state.destination) {
+                destinationStateHolder.SaveableStateProvider(if (discoverSelected) "DISCOVER" else state.destination.name) {
+                    if (discoverSelected) DiscoverScreen(
+                        onAddCached = { magnet ->
+                            discoverSelected = false
+                            viewModel.navigate(AppDestination.ADD)
+                            viewModel.submit(
+                                IncomingAdd.Text(value = magnet, source = "discover"),
+                                state.addOptions.copy(cachedOnly = true, queued = false, customName = null),
+                            )
+                        },
+                        onOpenSettings = { discoverSelected = false; viewModel.navigate(AppDestination.SETTINGS) },
+                    ) else when (state.destination) {
                     AppDestination.DOWNLOADS -> DownloadsScreen(
                         state = state.downloads,
                         watchedDownloadKeys = state.downloads.downloads
@@ -574,11 +601,16 @@ private fun DownloadItem.canPause(): Boolean {
 }
 
 @Composable
-private fun CompactBottomNavigation(selected: AppDestination, onSelected: (AppDestination) -> Unit) {
+private fun CompactBottomNavigation(
+    selected: AppDestination,
+    onSelected: (AppDestination) -> Unit,
+    discoverSelected: Boolean,
+    onDiscover: () -> Unit,
+) {
     NavigationBar {
         AppDestination.entries.forEach { destination ->
             NavigationBarItem(
-                selected = selected == destination,
+                selected = !discoverSelected && selected == destination,
                 onClick = { onSelected(destination) },
                 icon = {
                     Icon(
@@ -601,6 +633,13 @@ private fun CompactBottomNavigation(selected: AppDestination, onSelected: (AppDe
                         },
                     )
                 },
+                alwaysShowLabel = true,
+            )
+            if (destination == AppDestination.DOWNLOADS) NavigationBarItem(
+                selected = discoverSelected,
+                onClick = onDiscover,
+                icon = { Icon(Icons.Outlined.Explore, contentDescription = null) },
+                label = { Text("Discover") },
                 alwaysShowLabel = true,
             )
         }
