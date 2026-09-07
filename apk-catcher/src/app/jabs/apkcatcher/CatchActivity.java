@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.UUID;
 
-/** No layout or launcher: receive a share and hand the file to the system installer. */
+/** No layout or launcher: receive a GitHub share and hand the APK to the system installer. */
 @SuppressWarnings("deprecation")
 public final class CatchActivity extends Activity {
     private static final int ALLOW_SOURCE = 10;
@@ -26,6 +26,15 @@ public final class CatchActivity extends Activity {
     private static final int READY = 0;
     private static final int SETTINGS = 1;
     private static final int INSTALLER = 2;
+
+    private static final class SharedSource {
+        final Uri uri;
+        final String url;
+        SharedSource(Uri uri, String url) { this.uri = uri; this.url = url; }
+        static SharedSource file(Uri uri) { return new SharedSource(uri, null); }
+        static SharedSource github(String url) { return new SharedSource(null, url); }
+    }
+
     private File apk;
     private int phase = READY;
     private Thread worker;
@@ -40,7 +49,6 @@ public final class CatchActivity extends Activity {
                 apk = new File(new File(ApkProvider.root(getCacheDir()), id), "package.apk");
                 phase = state.getInt("phase", READY);
                 if (!apk.isFile()) { stop("The temporary APK expired. Share the file again."); return; }
-                // Android delivers the settings/installer result to the recreated activity.
                 if (phase == READY) continueInstall();
                 return;
             } catch (RuntimeException invalidState) {
@@ -49,14 +57,14 @@ public final class CatchActivity extends Activity {
             }
         }
 
-        final Uri source;
+        final SharedSource source;
         try {
-            source = sharedFile(getIntent());
+            source = sharedSource(getIntent());
         } catch (ApkArchive.Rejected failure) {
             stop(failure.getMessage());
             return;
         } catch (RuntimeException malformedShare) {
-            stop("This app did not share a readable file.");
+            stop("GitHub did not share a readable file or link.");
             return;
         }
         worker = new Thread(new Runnable() {
@@ -69,41 +77,48 @@ public final class CatchActivity extends Activity {
         if (value instanceof Uri) files.add((Uri) value);
     }
 
-    private Uri sharedFile(Intent intent) throws ApkArchive.Rejected {
+    private SharedSource sharedSource(Intent intent) throws ApkArchive.Rejected {
         if (intent == null || (!Intent.ACTION_SEND.equals(intent.getAction())
                 && !Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction()))) {
-            throw new ApkArchive.Rejected("Share an APK file to APK Catcher.");
+            throw new ApkArchive.Rejected("Share an APK from GitHub to APK Catcher.");
         }
-        LinkedHashSet<Uri> files = new LinkedHashSet<>();
+
+        LinkedHashSet<Uri> sharedUris = new LinkedHashSet<>();
         if (Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction())) {
             ArrayList<Parcelable> streams = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
-            if (streams != null) for (Parcelable stream : streams) addUri(files, stream);
+            if (streams != null) for (Parcelable stream : streams) addUri(sharedUris, stream);
         } else {
-            addUri(files, intent.getParcelableExtra(Intent.EXTRA_STREAM));
+            addUri(sharedUris, intent.getParcelableExtra(Intent.EXTRA_STREAM));
         }
-        // Some share senders use ClipData rather than EXTRA_STREAM.
         ClipData clip = intent.getClipData();
-        if (clip != null) for (int i = 0; i < clip.getItemCount(); i++) addUri(files, clip.getItemAt(i).getUri());
-        if (files.isEmpty()) addUri(files, intent.getData());
-        if (files.isEmpty()) {
-            CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
-            if (text != null && (text.toString().contains("https://") || text.toString().contains("http://"))) {
-                throw new ApkArchive.Rejected("Only a link was shared. Download the APK in your browser first.");
+        if (clip != null) for (int i = 0; i < clip.getItemCount(); i++) addUri(sharedUris, clip.getItemAt(i).getUri());
+        addUri(sharedUris, intent.getData());
+
+        if (sharedUris.size() > 1) throw new ApkArchive.Rejected("Share one APK or artifact ZIP at a time.");
+        if (sharedUris.size() == 1) {
+            Uri source = sharedUris.iterator().next();
+            if ("content".equalsIgnoreCase(source.getScheme()) && !ApkProvider.AUTHORITY.equals(source.getAuthority())) {
+                return SharedSource.file(source);
             }
-            throw new ApkArchive.Rejected("No file was shared. Use Share on the actual APK or artifact ZIP.");
+            String url = GithubShare.extractUrl(source.toString());
+            if (url != null) return SharedSource.github(url);
         }
-        if (files.size() != 1) throw new ApkArchive.Rejected("Share one APK or ZIP at a time.");
-        Uri source = files.iterator().next();
-        if ("https".equalsIgnoreCase(source.getScheme()) || "http".equalsIgnoreCase(source.getScheme())) {
-            throw new ApkArchive.Rejected("Only a link was shared. Download the APK in your browser first.");
-        }
-        if (!"content".equals(source.getScheme()) || ApkProvider.AUTHORITY.equals(source.getAuthority())) {
-            throw new ApkArchive.Rejected("Share the actual file from GitHub, Downloads, or My Files.");
-        }
-        return source;
+
+        String url = GithubShare.extractUrl(intent.getCharSequenceExtra(Intent.EXTRA_TEXT));
+        if (url != null) return SharedSource.github(url);
+        throw new ApkArchive.Rejected("GitHub did not share the APK file or a usable GitHub link.");
     }
 
-    private void prepare(Uri source) {
+    private InputStream open(SharedSource source) throws IOException {
+        if (source.uri != null) {
+            InputStream in = getContentResolver().openInputStream(source.uri);
+            if (in == null) throw new IOException("No file stream");
+            return in;
+        }
+        return GithubShare.open(source.url);
+    }
+
+    private void prepare(SharedSource source) {
         File job = null;
         try {
             File root = ApkProvider.root(getCacheDir());
@@ -112,8 +127,7 @@ public final class CatchActivity extends Activity {
             job = new File(root, UUID.randomUUID().toString());
             if (!job.mkdir()) throw new IOException("No temporary storage");
             final File prepared;
-            try (InputStream in = getContentResolver().openInputStream(source)) {
-                if (in == null) throw new IOException("No file stream");
+            try (InputStream in = open(source)) {
                 prepared = ApkArchive.prepare(in, job);
             }
             PackageInfo info = getPackageManager().getPackageArchiveInfo(prepared.getPath(), 0);
@@ -133,10 +147,12 @@ public final class CatchActivity extends Activity {
             postError(rejected.getMessage());
         } catch (SecurityException denied) {
             deleteJob(job);
-            postError("File access was denied. Save it and share from My Files.");
+            postError("File access was denied.");
         } catch (IOException | RuntimeException failure) {
             deleteJob(job);
-            postError("Could not read the file. Download it again and check your free storage.");
+            postError(source.url != null
+                    ? "Could not fetch the GitHub file. Check your connection and try Share again."
+                    : "Could not read the shared file. Try Share again.");
         }
     }
 
@@ -175,7 +191,6 @@ public final class CatchActivity extends Activity {
             if (getPackageManager().canRequestPackageInstalls()) continueInstall();
             else stop("Installation permission was not enabled.");
         } else if (request == INSTALL) {
-            // Keep the file briefly in case the system installer is still staging it.
             finish();
         }
     }
@@ -216,7 +231,6 @@ public final class CatchActivity extends Activity {
 
     private static void deleteJob(File job) {
         if (job == null) return;
-        // Only delete the two fixed names this helper creates, never arbitrary trees.
         new File(job, "incoming.bin").delete();
         new File(job, "package.apk").delete();
         job.delete();
