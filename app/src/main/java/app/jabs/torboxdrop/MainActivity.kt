@@ -507,6 +507,8 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             onDismissRequest = viewModel::closeFiles,
             isLoading = sheet.loading,
             error = sheet.error,
+            sharingFileId = sheet.sharingFileId,
+            shareError = sheet.shareError,
             onRetry = viewModel::retryFiles,
             onOpenFile = viewModel::openFile,
             onDownloadFile = { viewModel.downloadFile(it, infectedConfirmed = it.infected) },

@@ -56,6 +56,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -101,6 +102,8 @@ fun FileSelectionSheet(
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
     error: String? = null,
+    sharingFileId: Long? = null,
+    shareError: String? = null,
     onRetry: (() -> Unit)? = null,
     onOpenFile: ((DownloadFile) -> Unit)? = null,
     onDownloadFile: ((DownloadFile) -> Unit)? = null,
@@ -189,6 +192,24 @@ fun FileSelectionSheet(
                 InfectedFilesBanner(count = files.count(DownloadFile::infected))
             }
 
+            if (sharingFileId != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "Preparing a new temporary share link…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            } else if (shareError != null) {
+                InlineError(message = shareError, onRetry = null)
+            }
+
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -232,6 +253,7 @@ fun FileSelectionSheet(
                     selectionMode = selectionMode,
                     selectedIds = selectedIds,
                     contentReady = contentReady,
+                    shareInProgress = sharingFileId != null,
                     onRetry = onRetry,
                     onToggleSelected = { file ->
                         if (!file.infected) {
@@ -533,6 +555,7 @@ private fun FileSheetBody(
     selectionMode: Boolean,
     selectedIds: Set<Long>,
     contentReady: Boolean,
+    shareInProgress: Boolean,
     onRetry: (() -> Unit)?,
     onToggleSelected: (DownloadFile) -> Unit,
     onOpenFolder: (String) -> Unit,
@@ -587,6 +610,7 @@ private fun FileSheetBody(
                             onDownload = onDownloadFile?.let { callback -> { callback(file) } },
                             downloadActionAvailable = contentReady && onDownloadFile != null,
                             onShare = onShareFile?.let { callback -> { callback(file) } },
+                            shareInProgress = shareInProgress,
                             onCopyTemporaryLink = onCopyTemporaryLink?.let { callback -> { callback(file) } },
                         )
                     }
@@ -662,6 +686,7 @@ private fun FileRow(
     onDownload: (() -> Unit)?,
     downloadActionAvailable: Boolean,
     onShare: (() -> Unit)?,
+    shareInProgress: Boolean,
     onCopyTemporaryLink: (() -> Unit)?,
 ) {
     val safe = !file.infected
@@ -793,7 +818,7 @@ private fun FileRow(
                     FileActionButton(
                         icon = Icons.Outlined.Share,
                         contentDescription = "Share ${file.name}",
-                        enabled = safe && contentReady,
+                        enabled = safe && contentReady && !shareInProgress,
                         onClick = onShare,
                     )
                 }

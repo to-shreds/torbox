@@ -1,11 +1,11 @@
-# TorBox Drop 2.0.2 build notes
+# TorBox Drop 2.0.3 build notes
 
 ## Build identity
 
 | Property | Value |
 | --- | --- |
 | Application ID | `app.jabs.torboxdrop` |
-| Version | `2.0.2` (`versionCode 20002`) |
+| Version | `2.0.3` (`versionCode 20003`) |
 | Minimum Android | API 23 |
 | Target and compile SDK | API 36 |
 | Build Tools | 36.0.0 |
@@ -21,6 +21,12 @@ Build and verification commands:
 ```
 
 The CI workflow runs the same clean unit-test, lint, debug-APK, and release shrinking tasks on pushes and pull requests. It uploads test reports and the debug APK as workflow artifacts. The CI release output is an unsigned verification artifact and is not distributed.
+
+## v2.0.3 targeted corrective release
+
+- Per-file Share now requests the required new temporary CDN URL directly from the already-loaded ready file record. It no longer waits for redundant torrent and complete-file-list refreshes that could return stale data and stop the share flow before `requestdl`.
+- The file sheet shows progress while TorBox prepares the link and shows any sanitized failure inside the sheet instead of sending it to an obscured snackbar.
+- On success, the file sheet closes before Android's normal share chooser opens. Existing temporary-link credential checks remain unchanged.
 
 Verified 2026-09-07 artifacts:
 

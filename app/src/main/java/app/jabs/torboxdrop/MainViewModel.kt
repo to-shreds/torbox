@@ -69,6 +69,8 @@ data class FileSheetState(
     val files: List<DownloadFile> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null,
+    val sharingFileId: Long? = null,
+    val shareError: String? = null,
 )
 
 data class MainUiState(
@@ -617,7 +619,89 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun shareFile(file: DownloadFile) = requestFileUrl(file, FileUrlAction.SHARE, infectedConfirmed = false)
+    fun shareFile(file: DownloadFile) {
+        val item = _uiState.value.downloads.downloads.firstOrNull {
+            it.type == file.downloadType && it.id == file.downloadId
+        } ?: _uiState.value.fileSheet?.download?.takeIf {
+            it.type == file.downloadType && it.id == file.downloadId
+        }
+        if (item == null) {
+            emitMessage("This download is no longer available in the current list.")
+            return
+        }
+        if (!item.isReady) {
+            _uiState.update { state ->
+                state.copy(
+                    fileSheet = state.fileSheet?.copy(
+                        shareError = "That content is not complete and present yet.",
+                    ),
+                )
+            }
+            return
+        }
+        if (file.infected) {
+            _uiState.update { state ->
+                state.copy(
+                    fileSheet = state.fileSheet?.copy(
+                        shareError = "TorBox marked this file as infected. Sharing is disabled.",
+                    ),
+                )
+            }
+            return
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                actionInProgress = true,
+                fileSheet = state.fileSheet?.copy(
+                    sharingFileId = file.id,
+                    shareError = null,
+                ),
+            )
+        }
+        launchAccountWork {
+            try {
+                // The file sheet was populated from TorBox already. Re-fetching the complete
+                // download and file list here made Share depend on two unrelated, eventually
+                // consistent reads before the required requestdl call.
+                val url = repository.requestTemporaryDownloadUrl(
+                    item.type,
+                    item.id,
+                    fileId = file.id,
+                    zip = false,
+                    appendName = true,
+                )
+                val safeUrl = UrlSafety.requireSafeToShare(url, container.tokenStore.read())
+                _uiState.update { state ->
+                    state.copy(
+                        actionInProgress = false,
+                        fileSheet = state.fileSheet?.takeUnless { it.download.key == item.key },
+                    )
+                }
+                eventChannel.send(
+                    MainEvent.ShareText(
+                        safeUrl,
+                        "Share ${file.name}",
+                        requiresTorBoxUrlSafety = true,
+                    ),
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                recordOperationalFailure(error)
+                val message = safeMessage(error)
+                _uiState.update { state ->
+                    state.copy(
+                        actionInProgress = false,
+                        fileSheet = state.fileSheet?.copy(
+                            sharingFileId = null,
+                            shareError = "Couldn’t prepare the share link: $message",
+                        ),
+                    )
+                }
+            }
+        }
+    }
 
     fun copyTemporaryLink(file: DownloadFile) = requestFileUrl(file, FileUrlAction.COPY, infectedConfirmed = false)
 

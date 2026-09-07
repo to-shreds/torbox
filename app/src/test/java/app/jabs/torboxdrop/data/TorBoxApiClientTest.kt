@@ -258,6 +258,29 @@ class TorBoxApiClientTest {
     }
 
     @Test
+    fun fileShare_requestsNewNonRedirectingTemporaryLinkForChosenFile() = runTest {
+        server.enqueue(success("\"https://cdn.torbox.app/download?signature=fresh\""))
+
+        val url = api.requestTemporaryDownloadUrl(
+            DownloadType.TORRENT,
+            id = "17",
+            fileId = 44,
+            zip = false,
+            appendName = true,
+        )
+
+        assertThat(url).isEqualTo("https://cdn.torbox.app/download?signature=fresh")
+        val request = server.takeRequest()
+        assertThat(request.method).isEqualTo("GET")
+        assertThat(request.requestUrl?.encodedPath).isEqualTo("/v1/api/torrents/requestdl")
+        assertThat(request.requestUrl?.queryParameter("torrent_id")).isEqualTo("17")
+        assertThat(request.requestUrl?.queryParameter("file_id")).isEqualTo("44")
+        assertThat(request.requestUrl?.queryParameter("zip_link")).isEqualTo("false")
+        assertThat(request.requestUrl?.queryParameter("redirect")).isEqualTo("false")
+        assertThat(request.requestUrl?.queryParameter("append_name")).isEqualTo("true")
+    }
+
+    @Test
     fun torBoxApiOrigin_isNeverAcceptedAsTemporaryCdnUrl() {
         server.enqueue(
             success(""""https://api.torbox.app/v1/api/torrents/requestdl?redirect=true""""),
