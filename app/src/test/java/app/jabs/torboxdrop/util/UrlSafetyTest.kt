@@ -2,6 +2,7 @@ package app.jabs.torboxdrop.util
 
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,6 +27,47 @@ class UrlSafetyTest {
 
         assertTrue(UrlSafety.containsApiToken("https://cdn.example/file?v=$encoded", apiToken))
         assertFalse(UrlSafety.isSafeToShare("https://cdn.example/file?v=$encoded", apiToken))
+    }
+
+    @Test
+    fun expectedTorBoxCredentialDownload_isRecognizedButNotStrictlySafe() {
+        val encoded = URLEncoder.encode(apiToken, StandardCharsets.UTF_8.name())
+        val url = "https://storage.torbox.app/dld/presigned-value?token=$encoded"
+
+        assertTrue(UrlSafety.containsApiToken(url, apiToken))
+        assertTrue(UrlSafety.isExpectedTorBoxCredentialDownloadUrl(url, apiToken))
+        assertFalse(UrlSafety.isSafeToShare(url, apiToken))
+        assertEquals(url, UrlSafety.requireSafeToShare(url, apiToken))
+    }
+
+    @Test
+    fun credentialConsentException_isLimitedToTorBoxDownloadHostsAndTokenParameter() {
+        val encoded = URLEncoder.encode(apiToken, StandardCharsets.UTF_8.name())
+
+        assertFalse(
+            UrlSafety.isExpectedTorBoxCredentialDownloadUrl(
+                "https://api.torbox.app/v1/api/torrents/requestdl?token=$encoded",
+                apiToken,
+            ),
+        )
+        assertFalse(
+            UrlSafety.isExpectedTorBoxCredentialDownloadUrl(
+                "https://relay.torbox.app/v1/inactivecheck?token=$encoded",
+                apiToken,
+            ),
+        )
+        assertFalse(
+            UrlSafety.isExpectedTorBoxCredentialDownloadUrl(
+                "https://storage.torbox.app/dld/presigned-value?signature=$encoded",
+                apiToken,
+            ),
+        )
+        assertFalse(
+            UrlSafety.isExpectedTorBoxCredentialDownloadUrl(
+                "https://storage.example/dld/presigned-value?token=$encoded",
+                apiToken,
+            ),
+        )
     }
 
     @Test
