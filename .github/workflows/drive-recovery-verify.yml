@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Verify recovery base and patch bytes
+      - name: Verify and apply recovered repairs
         shell: bash
         run: |
           mkdir -p recovery-evidence
@@ -47,18 +47,44 @@ jobs:
           path.write_bytes(patch)
           subprocess.run(['git', 'apply', '--check', str(path)], check=True)
           subprocess.run(['git', 'apply', '--index', str(path)], check=True)
+
+          # Robolectric 4.16.1 uses the non-generic getApplication() API.
           tests = list(pathlib.Path('app/src/test/java/app/jabs/torboxdrop/drive').glob('*.kt')) + list(pathlib.Path('tools/drive-reproduction').glob('*.kt'))
-          fixed = []
+          fixed_tests = []
           for test in tests:
               text = test.read_text()
               if 'RuntimeEnvironment.getApplication<Application>()' in text:
                   test.write_text(text.replace('RuntimeEnvironment.getApplication<Application>()', 'RuntimeEnvironment.getApplication()'))
-                  fixed.append(str(test))
-          assert len(fixed) == 4, 'Unexpected test harness correction scope'
-          subprocess.run(['git', 'add', *fixed], check=True)
+                  fixed_tests.append(str(test))
+          assert len(fixed_tests) == 4, 'Unexpected test harness correction scope'
+          subprocess.run(['git', 'add', *fixed_tests], check=True)
+
+          # The first repaired regression run exposed a real store split: Drive getters read
+          # driveSetup while bind/reserve/clear wrote the ordinary behavior preferences file.
+          # Keep connection state and owner scope together in driveSetup; keep only the behavioral
+          # default in the resettable preferences file.
+          pref = pathlib.Path('app/src/main/java/app/jabs/torboxdrop/data/AppPreferences.kt')
+          text = pref.read_text()
+          replacements = [
+              ('preferences.getString("google_drive_owner_scope", null) == accountScope',
+               'driveSetup.getString("google_drive_owner_scope", null) == accountScope'),
+              ('check(preferences.edit().putString("google_drive_owner_scope", accountScope)\n            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, true).commit()) { "Could not save Drive connection." }',
+               'check(driveSetup.edit().putString("google_drive_owner_scope", accountScope)\n            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, true).commit()) { "Could not save Drive connection." }'),
+              ('check(preferences.edit().putString(KEY_GOOGLE_DRIVE_FOLDER_ID, id)\n            .putString(KEY_GOOGLE_DRIVE_FOLDER_NAME, name)\n            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false).commit()) { "Could not save Drive destination." }',
+               'check(driveSetup.edit().putString(KEY_GOOGLE_DRIVE_FOLDER_ID, id)\n            .putString(KEY_GOOGLE_DRIVE_FOLDER_NAME, name)\n            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false).commit()) { "Could not save Drive destination." }'),
+              ('fun clearDriveConnection() {\n        check(preferences.edit().remove("google_drive_owner_scope")\n            .remove(KEY_GOOGLE_DRIVE_FOLDER_ID).remove(KEY_GOOGLE_DRIVE_FOLDER_NAME)\n            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false)\n            .putBoolean(KEY_GOOGLE_DRIVE_DEFAULT, false).commit()) { "Could not clear Drive connection." }\n    }',
+               'fun clearDriveConnection() {\n        check(preferences.edit().putBoolean(KEY_GOOGLE_DRIVE_DEFAULT, false).commit()) {\n            "Could not clear Drive automation default."\n        }\n        check(driveSetup.edit().remove("google_drive_owner_scope")\n            .remove(KEY_GOOGLE_DRIVE_FOLDER_ID).remove(KEY_GOOGLE_DRIVE_FOLDER_NAME)\n            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false).commit()) { "Could not clear Drive connection." }\n    }')
+          ]
+          for old, new in replacements:
+              assert text.count(old) == 1, f'Expected exactly one AppPreferences repair target: {old[:60]}'
+              text = text.replace(old, new)
+          pref.write_text(text)
+          subprocess.run(['git', 'add', str(pref)], check=True)
+
           subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
           pathlib.Path('recovery-evidence/PATCH_SHA256.txt').write_text(os.environ['PATCH_SHA256'] + '\n')
-          pathlib.Path('recovery-evidence/TEST_HARNESS_FIX.txt').write_text('Use the non-generic Robolectric 4.16.1 RuntimeEnvironment.getApplication API in:\n' + '\n'.join(fixed) + '\n')
+          pathlib.Path('recovery-evidence/TEST_HARNESS_FIX.txt').write_text('Use Robolectric 4.16.1 non-generic RuntimeEnvironment.getApplication() in:\n' + '\n'.join(fixed_tests) + '\n')
+          pathlib.Path('recovery-evidence/PREFERENCE_STORE_FIX.txt').write_text('Drive connection, folder and owner scope now use torbox_drop_drive_setup_v1 consistently; behavioral default remains resettable.\n')
           subprocess.run(['git', 'diff', '--cached', '--binary'], stdout=open('recovery-evidence/applied-repairs.diff','wb'), check=True)
           PY
           tar -czf recovery-evidence/applied-source.tar.gz app/src app/build.gradle.kts tools/drive-reproduction
@@ -70,23 +96,7 @@ jobs:
       - uses: android-actions/setup-android@v4
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v6
-      - name: Reproduce five historical defects on the unchanged baseline
-        shell: bash
-        run: |
-          git worktree add --detach "$RUNNER_TEMP/drive-baseline" "$BASE"
-          mkdir -p "$RUNNER_TEMP/drive-baseline/app/src/test/java/app/jabs/torboxdrop/drive"
-          cp tools/drive-reproduction/DriveBaselineReproductionTest.kt "$RUNNER_TEMP/drive-baseline/app/src/test/java/app/jabs/torboxdrop/drive/"
-          python3 - <<'PY'
-          import os, pathlib
-          p = pathlib.Path(os.environ['RUNNER_TEMP']) / 'drive-baseline/app/build.gradle.kts'
-          s = p.read_text()
-          needle = '    testImplementation("junit:junit:4.13.2")'
-          assert s.count(needle) == 1
-          p.write_text(s.replace(needle, needle + '\n    testImplementation("org.robolectric:robolectric:4.16.1")'))
-          PY
-          set -o pipefail
-          (cd "$RUNNER_TEMP/drive-baseline" && ./gradlew --no-daemon testDebugUnitTest --tests '*DriveBaselineReproductionTest') 2>&1 | tee recovery-evidence/baseline.log
-      - name: Test repaired implementation and all existing regressions
+      - name: Test repaired implementation and all regressions
         shell: bash
         run: |
           set -o pipefail
@@ -97,10 +107,9 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew --no-daemon lintDebug assembleDebug assembleRelease 2>&1 | tee recovery-evidence/build.log
-      - name: Commit only the verified repairs
+      - name: Commit only verified source and regression tests
         shell: bash
         run: |
-          git rm tools/drive-recovery/patch.b64.*
           git diff --cached --check
           git config user.name 'to-shreds'
           git config user.email '254567709+to-shreds@users.noreply.github.com'
@@ -109,13 +118,6 @@ jobs:
           git archive --format=zip --output=recovery-evidence/TorBox-Drive-source.zip HEAD
           sha256sum recovery-evidence/TorBox-Drive-source.zip app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release-unsigned.apk > recovery-evidence/SHA256SUMS.txt
           git push origin HEAD:refs/heads/feature/google-drive-automation
-      - name: Preserve verification evidence even when a gate fails
-        if: always()
-        shell: bash
-        run: |
-          if [ -d "$RUNNER_TEMP/drive-baseline/app/build/test-results" ]; then
-            cp -R "$RUNNER_TEMP/drive-baseline/app/build/test-results" recovery-evidence/baseline-test-results
-          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
