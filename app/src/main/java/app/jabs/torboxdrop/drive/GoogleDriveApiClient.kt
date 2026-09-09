@@ -8,6 +8,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -24,7 +26,20 @@ data class GoogleDriveFolder(val id: String, val name: String)
  * that folder user-authorized for the same short-lived token TorBox receives for its upload job,
  * without requesting broad access to the user's existing Drive contents.
  */
-class GoogleDriveApiClient(private val httpClient: OkHttpClient) {
+class GoogleDriveApiClient(
+    private val httpClient: OkHttpClient,
+    baseUrl: HttpUrl = DEFAULT_BASE_URL,
+) {
+    private val apiBaseUrl = baseUrl.newBuilder().apply {
+        if (!baseUrl.encodedPath.endsWith('/')) addPathSegment("")
+    }.build()
+
+    init {
+        require(
+            apiBaseUrl.isHttps || apiBaseUrl.host in setOf("localhost", "127.0.0.1", "::1"),
+        ) { "Google Drive API base URL must use HTTPS" }
+    }
+
     suspend fun createDestinationFolder(name: String, accessToken: String): GoogleDriveFolder {
         val normalized = name.trim().takeIf(String::isNotEmpty)
             ?: throw IllegalArgumentException("Enter a Google Drive folder name.")
@@ -34,8 +49,12 @@ class GoogleDriveApiClient(private val httpClient: OkHttpClient) {
             .put("mimeType", FOLDER_MIME_TYPE)
             .toString()
             .toRequestBody(JSON_MEDIA_TYPE)
+        val url = apiBaseUrl.newBuilder()
+            .addPathSegment("files")
+            .addQueryParameter("fields", "id,name")
+            .build()
         val request = Request.Builder()
-            .url("https://www.googleapis.com/drive/v3/files?fields=id%2Cname")
+            .url(url)
             .post(body)
             .header("Authorization", "Bearer $accessToken")
             .header("Accept", "application/json")
@@ -91,10 +110,11 @@ class GoogleDriveApiClient(private val httpClient: OkHttpClient) {
         return value.take(300)
     }
 
-    private companion object {
-        const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
-        const val MAX_FOLDER_NAME_LENGTH = 200
-        val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    companion object {
+        val DEFAULT_BASE_URL: HttpUrl = "https://www.googleapis.com/drive/v3/".toHttpUrl()
+        private const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+        private const val MAX_FOLDER_NAME_LENGTH = 200
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
 
