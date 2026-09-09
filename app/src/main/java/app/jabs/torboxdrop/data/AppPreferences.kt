@@ -51,6 +51,12 @@ class AppPreferences(context: Context) {
             else edit(KEY_GOOGLE_DRIVE_FOLDER_ID, normalized)
         }
 
+    /** Friendly local label for the app-created Drive destination. Never used as an authority ID. */
+    var googleDriveFolderName: String
+        get() = preferences.getString(KEY_GOOGLE_DRIVE_FOLDER_NAME, DEFAULT_DRIVE_FOLDER_NAME)
+            ?: DEFAULT_DRIVE_FOLDER_NAME
+        set(value) = edit(KEY_GOOGLE_DRIVE_FOLDER_NAME, value.trim().ifBlank { DEFAULT_DRIVE_FOLDER_NAME })
+
     var seedPreference: Int
         get() = preferences.getInt(KEY_SEED, 1).coerceIn(1, 3)
         set(value) = edit(KEY_SEED, value.coerceIn(1, 3))
@@ -129,6 +135,7 @@ class AppPreferences(context: Context) {
 
     companion object {
         const val DEFAULT_HOME = "https://www.google.com"
+        const val DEFAULT_DRIVE_FOLDER_NAME = "TorBox Drop"
         private const val KEY_CONFIRM = "confirm_before_sending"
         private const val KEY_AUTO_CLIPBOARD = "auto_send_clipboard_magnets"
         private const val KEY_AUTO_BROWSER = "auto_send_browser_magnets"
@@ -138,6 +145,7 @@ class AppPreferences(context: Context) {
         private const val KEY_GOOGLE_DRIVE_DEFAULT = "google_drive_by_default"
         private const val KEY_GOOGLE_DRIVE_CONNECTED = "google_drive_connected"
         private const val KEY_GOOGLE_DRIVE_FOLDER_ID = "google_drive_folder_id"
+        private const val KEY_GOOGLE_DRIVE_FOLDER_NAME = "google_drive_folder_name"
         private const val KEY_SEED = "seed_preference"
         private const val KEY_ALLOW_ZIP = "allow_zip_by_default"
         private const val KEY_DENSITY = "download_density"
