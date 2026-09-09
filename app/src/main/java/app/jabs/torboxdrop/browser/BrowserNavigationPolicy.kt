@@ -61,10 +61,8 @@ internal object BrowserNavigationPolicy {
         )
     }
 
-    fun shouldAutoSendBrowserMagnet(
-        autoSendBrowserMagnets: Boolean,
-        confirmBeforeSending: Boolean,
-    ): Boolean = autoSendBrowserMagnets && !confirmBeforeSending
+    fun shouldAutoSendBrowserMagnet(autoSendBrowserMagnets: Boolean): Boolean =
+        autoSendBrowserMagnets
 
     fun normalizeHomePage(input: String, defaultHomePage: String): String =
         input.trim().ifBlank { defaultHomePage }

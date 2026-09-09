@@ -114,7 +114,6 @@ data class SettingsUiState(
     val tokenValidationMessage: String? = null,
     val defaultAddOptions: AddOptions = AddOptions(),
     val density: DownloadDensity = DownloadDensity.COMPACT,
-    val autoSendSharedLinks: Boolean = true,
     val autoSendClipboardMagnets: Boolean = true,
     val autoSendBrowserMagnets: Boolean = true,
     val blockAdsAndTrackers: Boolean = true,
@@ -381,19 +380,10 @@ fun SettingsScreen(
         item {
             SettingsCard(
                 title = "App behavior",
-                subtitle = "Sharing, clipboard detection, and notifications",
+                subtitle = "Clipboard detection and notifications",
                 icon = Icons.Rounded.Smartphone,
                 modifier = Modifier.widthIn(max = 720.dp),
             ) {
-                SettingsToggle(
-                    title = "Instantly send shared links",
-                    description = "Submit links shared to TorBox Drop immediately",
-                    checked = state.autoSendSharedLinks,
-                    icon = Icons.Rounded.FileDownload,
-                    onCheckedChange = {
-                        onSettingsChange(state.copy(autoSendSharedLinks = it))
-                    },
-                )
                 SettingsToggle(
                     title = "Instantly send copied magnets",
                     description = "Works while TorBox Drop or its browser is on screen",

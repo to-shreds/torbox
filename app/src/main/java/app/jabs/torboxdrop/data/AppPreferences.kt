@@ -9,9 +9,6 @@ class AppPreferences(context: Context) {
     private val preferences = context.getSharedPreferences("torbox_drop_preferences_v2", Context.MODE_PRIVATE)
     private val driveSetup = context.getSharedPreferences("torbox_drop_drive_setup_v1", Context.MODE_PRIVATE)
 
-    var confirmBeforeSending: Boolean
-        get() = preferences.getBoolean(KEY_CONFIRM, false)
-        set(value) = edit(KEY_CONFIRM, value)
     var autoSendClipboardMagnets: Boolean
         get() = preferences.getBoolean(KEY_AUTO_CLIPBOARD, true)
         set(value) = edit(KEY_AUTO_CLIPBOARD, value)
@@ -135,7 +132,6 @@ class AppPreferences(context: Context) {
     companion object {
         const val DEFAULT_HOME = "https://www.google.com"
         const val DEFAULT_DRIVE_FOLDER_NAME = "TorBox Drop"
-        private const val KEY_CONFIRM = "confirm_before_sending"
         private const val KEY_AUTO_CLIPBOARD = "auto_send_clipboard_magnets"
         private const val KEY_AUTO_BROWSER = "auto_send_browser_magnets"
         private const val KEY_QUEUE = "queue_by_default"
