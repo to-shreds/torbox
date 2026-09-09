@@ -222,13 +222,12 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                 "drive_watches",
                 arrayOf("watch_key"),
                 "watch_key = ? AND account_scope = ?",
-                arrayOf(nextKey, watch.accountScope()),
+                arrayOf(nextKey, watch.accountScope),
                 null,
                 null,
                 null,
             ).use { it.moveToFirst() }
             if (collision) {
-                // A direct active watch is already present. It is the more precise identity.
                 delete("drive_files", "watch_key = ?", arrayOf(watch.watchKey))
                 return@transactionResult delete(
                     "drive_watches",
@@ -248,8 +247,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                     putNull("queue_id")
                     active.hash?.takeIf(String::isNotBlank)?.let { put("source_hash", it) }
                 },
-                "watch_key = ? AND queue_id = ?",
-                arrayOf(watch.watchKey, queuedId),
+                "watch_key = ? AND queue_id = ? AND account_scope = ?",
+                arrayOf(watch.watchKey, queuedId, watch.accountScope),
             ) == 1
         }
     }
@@ -319,18 +318,27 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
         }
     }
 
-    /** Claims exactly one not-yet-submitted file and records the attempt before network I/O. */
+    /** Claims one not-yet-submitted file and records the attempt before network I/O. */
     suspend fun claimFileForSubmission(transferKey: String, at: Instant = Instant.now()): Boolean = io {
-        writableDatabase.update(
-            "drive_files",
-            ContentValues().apply {
-                put("state", DriveFileState.SUBMITTING.name)
-                put("last_attempt_at", at.toEpochMilli())
-                putNull("last_error")
-            },
-            "transfer_key = ? AND state = ?",
-            arrayOf(transferKey, DriveFileState.PENDING.name),
-        ) == 1 && incrementAttempts(transferKey)
+        writableDatabase.transactionResult {
+            val claimed = update(
+                "drive_files",
+                ContentValues().apply {
+                    put("state", DriveFileState.SUBMITTING.name)
+                    put("last_attempt_at", at.toEpochMilli())
+                    putNull("last_error")
+                },
+                "transfer_key = ? AND state = ?",
+                arrayOf(transferKey, DriveFileState.PENDING.name),
+            ) == 1
+            if (claimed) {
+                execSQL(
+                    "UPDATE drive_files SET attempts = attempts + 1 WHERE transfer_key = ?",
+                    arrayOf(transferKey),
+                )
+            }
+            claimed
+        }
     }
 
     suspend fun markFileSubmitted(transferKey: String, jobId: Long? = null) = io {
@@ -374,11 +382,11 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
 
     suspend fun retryAmbiguousIfStale(
         transferKey: String,
-        now: Instant,
         staleBefore: Instant,
         maxAttempts: Int,
     ): Boolean = io {
         writableDatabase.transactionResult {
+            data class Row(val state: String, val attempts: Int, val lastAttempt: Long?, val jobId: Long?)
             val row = query(
                 "drive_files",
                 arrayOf("state", "attempts", "last_attempt_at", "job_id"),
@@ -388,24 +396,20 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                 null,
                 null,
             ).use { cursor ->
-                if (!cursor.moveToFirst()) null else arrayOf(
-                    cursor.getString(0),
-                    cursor.getInt(1),
-                    cursor.longOrNull(2),
-                    cursor.longOrNull(3),
+                if (!cursor.moveToFirst()) null else Row(
+                    state = cursor.getString(0),
+                    attempts = cursor.getInt(1),
+                    lastAttempt = cursor.longOrNull(2),
+                    jobId = cursor.longOrNull(3),
                 )
             } ?: return@transactionResult false
-            val state = row[0] as String
-            val attempts = row[1] as Int
-            val lastAttempt = row[2] as Long?
-            val jobId = row[3] as Long?
-            if (state !in setOf(DriveFileState.SUBMITTING.name, DriveFileState.SUBMITTED.name) || jobId != null) {
+            if (row.state !in setOf(DriveFileState.SUBMITTING.name, DriveFileState.SUBMITTED.name) || row.jobId != null) {
                 return@transactionResult false
             }
-            if (lastAttempt == null || Instant.ofEpochMilli(lastAttempt).isAfter(staleBefore)) {
+            if (row.lastAttempt == null || Instant.ofEpochMilli(row.lastAttempt).isAfter(staleBefore)) {
                 return@transactionResult false
             }
-            if (attempts >= maxAttempts) {
+            if (row.attempts >= maxAttempts) {
                 update(
                     "drive_files",
                     ContentValues().apply {
@@ -483,7 +487,7 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
         val placeholders = states.joinToString(",") { "?" }
         val args = arrayOf(accountScope, *states.map(DriveWatchState::name).toTypedArray())
         return readableDatabase.rawQuery(
-            """SELECT watch_key, item_id, item_type, name, armed_at, has_been_seen,
+            """SELECT watch_key, account_scope, item_id, item_type, name, armed_at, has_been_seen,
                       consecutive_misses, queue_id, source_hash, source_value, state, last_error
                FROM drive_watches
                WHERE account_scope = ? AND state IN ($placeholders)
@@ -495,17 +499,18 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                     runCatching {
                         DriveWatch(
                             watchKey = cursor.getString(0),
-                            downloadId = cursor.getString(1),
-                            type = DownloadType.valueOf(cursor.getString(2)),
-                            name = cursor.getString(3),
-                            armedAt = Instant.ofEpochMilli(cursor.getLong(4)),
-                            hasBeenSeen = cursor.getInt(5) != 0,
-                            consecutiveMisses = cursor.getInt(6),
-                            queueId = cursor.stringOrNull(7),
-                            sourceHash = cursor.stringOrNull(8),
-                            sourceValue = cursor.stringOrNull(9),
-                            state = DriveWatchState.valueOf(cursor.getString(10)),
-                            lastError = cursor.stringOrNull(11),
+                            accountScope = cursor.getString(1),
+                            downloadId = cursor.getString(2),
+                            type = DownloadType.valueOf(cursor.getString(3)),
+                            name = cursor.getString(4),
+                            armedAt = Instant.ofEpochMilli(cursor.getLong(5)),
+                            hasBeenSeen = cursor.getInt(6) != 0,
+                            consecutiveMisses = cursor.getInt(7),
+                            queueId = cursor.stringOrNull(8),
+                            sourceHash = cursor.stringOrNull(9),
+                            sourceValue = cursor.stringOrNull(10),
+                            state = DriveWatchState.valueOf(cursor.getString(11)),
+                            lastError = cursor.stringOrNull(12),
                         )
                     }.getOrNull()?.let(::add)
                 }
@@ -550,24 +555,6 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
             arrayOf(watchKey),
         )
     }
-
-    private fun incrementAttempts(transferKey: String): Boolean {
-        writableDatabase.execSQL(
-            "UPDATE drive_files SET attempts = attempts + 1 WHERE transfer_key = ?",
-            arrayOf(transferKey),
-        )
-        return true
-    }
-
-    private fun DriveWatch.accountScope(): String = readableDatabase.query(
-        "drive_watches",
-        arrayOf("account_scope"),
-        "watch_key = ?",
-        arrayOf(watchKey),
-        null,
-        null,
-        null,
-    ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else "" }
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 
