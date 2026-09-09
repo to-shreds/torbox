@@ -1,6 +1,7 @@
 package app.jabs.torboxdrop
 
 import android.app.Application
+import app.jabs.torboxdrop.drive.DriveAutomationRunner
 import app.jabs.torboxdrop.model.DownloadType
 import app.jabs.torboxdrop.model.DownloadItem
 import app.jabs.torboxdrop.model.QueuedDownload
@@ -25,6 +26,20 @@ class TorBoxDropApplication : Application() {
         CompletionNotificationChannels.ensureCreated(this)
         CompletionMonitorServiceLocator.install { MonitoringDependencies(container) }
     }
+
+    fun driveAutomationRunner(): DriveAutomationRunner = DriveAutomationRunner(
+        repository = container.repository,
+        integrationClient = container.driveIntegration,
+        store = container.driveStore,
+        googleAuthorization = container.googleDriveAuthorization,
+        tokenProvider = container.tokenStore::read,
+        relayUserId = { container.preferences.relayUserId },
+        onGoogleAuthorizationRequired = {
+            // This is a non-secret capability hint only. The actual authorization is always
+            // re-checked with Google Identity Services before a Drive submission.
+            container.preferences.googleDriveConnected = false
+        },
+    )
 
     fun monitoringDependencies(
         freshDownloads: List<DownloadItem>,
