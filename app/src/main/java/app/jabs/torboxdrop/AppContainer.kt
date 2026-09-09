@@ -10,10 +10,13 @@ import app.jabs.torboxdrop.data.TorBoxRepository
 import app.jabs.torboxdrop.drive.DriveStore
 import app.jabs.torboxdrop.drive.GoogleDriveApiClient
 import app.jabs.torboxdrop.drive.GoogleDriveAuthorizationManager
+import app.jabs.torboxdrop.drive.driveAccountScope
 import app.jabs.torboxdrop.model.AccountInfo
+import app.jabs.torboxdrop.notifications.AdditionalMonitoredWork
 import app.jabs.torboxdrop.notifications.CompletionMonitorScheduler
 import app.jabs.torboxdrop.notifications.CompletionMonitorService
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 
 class AppContainer(context: Context) {
@@ -35,14 +38,8 @@ class AppContainer(context: Context) {
         .followSslRedirects(false)
         .build()
 
-    val api = TorBoxApiClient(
-        httpClient = httpClient,
-        tokenProvider = tokenStore::read,
-    )
-    val driveIntegration = TorBoxDriveIntegrationClient(
-        httpClient = httpClient,
-        tokenProvider = tokenStore::read,
-    )
+    val api = TorBoxApiClient(httpClient = httpClient, tokenProvider = tokenStore::read)
+    val driveIntegration = TorBoxDriveIntegrationClient(httpClient = httpClient, tokenProvider = tokenStore::read)
     val googleDriveApi = GoogleDriveApiClient(httpClient)
     val repository = TorBoxRepository(
         api = api,
@@ -56,6 +53,13 @@ class AppContainer(context: Context) {
             CompletionMonitorService.startFromUserAction(appContext)
         },
     )
+
+    init {
+        AdditionalMonitoredWork.install {
+            val accountScope = driveAccountScope(tokenStore.read()) ?: return@install false
+            runBlocking { driveStore.hasRunnableWork(accountScope) }
+        }
+    }
 
     suspend fun validateToken(candidate: String): AccountInfo = TorBoxApiClient(
         httpClient = httpClient,
