@@ -1,6 +1,7 @@
 package app.jabs.torboxdrop.data
 
 import app.jabs.torboxdrop.drive.TorBoxIntegrationJob
+import app.jabs.torboxdrop.drive.driveJsonBody
 import java.io.IOException
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -20,12 +21,22 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
+interface TorBoxDriveGateway {
+    suspend fun updateGoogleDriveFolderId(folderId: String?)
+    suspend fun queueGoogleDrive(torrentId: String, fileId: Long, googleAccessToken: String)
+    suspend fun getJobsByHash(hash: String): List<TorBoxIntegrationJob>
+    suspend fun getJob(jobId: Long): TorBoxIntegrationJob?
+}
+
 /** Narrow TorBox boundary for the documented cloud-integration endpoints. */
 class TorBoxDriveIntegrationClient(
-    private val httpClient: OkHttpClient,
+    httpClient: OkHttpClient,
     private val tokenProvider: () -> String?,
     baseUrl: HttpUrl = DEFAULT_BASE_URL,
-) {
+) : TorBoxDriveGateway {
+    private val httpClient = httpClient.newBuilder().retryOnConnectionFailure(false)
+        .followRedirects(false).followSslRedirects(false).build()
+
     private val apiBaseUrl = baseUrl.newBuilder().apply {
         if (!baseUrl.encodedPath.endsWith('/')) addPathSegment("")
     }.build()
@@ -37,7 +48,7 @@ class TorBoxDriveIntegrationClient(
     }
 
     /** Updates TorBox's documented account-level destination folder for Drive integrations. */
-    suspend fun updateGoogleDriveFolderId(folderId: String?) {
+    override suspend fun updateGoogleDriveFolderId(folderId: String?) {
         val normalized = folderId?.trim()?.takeIf(String::isNotEmpty)
         execute(
             Request.Builder()
@@ -57,9 +68,10 @@ class TorBoxDriveIntegrationClient(
      * Queues one individual torrent file for TorBox's server-side Google Drive uploader.
      * The Google bearer token is sent only in this POST body and is never retained by this client.
      */
-    suspend fun queueGoogleDrive(torrentId: String, fileId: Long, googleAccessToken: String) {
+    override suspend fun queueGoogleDrive(torrentId: String, fileId: Long, googleAccessToken: String) {
         val numericTorrentId = torrentId.toLongOrNull()
             ?: throw IllegalArgumentException("TorBox torrent ID is not numeric.")
+        require(numericTorrentId >= 0) { "TorBox torrent ID must be non-negative." }
         require(fileId >= 0) { "TorBox file ID must be non-negative." }
         require(googleAccessToken.isNotBlank()) { "Google Drive access token is required." }
         val body = Json.obj(
@@ -72,24 +84,30 @@ class TorBoxDriveIntegrationClient(
         execute(
             Request.Builder()
                 .url(endpoint("integration/googledrive"))
-                .post(Json.stringify(body).toRequestBody(JSON_MEDIA_TYPE))
+                .post(driveJsonBody(Json.stringify(body)))
                 .header("Accept", "application/json"),
             extraSecrets = listOf(googleAccessToken),
         )
     }
 
-    suspend fun getJobsByHash(hash: String): List<TorBoxIntegrationJob> {
-        require(hash.isNotBlank()) { "Torrent hash is required." }
+    override suspend fun getJobsByHash(hash: String): List<TorBoxIntegrationJob> {
+        require(Regex("[a-fA-F0-9]{40}|[a-fA-F0-9]{64}").matches(hash)) { "Invalid torrent hash." }
         val envelope = execute(
             Request.Builder()
                 .url(endpoint("integration/jobs/${hash.trim()}"))
                 .get()
                 .header("Accept", "application/json"),
         )
-        return envelope.data.asObjects().map(::parseJob)
+        val objects = when (val data = envelope.data) {
+            is JsonValue.Array -> data.values.map { it as? JsonValue.Object
+                ?: throw TorBoxInvalidResponseException("Invalid integration job entry.") }
+            else -> throw TorBoxInvalidResponseException("TorBox did not return an integration job list.")
+        }
+        return objects.map(::parseJob)
     }
 
-    suspend fun getJob(jobId: Long): TorBoxIntegrationJob? {
+    override suspend fun getJob(jobId: Long): TorBoxIntegrationJob? {
+        require(jobId >= 0) { "Invalid integration job ID." }
         val envelope = execute(
             Request.Builder()
                 .url(endpoint("integration/job/$jobId"))
@@ -117,27 +135,28 @@ class TorBoxDriveIntegrationClient(
             val text = withContext(Dispatchers.IO) { it.body?.string().orEmpty() }
             val envelope = parseEnvelope(text, listOf(apiToken) + extraSecrets)
             val apiCode = envelope?.error?.uppercase(Locale.ROOT)
+                ?.takeIf { it in setOf("BAD_TOKEN", "NO_AUTH") }
             if (it.code == 429) {
                 throw TorBoxRateLimitException(
                     retryAfterSeconds = it.header("Retry-After")?.toLongOrNull(),
-                    message = envelope?.detail ?: "TorBox is rate limiting requests. Try again shortly.",
+                    message = "TorBox is rate limiting requests. Try again shortly.",
                 )
             }
-            if (it.code == 401 || apiCode == "BAD_TOKEN" || apiCode == "NO_AUTH") {
+            if ((it.code == 401 && envelope?.error.isNullOrBlank()) || apiCode == "BAD_TOKEN" || apiCode == "NO_AUTH") {
                 throw TorBoxBadTokenException(
                     apiCode = apiCode ?: "NO_AUTH",
                     statusCode = it.code,
-                    message = envelope?.detail ?: "The TorBox API token is invalid or expired.",
+                    message = "The TorBox API token is invalid or expired.",
                 )
             }
             if (!it.isSuccessful || envelope?.success == false || !envelope?.error.isNullOrBlank()) {
                 throw TorBoxApiException(
                     statusCode = it.code,
                     apiCode = apiCode,
-                    userDetail = envelope?.detail ?: "TorBox rejected the Google Drive integration request.",
+                    userDetail = "TorBox rejected the Google Drive integration request (HTTP ${it.code}).",
                 )
             }
-            if (text.isNotBlank() && envelope == null) {
+            if (text.isNotBlank() && (envelope == null || envelope.success != true)) {
                 throw TorBoxInvalidResponseException("TorBox returned an unreadable integration response.")
             }
             return envelope ?: ApiEnvelope(success = true)
@@ -166,7 +185,8 @@ class TorBoxDriveIntegrationClient(
         progress = source.double("progress"),
         status = source.string("status"),
         type = source.string("type"),
-        detail = sanitize(source.string("detail"), listOfNotNull(tokenProvider())),
+        // Job details are untrusted and can echo Google credentials from older requests.
+        detail = null,
         createdAt = parseInstant(source.string("created_at")),
         updatedAt = parseInstant(source.string("updated_at")),
         zip = source.boolean("zip") ?: false,

@@ -7,6 +7,7 @@ enum class DriveWatchState {
     WAITING,
     AUTH_REQUIRED,
     TRANSFERRING,
+    NEEDS_REVIEW,
     COMPLETE,
     PARTIAL_FAILURE,
     FAILED,
@@ -32,6 +33,7 @@ enum class DriveFileState {
     PENDING,
     SUBMITTING,
     SUBMITTED,
+    UNCERTAIN,
     COMPLETE,
     FAILED,
 }
@@ -45,6 +47,9 @@ data class DriveFileTransfer(
     val jobId: Long? = null,
     val attempts: Int = 0,
     val lastAttemptAt: Instant? = null,
+    val priorJobIds: Set<Long> = emptySet(),
+    val baselineCaptured: Boolean = false,
+    val retryAt: Instant? = null,
     val lastError: String? = null,
 )
 
@@ -64,6 +69,7 @@ data class TorBoxIntegrationJob(
 
 data class DriveAutomationPassResult(
     val watchedAtStart: Int,
+    val accountScope: String? = null,
     val queuedFiles: Int = 0,
     val completedFiles: Int = 0,
     val failedFiles: Int = 0,

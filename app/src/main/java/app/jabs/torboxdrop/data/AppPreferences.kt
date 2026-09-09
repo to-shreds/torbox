@@ -53,6 +53,31 @@ class AppPreferences(context: Context) {
             .putString(KEY_GOOGLE_DRIVE_FOLDER_NAME, value.trim().ifBlank { DEFAULT_DRIVE_FOLDER_NAME })
             .apply()
 
+    fun driveConfiguredFor(accountScope: String?): Boolean =
+        accountScope != null && googleDriveConnected && !googleDriveFolderId.isNullOrBlank() &&
+            driveSetup.getString("google_drive_owner_scope", null) == accountScope
+
+    fun bindDriveAccount(accountScope: String) {
+        check(driveSetup.edit().putString("google_drive_owner_scope", accountScope)
+            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, true).commit()) { "Could not save Drive connection." }
+    }
+
+    /** Save the generated Google ID before creation, so a retry cannot create another folder. */
+    fun reserveDriveFolder(id: String, name: String) {
+        check(driveSetup.edit().putString(KEY_GOOGLE_DRIVE_FOLDER_ID, id)
+            .putString(KEY_GOOGLE_DRIVE_FOLDER_NAME, name)
+            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false).commit()) { "Could not save Drive destination." }
+    }
+
+    fun clearDriveConnection() {
+        check(preferences.edit().putBoolean(KEY_GOOGLE_DRIVE_DEFAULT, false).commit()) {
+            "Could not clear Drive automation default."
+        }
+        check(driveSetup.edit().remove("google_drive_owner_scope")
+            .remove(KEY_GOOGLE_DRIVE_FOLDER_ID).remove(KEY_GOOGLE_DRIVE_FOLDER_NAME)
+            .putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false).commit()) { "Could not clear Drive connection." }
+    }
+
     var seedPreference: Int
         get() = preferences.getInt(KEY_SEED, 1).coerceIn(1, 3)
         set(value) = edit(KEY_SEED, value.coerceIn(1, 3))

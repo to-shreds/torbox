@@ -1,5 +1,16 @@
 package app.jabs.torboxdrop.ui.screens
 
+import android.app.Activity
+import androidx.compose.runtime.LaunchedEffect
+import app.jabs.torboxdrop.drive.DriveConnectionCoordinator
+import app.jabs.torboxdrop.drive.DriveFileState
+import app.jabs.torboxdrop.drive.GoogleDriveApiException
+import app.jabs.torboxdrop.notifications.AccountSensitiveWorkGate
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.withLock
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +39,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,60 +75,71 @@ fun GoogleDriveSettingsCard(modifier: Modifier = Modifier) {
     val preferences = container.preferences
     val scope = rememberCoroutineScope()
 
-    var connected by remember { mutableStateOf(preferences.googleDriveConnected) }
+    var connected by remember { mutableStateOf(false) }
     var defaultEnabled by remember { mutableStateOf(preferences.googleDriveByDefault) }
     var folderDraft by rememberSaveable { mutableStateOf(preferences.googleDriveFolderName) }
-    var busy by remember { mutableStateOf(false) }
+    var pendingFolderName by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingAccount by rememberSaveable { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(pendingFolderName != null) }
     var message by remember { mutableStateOf<String?>(null) }
     var messageIsError by remember { mutableStateOf(false) }
-    var pendingFolderName by rememberSaveable { mutableStateOf<String?>(null) }
+    var transferRows by remember { mutableStateOf(emptyList<String>()) }
 
     fun refreshLocalState() {
-        connected = preferences.googleDriveConnected && !preferences.googleDriveFolderId.isNullOrBlank()
+        connected = preferences.driveConfiguredFor(driveAccountScope(container.tokenStore.read()))
         defaultEnabled = preferences.googleDriveByDefault
-        folderDraft = preferences.googleDriveFolderName
     }
 
-    suspend fun finishConnection(accessToken: String, requestedFolderName: String) {
-        val normalizedName = requestedFolderName.trim().ifBlank { AppPreferences.DEFAULT_DRIVE_FOLDER_NAME }
-        try {
-            if (!container.tokenStore.hasToken()) {
-                error("Connect your TorBox account before connecting Google Drive.")
-            }
-            val existingId = preferences.googleDriveFolderId
-            val existingName = preferences.googleDriveFolderName
-            val folder = if (existingId.isNullOrBlank() || existingName != normalizedName) {
-                container.googleDriveApi.createDestinationFolder(normalizedName, accessToken).also {
-                    // Persist immediately after Google creates it. If the TorBox settings call fails,
-                    // retrying will reuse this exact folder rather than creating a duplicate.
-                    preferences.googleDriveFolderId = it.id
-                    preferences.googleDriveFolderName = it.name
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            refreshLocalState()
+            val account = driveAccountScope(container.tokenStore.read())
+            transferRows = if (account == null) emptyList() else container.driveStore.recentWatches(account)
+                .filterNot { it.queueId?.startsWith("ADMISSION:") == true && it.state.name == "FAILED" }
+                .map { watch ->
+                    val files = container.driveStore.fileTransfers(watch.watchKey)
+                    val completed = files.count { it.state == DriveFileState.COMPLETE }
+                    val state = when (watch.state.name) {
+                        "WAITING" -> "Waiting for TorBox"
+                        "TRANSFERRING" -> "Queued / transferring"
+                        "AUTH_REQUIRED" -> "Reconnect Drive"
+                        "NEEDS_REVIEW" -> "Unconfirmed; check before resending"
+                        "COMPLETE" -> "Complete"
+                        "PARTIAL_FAILURE" -> "Some files failed"
+                        else -> "Stopped / failed"
+                    }
+                    "${watch.name}: $state" + (if (files.isEmpty()) "" else " ($completed/${files.size} complete)") +
+                        (watch.lastError?.let { "\n$it" } ?: "")
                 }
-            } else {
-                GoogleDriveFolder(existingId, existingName)
-            }
+            delay(2_000)
+        }
+    }
 
-            // Reapply the account-level destination every successful connection. This is important
-            // after replacing a TorBox API token because the new TorBox account has separate settings.
-            container.driveIntegration.updateGoogleDriveFolderId(folder.id)
-            preferences.googleDriveConnected = true
-            val accountScope = driveAccountScope(container.tokenStore.read())
-            if (accountScope != null) {
-                container.driveStore.resetAuthorizationRequired(accountScope)
-            }
-            CompletionMonitorScheduler.scheduleFallback(app)
-            CompletionMonitorScheduler.runSoon(app)
-            CompletionMonitorService.startFromUserAction(app)
-            messageIsError = false
-            message = "Connected. Ready downloads will go to ${folder.name}."
-        } catch (error: Exception) {
-            preferences.googleDriveConnected = false
+    suspend fun finishConnection(accessToken: String, requestedName: String, expectedAccount: String) {
+        try {
+            val folder = DriveConnectionCoordinator(preferences, container.tokenStore::read,
+                container.googleDriveApi, container.driveIntegration, container.driveStore)
+                .connect(expectedAccount, requestedName, accessToken)
+            val scheduled = runCatching {
+                CompletionMonitorScheduler.scheduleFallback(app)
+                CompletionMonitorScheduler.runSoon(app)
+                CompletionMonitorService.startFromUserAction(app)
+            }.isSuccess
+            messageIsError = !scheduled
+            message = if (scheduled) "Connected. Ready torrent files will be sent to ${folder.name}."
+                else "Drive is connected, but Android could not start monitoring. Use Check transfers below."
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: GoogleDriveApiException) {
             messageIsError = true
-            message = error.message?.take(240)?.ifBlank { null }
-                ?: "Google Drive could not be connected."
+            message = error.message
+        } catch (_: Exception) {
+            messageIsError = true
+            message = "Drive setup did not finish. Check the TorBox account and Google OAuth setup, then reconnect. The reserved folder is kept for a safe retry."
         } finally {
             busy = false
             pendingFolderName = null
+            pendingAccount = null
             refreshLocalState()
         }
     }
@@ -124,59 +147,67 @@ fun GoogleDriveSettingsCard(modifier: Modifier = Modifier) {
     val authorizationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
     ) { result ->
-        val requestedName = pendingFolderName ?: folderDraft
-        when (val authorization = container.googleDriveAuthorization.completeFromIntent(result.data)) {
+        val requestedName = pendingFolderName
+        val expectedAccount = pendingAccount
+        if (result.resultCode != Activity.RESULT_OK || requestedName == null || expectedAccount == null) {
+            busy = false
+            pendingFolderName = null
+            pendingAccount = null
+            messageIsError = true
+            message = "Google Drive setup was cancelled. Nothing was connected."
+        } else when (val authorization = container.googleDriveAuthorization.completeFromIntent(result.data)) {
             is GoogleDriveAuthorizationResult.Authorized -> scope.launch {
-                finishConnection(authorization.accessToken, requestedName)
+                finishConnection(authorization.accessToken, requestedName, expectedAccount)
             }
-            is GoogleDriveAuthorizationResult.NeedsResolution -> {
-                busy = false
-                messageIsError = true
-                message = "Google Drive still needs authorization. Try Connect again."
-            }
-            is GoogleDriveAuthorizationResult.Failed -> {
+            else -> {
                 busy = false
                 pendingFolderName = null
+                pendingAccount = null
                 messageIsError = true
-                message = authorization.message
+                message = "Google Drive permission was not granted. Try Connect again."
             }
         }
     }
 
     fun authorizeAndConfigure(requestedFolderName: String) {
         if (busy) return
-        if (!container.tokenStore.hasToken()) {
+        val expectedAccount = driveAccountScope(container.tokenStore.read())
+        if (expectedAccount == null) {
             messageIsError = true
             message = "Connect your TorBox account first."
             return
         }
         val normalized = requestedFolderName.trim().ifBlank { AppPreferences.DEFAULT_DRIVE_FOLDER_NAME }
         pendingFolderName = normalized
+        pendingAccount = expectedAccount
         busy = true
         message = null
         scope.launch {
-            when (val authorization = container.googleDriveAuthorization.authorize()) {
-                is GoogleDriveAuthorizationResult.Authorized -> {
-                    finishConnection(authorization.accessToken, normalized)
-                }
-                is GoogleDriveAuthorizationResult.NeedsResolution -> {
-                    runCatching {
+            try {
+                when (val authorization = container.googleDriveAuthorization.authorize()) {
+                    is GoogleDriveAuthorizationResult.Authorized ->
+                        finishConnection(authorization.accessToken, normalized, expectedAccount)
+                    is GoogleDriveAuthorizationResult.NeedsResolution -> {
                         authorizationLauncher.launch(
                             IntentSenderRequest.Builder(authorization.pendingIntent.intentSender).build(),
                         )
-                    }.onFailure {
+                    }
+                    is GoogleDriveAuthorizationResult.Failed -> {
                         busy = false
                         pendingFolderName = null
+                        pendingAccount = null
                         messageIsError = true
-                        message = "Android could not open Google Drive authorization."
+                        message = authorization.message
                     }
                 }
-                is GoogleDriveAuthorizationResult.Failed -> {
-                    busy = false
-                    pendingFolderName = null
-                    messageIsError = true
-                    message = authorization.message
-                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                busy = false
+                pendingFolderName = null
+                pendingAccount = null
+                messageIsError = true
+                message = "Android could not open Google Drive authorization."
             }
         }
     }
@@ -243,6 +274,11 @@ fun GoogleDriveSettingsCard(modifier: Modifier = Modifier) {
                 shape = RoundedCornerShape(16.dp),
             )
 
+            Text(
+                "Google file permission lets this app create its destination folder. A short-lived Google token is sent to TorBox so TorBox can upload your selected torrent files. The folder setting also applies to Drive uploads started elsewhere in your TorBox account.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
             if (!connected) {
                 Button(
                     onClick = { authorizeAndConfigure(folderDraft) },
@@ -294,6 +330,58 @@ fun GoogleDriveSettingsCard(modifier: Modifier = Modifier) {
                         defaultEnabled = enabled
                     },
                 )
+            }
+
+            OutlinedButton(
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        try {
+                            val pass = app.driveAutomationRunner().runOnce(includeReview = true)
+                            if (pass.torBoxAuthBlocked) {
+                                CompletionMonitorScheduler.cancelRejectedAccount(app, pass.accountScope)
+                            } else if (CompletionMonitorScheduler.hasDriveWork(app)) {
+                                CompletionMonitorScheduler.scheduleFallback(app)
+                                CompletionMonitorScheduler.runSoon(app)
+                            }
+                            messageIsError = pass.torBoxAuthBlocked || pass.retryableFailures > 0 || pass.authRequired
+                            message = when {
+                                pass.torBoxAuthBlocked -> "TorBox rejected the API token. Replace it before checking transfers again."
+                                pass.authRequired -> "Reconnect Google Drive to continue unsent files."
+                                pass.retryableFailures > 0 -> "Some transfer checks failed. Unconfirmed requests are not resent."
+                                else -> "Transfer check finished. Unconfirmed requests are not resent."
+                            }
+                        } catch (error: CancellationException) { throw error
+                        } catch (_: Exception) {
+                            messageIsError = true
+                            message = "Transfer status could not be checked. Nothing uncertain was resent."
+                        } finally { busy = false; refreshLocalState() }
+                    }
+                }, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+            ) { Text("Check transfers") }
+
+            if (connected || transferRows.isNotEmpty()) {
+                TextButton(onClick = {
+                    busy = true
+                    scope.launch {
+                        try {
+                            AccountSensitiveWorkGate.mutex.withLock {
+                                driveAccountScope(container.tokenStore.read())?.let { container.driveStore.stopUnsubmitted(it) }
+                                preferences.clearDriveConnection()
+                            }
+                            CompletionMonitorScheduler.cancelIfIdle(app)
+                            messageIsError = false
+                            message = "Unsent files were stopped. Jobs already queued in TorBox may continue. Google account permission has not been revoked."
+                        } catch (error: CancellationException) { throw error
+                        } catch (_: Exception) {
+                            messageIsError = true
+                            message = "Stopping did not finish. Check the transfer list before trying again."
+                        } finally { busy = false; refreshLocalState() }
+                    }
+                }, enabled = !busy) { Text("Stop sending to Drive") }
+            }
+            transferRows.forEach { row ->
+                Text(row, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth())
             }
 
             message?.let { text ->

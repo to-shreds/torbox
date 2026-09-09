@@ -53,13 +53,32 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                 job_id INTEGER,
                 attempts INTEGER NOT NULL,
                 last_attempt_at INTEGER,
+                prior_job_ids TEXT NOT NULL DEFAULT '',
+                baseline_captured INTEGER NOT NULL DEFAULT 0,
+                retry_at INTEGER,
                 last_error TEXT
             )""".trimIndent(),
         )
         db.execSQL("CREATE INDEX drive_files_watch_key ON drive_files(watch_key)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE drive_files ADD COLUMN prior_job_ids TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE drive_files ADD COLUMN retry_at INTEGER")
+            db.execSQL("ALTER TABLE drive_files ADD COLUMN baseline_captured INTEGER NOT NULL DEFAULT 0")
+            val keys = db.rawQuery("SELECT watch_key, account_scope FROM drive_watches", null).use { cursor ->
+                buildList { while (cursor.moveToNext()) add(cursor.getString(0) to cursor.getString(1)) }
+            }
+            keys.forEach { (old, scope) ->
+                val next = "$scope:$old"
+                db.execSQL("UPDATE drive_files SET watch_key = ?, transfer_key = ? || ':' || file_id WHERE watch_key = ?",
+                    arrayOf(next, next, old))
+                db.execSQL("UPDATE drive_watches SET watch_key = ? WHERE watch_key = ?", arrayOf(next, old))
+            }
+            // Old SUBMITTING/SUBMITTED records stay ambiguous; migration never turns them into retries.
+        }
+    }
 
     suspend fun armActive(
         accountScope: String,
@@ -67,9 +86,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
         sourceValue: String? = null,
         hasBeenSeen: Boolean = true,
     ) = io {
-        val watchKey = key(item.type, item.id)
+        val watchKey = key(accountScope, item.type, item.id)
         writableDatabase.transaction {
-            delete("drive_files", "watch_key = ?", arrayOf(watchKey))
             insertWithOnConflict(
                 "drive_watches",
                 null,
@@ -84,7 +102,7 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                     sourceHash = item.hash,
                     sourceValue = sourceValue,
                 ),
-                SQLiteDatabase.CONFLICT_REPLACE,
+                SQLiteDatabase.CONFLICT_IGNORE,
             )
         }
     }
@@ -97,9 +115,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
         sourceHash: String?,
         sourceValue: String?,
     ) = io {
-        val watchKey = queuedKey(type, queueId)
+        val watchKey = queuedKey(accountScope, type, queueId)
         writableDatabase.transaction {
-            delete("drive_files", "watch_key = ?", arrayOf(watchKey))
             insertWithOnConflict(
                 "drive_watches",
                 null,
@@ -114,34 +131,29 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                     sourceHash = sourceHash,
                     sourceValue = sourceValue,
                 ),
-                SQLiteDatabase.CONFLICT_REPLACE,
+                SQLiteDatabase.CONFLICT_IGNORE,
             )
         }
     }
 
-    suspend fun runnableWatches(accountScope: String): List<DriveWatch> = io {
+    suspend fun runnableWatches(accountScope: String, includeReview: Boolean = false): List<DriveWatch> = io {
         watches(
             accountScope,
-            setOf(DriveWatchState.WAITING, DriveWatchState.TRANSFERRING),
-        )
+            setOf(DriveWatchState.WAITING, DriveWatchState.TRANSFERRING, DriveWatchState.AUTH_REQUIRED) +
+                if (includeReview) setOf(DriveWatchState.NEEDS_REVIEW) else emptySet(),
+        ).filter { it.state != DriveWatchState.AUTH_REQUIRED || hasSubmittedFiles(it.watchKey) }
     }
 
     suspend fun authRequiredWatches(accountScope: String): List<DriveWatch> = io {
         watches(accountScope, setOf(DriveWatchState.AUTH_REQUIRED))
     }
 
-    suspend fun hasRunnableWork(accountScope: String): Boolean = io {
-        readableDatabase.query(
-            "drive_watches",
-            arrayOf("watch_key"),
-            "account_scope = ? AND state IN (?, ?)",
-            arrayOf(accountScope, DriveWatchState.WAITING.name, DriveWatchState.TRANSFERRING.name),
-            null,
-            null,
-            null,
-            "1",
-        ).use { it.moveToFirst() }
-    }
+    suspend fun hasRunnableWork(accountScope: String): Boolean = runnableWatches(accountScope).isNotEmpty()
+
+    private fun hasSubmittedFiles(key: String): Boolean = readableDatabase.rawQuery(
+        "SELECT 1 FROM drive_files WHERE watch_key = ? AND state IN (?, ?) LIMIT 1",
+        arrayOf(key, DriveFileState.SUBMITTING.name, DriveFileState.SUBMITTED.name),
+    ).use { it.moveToFirst() }
 
     suspend fun resetAuthorizationRequired(accountScope: String) = io {
         writableDatabase.execSQL(
@@ -216,7 +228,7 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
 
     suspend fun rebindQueued(watch: DriveWatch, active: DownloadItem): Boolean = io {
         val queuedId = watch.queueId ?: return@io false
-        val nextKey = key(active.type, active.id)
+        val nextKey = key(watch.accountScope, active.type, active.id)
         writableDatabase.transactionResult {
             val collision = query(
                 "drive_watches",
@@ -235,6 +247,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                     arrayOf(watch.watchKey, queuedId),
                 ) == 1
             }
+            execSQL("UPDATE drive_files SET watch_key = ?, transfer_key = ? || ':' || file_id WHERE watch_key = ?",
+                arrayOf(nextKey, nextKey, watch.watchKey))
             update(
                 "drive_watches",
                 ContentValues().apply {
@@ -274,6 +288,12 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                     },
                     SQLiteDatabase.CONFLICT_IGNORE,
                 )
+                if (file.infected) {
+                    update("drive_files", ContentValues().apply {
+                        put("state", DriveFileState.FAILED.name)
+                        put("last_error", "TorBox marked this file as infected.")
+                    }, "transfer_key = ? AND state = ?", arrayOf(transferKey, DriveFileState.PENDING.name))
+                }
             }
         }
     }
@@ -291,6 +311,9 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                 "attempts",
                 "last_attempt_at",
                 "last_error",
+                "prior_job_ids",
+                "retry_at",
+                "baseline_captured",
             ),
             "watch_key = ?",
             arrayOf(watchKey),
@@ -311,6 +334,9 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                             attempts = cursor.getInt(6),
                             lastAttemptAt = cursor.longOrNull(7)?.let(Instant::ofEpochMilli),
                             lastError = cursor.stringOrNull(8),
+                            priorJobIds = cursor.getString(9).split(',').mapNotNull(String::toLongOrNull).toSet(),
+                            retryAt = cursor.longOrNull(10)?.let(Instant::ofEpochMilli),
+                            baselineCaptured = cursor.getInt(11) == 1,
                         )
                     }.getOrNull()?.let(::add)
                 }
@@ -319,17 +345,24 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
     }
 
     /** Claims one not-yet-submitted file and records the attempt before network I/O. */
-    suspend fun claimFileForSubmission(transferKey: String, at: Instant = Instant.now()): Boolean = io {
+    suspend fun claimFileForSubmission(
+        transferKey: String,
+        at: Instant = Instant.now(),
+        priorJobIds: Set<Long> = emptySet(),
+    ): Boolean = io {
         writableDatabase.transactionResult {
             val claimed = update(
                 "drive_files",
                 ContentValues().apply {
                     put("state", DriveFileState.SUBMITTING.name)
                     put("last_attempt_at", at.toEpochMilli())
+                    put("prior_job_ids", priorJobIds.sorted().joinToString(","))
+                    put("baseline_captured", 1)
+                    putNull("retry_at")
                     putNull("last_error")
                 },
-                "transfer_key = ? AND state = ?",
-                arrayOf(transferKey, DriveFileState.PENDING.name),
+                "transfer_key = ? AND state = ? AND (retry_at IS NULL OR retry_at <= ?)",
+                arrayOf(transferKey, DriveFileState.PENDING.name, at.toEpochMilli().toString()),
             ) == 1
             if (claimed) {
                 execSQL(
@@ -346,11 +379,11 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
             "drive_files",
             ContentValues().apply {
                 put("state", DriveFileState.SUBMITTED.name)
-                if (jobId == null) putNull("job_id") else put("job_id", jobId)
+                if (jobId != null) put("job_id", jobId)
                 putNull("last_error")
             },
-            "transfer_key = ?",
-            arrayOf(transferKey),
+            "transfer_key = ? AND state NOT IN (?, ?)",
+            arrayOf(transferKey, DriveFileState.COMPLETE.name, DriveFileState.FAILED.name),
         )
     }
 
@@ -362,8 +395,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                 if (jobId != null) put("job_id", jobId)
                 putNull("last_error")
             },
-            "transfer_key = ?",
-            arrayOf(transferKey),
+            "transfer_key = ? AND state NOT IN (?, ?)",
+            arrayOf(transferKey, DriveFileState.COMPLETE.name, DriveFileState.FAILED.name),
         )
     }
 
@@ -375,61 +408,65 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                 if (jobId != null) put("job_id", jobId)
                 put("last_error", message.take(MAX_ERROR_LENGTH))
             },
-            "transfer_key = ?",
-            arrayOf(transferKey),
+            "transfer_key = ? AND state NOT IN (?, ?)",
+            arrayOf(transferKey, DriveFileState.COMPLETE.name, DriveFileState.FAILED.name),
         )
     }
 
-    suspend fun retryAmbiguousIfStale(
-        transferKey: String,
-        staleBefore: Instant,
-        maxAttempts: Int,
-    ): Boolean = io {
-        writableDatabase.transactionResult {
-            data class Row(val state: String, val attempts: Int, val lastAttempt: Long?, val jobId: Long?)
-            val row = query(
-                "drive_files",
-                arrayOf("state", "attempts", "last_attempt_at", "job_id"),
-                "transfer_key = ?",
-                arrayOf(transferKey),
-                null,
-                null,
-                null,
-            ).use { cursor ->
-                if (!cursor.moveToFirst()) null else Row(
-                    state = cursor.getString(0),
-                    attempts = cursor.getInt(1),
-                    lastAttempt = cursor.longOrNull(2),
-                    jobId = cursor.longOrNull(3),
-                )
-            } ?: return@transactionResult false
-            if (row.state !in setOf(DriveFileState.SUBMITTING.name, DriveFileState.SUBMITTED.name) || row.jobId != null) {
-                return@transactionResult false
+    /** A lost response is not evidence that the server did nothing. Never automatically resend it. */
+    suspend fun markAmbiguousIfStale(transferKey: String, staleBefore: Instant) = io {
+        writableDatabase.update("drive_files", ContentValues().apply {
+            put("state", DriveFileState.UNCERTAIN.name)
+            put("last_error", "TorBox has not confirmed this transfer. It will not be sent again automatically.")
+        }, "transfer_key = ? AND state IN (?, ?) AND job_id IS NULL AND last_attempt_at <= ?",
+            arrayOf(transferKey, DriveFileState.SUBMITTING.name, DriveFileState.SUBMITTED.name,
+                staleBefore.toEpochMilli().toString()))
+    }
+
+    /** Only an authoritative rejection (bad TorBox credential or 429) permits another attempt. */
+    suspend fun releaseRejected(transferKey: String, retryAt: Instant) = io {
+        writableDatabase.update("drive_files", ContentValues().apply {
+            put("state", DriveFileState.PENDING.name)
+            put("retry_at", retryAt.toEpochMilli())
+            putNull("last_error")
+        }, "transfer_key = ? AND state = ?", arrayOf(transferKey, DriveFileState.SUBMITTING.name))
+    }
+
+    suspend fun recentWatches(accountScope: String): List<DriveWatch> = io {
+        watches(accountScope, DriveWatchState.entries.toSet()).sortedByDescending { it.armedAt }.take(10)
+    }
+
+    suspend fun getWatch(watchKey: String, accountScope: String): DriveWatch? = io {
+        watches(accountScope, DriveWatchState.entries.toSet()).firstOrNull { it.watchKey == watchKey }
+    }
+
+    suspend fun note(watchKey: String, message: String) = io {
+        writableDatabase.update("drive_watches", ContentValues().apply {
+            put("last_error", message.take(MAX_ERROR_LENGTH))
+        }, "watch_key = ?", arrayOf(watchKey))
+    }
+
+    /** Disarm future sends without forgetting already-submitted jobs or their duplicate guards. */
+    suspend fun stopUnsubmitted(accountScope: String, itemId: String? = null, queued: Boolean = false) = io {
+        writableDatabase.transaction {
+            val target = watches(accountScope, DriveWatchState.entries.toSet()).filter {
+                itemId == null || (if (queued) it.queueId == itemId else it.queueId == null && it.downloadId == itemId)
             }
-            if (row.lastAttempt == null || Instant.ofEpochMilli(row.lastAttempt).isAfter(staleBefore)) {
-                return@transactionResult false
+            target.forEach { watch ->
+                update("drive_files", ContentValues().apply {
+                    put("state", DriveFileState.FAILED.name)
+                    put("last_error", "Sending was stopped before submission.")
+                }, "watch_key = ? AND state = ?", arrayOf(watch.watchKey, DriveFileState.PENDING.name))
+                val hasFiles = rawQuery("SELECT 1 FROM drive_files WHERE watch_key = ? LIMIT 1", arrayOf(watch.watchKey))
+                    .use { it.moveToFirst() }
+                if (!hasFiles) update("drive_watches", ContentValues().apply {
+                    put("state", DriveWatchState.FAILED.name)
+                    put("last_error", "Sending was stopped before submission.")
+                }, "watch_key = ?", arrayOf(watch.watchKey))
+                else if (watch.state == DriveWatchState.AUTH_REQUIRED) update("drive_watches", ContentValues().apply {
+                    put("state", DriveWatchState.TRANSFERRING.name)
+                }, "watch_key = ?", arrayOf(watch.watchKey))
             }
-            if (row.attempts >= maxAttempts) {
-                update(
-                    "drive_files",
-                    ContentValues().apply {
-                        put("state", DriveFileState.FAILED.name)
-                        put("last_error", "Could not confirm that TorBox accepted the Drive transfer.")
-                    },
-                    "transfer_key = ?",
-                    arrayOf(transferKey),
-                )
-                return@transactionResult false
-            }
-            update(
-                "drive_files",
-                ContentValues().apply {
-                    put("state", DriveFileState.PENDING.name)
-                    putNull("last_error")
-                },
-                "transfer_key = ?",
-                arrayOf(transferKey),
-            ) == 1
         }
     }
 
@@ -448,7 +485,17 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
             val terminal = states.all {
                 it == DriveFileState.COMPLETE.name || it == DriveFileState.FAILED.name
             }
-            if (!terminal) return@transactionResult null
+            if (!terminal) {
+                if (states.all { it in setOf(DriveFileState.COMPLETE.name, DriveFileState.FAILED.name,
+                        DriveFileState.UNCERTAIN.name) }) {
+                    update("drive_watches", ContentValues().apply {
+                        put("state", DriveWatchState.NEEDS_REVIEW.name)
+                        put("last_error", "Some files are unconfirmed. Check TorBox and Drive before sending them again.")
+                    }, "watch_key = ?", arrayOf(watchKey))
+                    return@transactionResult DriveWatchState.NEEDS_REVIEW
+                }
+                return@transactionResult null
+            }
             val completed = states.count { it == DriveFileState.COMPLETE.name }
             val failed = states.size - completed
             val state = when {
@@ -582,10 +629,10 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "torbox_drive_automation.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
         private const val MAX_ERROR_LENGTH = 500
 
-        fun key(type: DownloadType, id: String): String = "${type.name}:$id"
-        fun queuedKey(type: DownloadType, id: String): String = "QUEUE:${type.name}:$id"
+        fun key(scope: String, type: DownloadType, id: String): String = "$scope:${type.name}:$id"
+        fun queuedKey(scope: String, type: DownloadType, id: String): String = "$scope:QUEUE:${type.name}:$id"
     }
 }

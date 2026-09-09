@@ -81,19 +81,18 @@ class CompletionMonitorService : Service() {
                         CompletionNotifications.postCompletion(this, claim)
                     }.runOnce()
                 }
-                val drivePass = (application as? TorBoxDropApplication)?.driveAutomationRunner()?.runOnce()
+                val drivePass = if (notificationPass?.authBlocked == true) null else
+                    (application as? TorBoxDropApplication)?.driveAutomationRunner()?.runOnce()
 
                 val authBlocked = notificationPass?.authBlocked == true ||
                     drivePass?.torBoxAuthBlocked == true
                 if (authBlocked) {
-                    CompletionMonitorScheduler.cancelFallback(this)
-                    break
+                    val stopped = CompletionMonitorScheduler.cancelRejectedAccount(this,
+                        if (notificationPass?.authBlocked == true) notificationPass.accountScope else drivePass?.accountScope)
+                    if (stopped) break else continue
                 }
                 val hasWork = notificationPass?.hasArmedDownloads == true || drivePass?.hasWork == true
-                if (!hasWork) {
-                    CompletionMonitorScheduler.cancelFallback(this)
-                    break
-                }
+                if (!hasWork && CompletionMonitorScheduler.cancelIfIdle(this)) break
 
                 val notificationRemaining = notificationPass?.let {
                     (it.armedAtStart - it.delivered - it.removed).coerceAtLeast(0)

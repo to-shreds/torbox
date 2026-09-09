@@ -1,5 +1,7 @@
 package app.jabs.torboxdrop.drive
 
+import app.jabs.torboxdrop.data.Json
+import app.jabs.torboxdrop.data.JsonValue
 import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -10,127 +12,115 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import org.json.JSONObject
 
 data class GoogleDriveFolder(val id: String, val name: String)
 
-/**
- * Minimal Google Drive API client used only to create a user-named destination folder.
- *
- * The app deliberately requests only drive.file. Creating the folder with this OAuth client makes
- * that folder user-authorized for the same short-lived token TorBox receives for its upload job,
- * without requesting broad access to the user's existing Drive contents.
- */
+/** Only folder metadata crosses this boundary. Media bytes never pass through Android. */
 class GoogleDriveApiClient(
-    private val httpClient: OkHttpClient,
+    httpClient: OkHttpClient,
     baseUrl: HttpUrl = DEFAULT_BASE_URL,
 ) {
+    private val httpClient = httpClient.newBuilder().retryOnConnectionFailure(false)
+        .followRedirects(false).followSslRedirects(false).build()
     private val apiBaseUrl = baseUrl.newBuilder().apply {
         if (!baseUrl.encodedPath.endsWith('/')) addPathSegment("")
     }.build()
 
     init {
-        require(
-            apiBaseUrl.isHttps || apiBaseUrl.host in setOf("localhost", "127.0.0.1", "::1"),
-        ) { "Google Drive API base URL must use HTTPS" }
-    }
-
-    suspend fun createDestinationFolder(name: String, accessToken: String): GoogleDriveFolder {
-        val normalized = name.trim().takeIf(String::isNotEmpty)
-            ?: throw IllegalArgumentException("Enter a Google Drive folder name.")
-        require(accessToken.isNotBlank()) { "Google Drive access token is required." }
-        val body = JSONObject()
-            .put("name", normalized.take(MAX_FOLDER_NAME_LENGTH))
-            .put("mimeType", FOLDER_MIME_TYPE)
-            .toString()
-            .toRequestBody(JSON_MEDIA_TYPE)
-        val url = apiBaseUrl.newBuilder()
-            .addPathSegment("files")
-            .addQueryParameter("fields", "id,name")
-            .build()
-        val request = Request.Builder()
-            .url(url)
-            .post(body)
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .header("Cache-Control", "no-store")
-            .build()
-        return execute(request, accessToken) { source ->
-            val json = JSONObject(source)
-            val id = json.optString("id").trim().takeIf(String::isNotEmpty)
-                ?: throw GoogleDriveApiException("Google Drive did not return the new folder ID.")
-            GoogleDriveFolder(id = id, name = json.optString("name", normalized).ifBlank { normalized })
+        require(apiBaseUrl.isHttps || apiBaseUrl.host in setOf("localhost", "127.0.0.1", "::1")) {
+            "Google Drive API base URL must use HTTPS"
         }
     }
 
-    private suspend fun <T> execute(
-        request: Request,
-        accessToken: String,
-        parse: (String) -> T,
-    ): T {
+    /** Persist this ID before calling ensureDestinationFolder, including across process death. */
+    suspend fun generateFolderId(accessToken: String): String {
+        val url = apiBaseUrl.newBuilder().addPathSegments("files/generateIds")
+            .addQueryParameter("count", "1").addQueryParameter("space", "drive").build()
+        val root = execute(Request.Builder().url(url).get(), accessToken)
+        val id = (root.array("ids")?.values?.singleOrNull() as? JsonValue.StringValue)?.value
+            ?: throw GoogleDriveApiException("Google Drive did not return a reserved folder ID.")
+        requireFolderId(id)
+        return id
+    }
+
+    suspend fun requireWritableFolder(id: String, accessToken: String): GoogleDriveFolder {
+        requireFolderId(id)
+        val url = apiBaseUrl.newBuilder().addPathSegment("files").addPathSegment(id)
+            .addQueryParameter("fields", "id,name,mimeType,trashed,capabilities(canAddChildren)").build()
+        val root = execute(Request.Builder().url(url).get(), accessToken)
+        if (root.string("id") != id || root.string("mimeType") != FOLDER_MIME_TYPE ||
+            root.boolean("trashed") != false || root.obj("capabilities")?.boolean("canAddChildren") != true
+        ) throw GoogleDriveApiException("This Google account cannot upload into the saved Drive folder.", 403)
+        return GoogleDriveFolder(id, root.string("name") ?: "TorBox Drop")
+    }
+
+    suspend fun ensureDestinationFolder(id: String, name: String, accessToken: String): GoogleDriveFolder {
+        requireFolderId(id)
+        val normalized = name.trim().takeIf(String::isNotEmpty)?.take(200)
+            ?: throw IllegalArgumentException("Enter a Google Drive folder name.")
+        try {
+            return requireWritableFolder(id, accessToken)
+        } catch (error: GoogleDriveApiException) {
+            if (error.statusCode != 404) throw error
+        }
+        val body = Json.stringify(Json.obj("id" to Json.string(id), "name" to Json.string(normalized),
+            "mimeType" to Json.string(FOLDER_MIME_TYPE)))
+        val url = apiBaseUrl.newBuilder().addPathSegment("files").addQueryParameter("fields", "id,name").build()
+        try {
+            val root = execute(Request.Builder().url(url).post(driveJsonBody(body)), accessToken)
+            if (root.string("id") != id) throw GoogleDriveApiException("Google Drive returned a different folder ID.")
+        } catch (error: GoogleDriveApiException) {
+            // A previous create may have succeeded before its response was lost. Reuse its ID.
+            if (error.statusCode != 409) throw error
+        }
+        return requireWritableFolder(id, accessToken)
+    }
+
+    private suspend fun execute(builder: Request.Builder, token: String): JsonValue.Object {
+        require(token.isNotBlank()) { "Google Drive authorization is required." }
         val response = try {
-            httpClient.newCall(request).awaitDriveApi()
+            httpClient.newCall(builder.header("Authorization", "Bearer $token")
+                .header("Accept", "application/json").header("Cache-Control", "no-store").build()).awaitDriveApi()
         } catch (_: IOException) {
-            throw GoogleDriveApiException("Google Drive could not be reached.")
+            throw GoogleDriveApiException("Google Drive could not be reached. No new folder ID will be generated on retry.")
         }
         response.use {
+            if (!it.isSuccessful) throw GoogleDriveApiException(
+                when (it.code) {
+                    401, 403, 404 -> "This Google account cannot access the saved Drive folder. Reconnect or choose a new destination."
+                    429 -> "Google Drive is rate limiting requests. Try again shortly."
+                    else -> "Google Drive rejected the folder operation (HTTP ${it.code})."
+                }, it.code,
+            )
             val body = withContext(Dispatchers.IO) { it.body?.string().orEmpty() }
-            if (!it.isSuccessful) {
-                val safe = sanitizeGoogleError(body, accessToken)
-                throw GoogleDriveApiException(
-                    when (it.code) {
-                        401, 403 -> "Google Drive authorization does not allow that folder operation."
-                        429 -> "Google Drive is rate limiting requests. Try again shortly."
-                        else -> safe ?: "Google Drive rejected the folder operation."
-                    },
-                )
-            }
-            return try {
-                parse(body)
-            } catch (error: GoogleDriveApiException) {
-                throw error
-            } catch (_: Exception) {
-                throw GoogleDriveApiException("Google Drive returned an unreadable folder response.")
-            }
+            return runCatching { Json.parse(body) as? JsonValue.Object }.getOrNull()
+                ?: throw GoogleDriveApiException("Google Drive returned an unreadable folder response.")
         }
     }
 
-    private fun sanitizeGoogleError(body: String, token: String): String? {
-        var value = runCatching {
-            val json = JSONObject(body)
-            json.optJSONObject("error")?.optString("message")
-        }.getOrNull()?.trim()?.takeIf(String::isNotEmpty) ?: return null
-        if (token.isNotEmpty()) value = value.replace(token, "[redacted]", ignoreCase = false)
-        value = Regex("(?i)\\bbearer\\s+[^\\s,;]+").replace(value, "Bearer [redacted]")
-        return value.take(300)
+    private fun requireFolderId(id: String) {
+        require(Regex("[A-Za-z0-9_-]{1,200}").matches(id)) { "Invalid Google Drive folder ID." }
     }
 
     companion object {
         val DEFAULT_BASE_URL: HttpUrl = "https://www.googleapis.com/drive/v3/".toHttpUrl()
         private const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
-        private const val MAX_FOLDER_NAME_LENGTH = 200
-        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
 
-class GoogleDriveApiException(message: String) : Exception(message)
+class GoogleDriveApiException(message: String, val statusCode: Int? = null) : Exception(message)
 
 private suspend fun Call.awaitDriveApi(): Response = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
-    enqueue(
-        object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                if (continuation.isActive) continuation.resumeWithException(e)
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                if (continuation.isActive) continuation.resume(response) else response.close()
-            }
-        },
-    )
+    enqueue(object : Callback {
+        override fun onFailure(call: Call, e: IOException) {
+            if (continuation.isActive) continuation.resumeWithException(e)
+        }
+        override fun onResponse(call: Call, response: Response) {
+            if (continuation.isActive) continuation.resume(response) else response.close()
+        }
+    })
 }

@@ -17,6 +17,7 @@ data class MonitorPassResult(
     val hasArmedDownloads: Boolean,
     /** The configured credential was authoritatively rejected; do not keep retrying in background. */
     val authBlocked: Boolean = false,
+    val accountScope: String? = null,
 )
 
 class CompletionMonitorRunner(
@@ -24,6 +25,7 @@ class CompletionMonitorRunner(
     private val publisher: CompletionNotificationPublisher,
 ) {
     suspend fun runOnce(): MonitorPassResult = AccountSensitiveWorkGate.mutex.withLock {
+        val account = dependencies.accountScope()
         val armed = try {
             dependencies.armedDownloads()
         } catch (error: CancellationException) {
@@ -36,6 +38,7 @@ class CompletionMonitorRunner(
                 retryableFailures = 0,
                 hasArmedDownloads = true,
                 authBlocked = true,
+                accountScope = account,
             )
         } catch (_: Exception) {
             return@withLock MonitorPassResult(
@@ -85,7 +88,7 @@ class CompletionMonitorRunner(
             true
         } else {
             try {
-                dependencies.armedDownloads().isNotEmpty() || AdditionalMonitoredWork.hasWork()
+                dependencies.armedDownloads().isNotEmpty()
             } catch (error: CancellationException) {
                 throw error
             } catch (_: TorBoxBadTokenException) {
@@ -103,6 +106,7 @@ class CompletionMonitorRunner(
             retryableFailures = failures,
             hasArmedDownloads = stillArmed,
             authBlocked = authBlocked,
+            accountScope = account,
         )
     }
 

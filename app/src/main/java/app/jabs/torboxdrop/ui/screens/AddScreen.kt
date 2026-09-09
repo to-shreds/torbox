@@ -70,6 +70,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.jabs.torboxdrop.TorBoxDropApplication
+import app.jabs.torboxdrop.drive.driveAccountScope
 import app.jabs.torboxdrop.model.AddOptions
 import app.jabs.torboxdrop.model.AddResult
 import app.jabs.torboxdrop.model.DownloadType
@@ -109,8 +110,9 @@ fun AddScreen(
     var advancedExpanded by rememberSaveable { mutableStateOf(false) }
     val app = LocalContext.current.applicationContext as TorBoxDropApplication
     val drivePreferences = app.container.preferences
-    val driveConnected = drivePreferences.googleDriveConnected &&
-        !drivePreferences.googleDriveFolderId.isNullOrBlank()
+    val driveConnected = drivePreferences.driveConfiguredFor(
+        driveAccountScope(app.container.tokenStore.read()),
+    )
     val sendToDrive = options.sendToGoogleDrive ?: drivePreferences.googleDriveByDefault
     val isTorrentInput = pendingTorrentName != null || detection.kind == CandidateKind.MAGNET
     val driveRequirementUnmet = isTorrentInput && sendToDrive && !driveConnected

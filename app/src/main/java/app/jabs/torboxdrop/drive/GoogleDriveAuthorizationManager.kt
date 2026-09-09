@@ -11,11 +11,14 @@ import com.google.android.gms.common.api.Scope
 import com.google.android.gms.tasks.Task
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 sealed interface GoogleDriveAuthorizationResult {
     /** Short-lived bearer token. It must be used immediately and never persisted. */
-    data class Authorized(val accessToken: String) : GoogleDriveAuthorizationResult
+    class Authorized(val accessToken: String) : GoogleDriveAuthorizationResult {
+        override fun toString(): String = "Authorized([redacted])"
+    }
 
     /** Interactive consent/account selection is required and must be launched from visible UI. */
     data class NeedsResolution(val pendingIntent: PendingIntent) : GoogleDriveAuthorizationResult
@@ -29,14 +32,24 @@ sealed interface GoogleDriveAuthorizationResult {
  * Access tokens are deliberately returned to the caller only. This class never writes them to
  * preferences, the database, logs, diagnostics, or saved instance state.
  */
-class GoogleDriveAuthorizationManager(context: Context) {
+fun interface GoogleDriveAuthorizer {
+    suspend fun authorize(): GoogleDriveAuthorizationResult
+}
+
+class GoogleDriveAuthorizationManager(context: Context) : GoogleDriveAuthorizer {
     private val appContext = context.applicationContext
     private val client get() = Identity.getAuthorizationClient(appContext)
 
-    suspend fun authorize(): GoogleDriveAuthorizationResult = try {
+    override suspend fun authorize(): GoogleDriveAuthorizationResult = try {
         toResult(client.authorize(AUTHORIZATION_REQUEST).awaitCancellable())
-    } catch (_: ApiException) {
-        GoogleDriveAuthorizationResult.Failed("Google Drive authorization was rejected.")
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: ApiException) {
+        GoogleDriveAuthorizationResult.Failed(
+            if (error.statusCode == 10) {
+                "Google Drive setup is not configured for this app's signing certificate. Register its Android OAuth client first."
+            } else "Google Drive authorization was rejected. Try connecting again.",
+        )
     } catch (_: Exception) {
         GoogleDriveAuthorizationResult.Failed("Google Drive authorization is unavailable right now.")
     }
@@ -53,6 +66,9 @@ class GoogleDriveAuthorizationManager(context: Context) {
         if (result.hasResolution()) {
             return result.pendingIntent?.let(GoogleDriveAuthorizationResult::NeedsResolution)
                 ?: GoogleDriveAuthorizationResult.Failed("Google Drive requires authorization.")
+        }
+        if (DRIVE_FILE_SCOPE !in result.grantedScopes) {
+            return GoogleDriveAuthorizationResult.Failed("Google Drive file permission was not granted.")
         }
         val token = result.accessToken?.trim().orEmpty()
         return if (token.isNotEmpty()) {

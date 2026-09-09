@@ -18,15 +18,17 @@ class CompletionMonitorWorker(
             }.runOnce()
         }
         val app = applicationContext as? TorBoxDropApplication
-        val drivePass = app?.driveAutomationRunner()?.runOnce()
+        val drivePass = if (notificationPass?.authBlocked == true) null else app?.driveAutomationRunner()?.runOnce()
 
         val torBoxAuthBlocked = notificationPass?.authBlocked == true ||
             drivePass?.torBoxAuthBlocked == true
         val hasWork = notificationPass?.hasArmedDownloads == true || drivePass?.hasWork == true
-        if (torBoxAuthBlocked || !hasWork) {
-            CompletionMonitorScheduler.cancelFallback(applicationContext)
+        if (torBoxAuthBlocked) {
+            CompletionMonitorScheduler.cancelRejectedAccount(applicationContext,
+                if (notificationPass?.authBlocked == true) notificationPass.accountScope else drivePass?.accountScope)
+            return Result.success()
         }
-        if (torBoxAuthBlocked) return Result.success()
+        if (!hasWork) CompletionMonitorScheduler.cancelIfIdle(applicationContext)
 
         val failures = (notificationPass?.retryableFailures ?: 0) +
             (drivePass?.retryableFailures ?: 0)
