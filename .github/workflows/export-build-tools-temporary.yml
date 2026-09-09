@@ -23,8 +23,8 @@ jobs:
         run: |
           test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
           test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign"
+          test -f "$ANDROID_SDK_ROOT/build-tools/36.0.0/lib/apksigner.jar"
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" --version
-          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -h >/dev/null
       - uses: actions/upload-artifact@v7
         with:
           name: android-build-tools-36-signing
