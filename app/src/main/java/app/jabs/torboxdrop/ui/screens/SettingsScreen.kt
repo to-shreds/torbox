@@ -126,10 +126,9 @@ data class SettingsUiState(
 )
 
 /**
- * Settings UI with no storage or networking side effects. Token callbacks must
- * hand the value to secure native storage; this screen never persists the draft.
- * [onValidateToken] validates the already-saved token, while [onReplaceToken]
- * should validate and atomically save the supplied replacement.
+ * Settings UI with no storage or networking side effects of its own. Token callbacks must hand the
+ * value to secure native storage; this screen never persists the draft. Google Drive setup is
+ * isolated in [GoogleDriveSettingsCard], which likewise never stores an OAuth access token.
  */
 @Composable
 fun SettingsScreen(
@@ -213,6 +212,10 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        item {
+            GoogleDriveSettingsCard(modifier = Modifier.widthIn(max = 720.dp))
         }
 
         item {
