@@ -18,10 +18,7 @@ object CompletionMonitorScheduler {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
-        val request = PeriodicWorkRequestBuilder<CompletionMonitorWorker>(
-            15,
-            TimeUnit.MINUTES,
-        )
+        val request = PeriodicWorkRequestBuilder<CompletionMonitorWorker>(15, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .build()
         WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
@@ -33,19 +30,17 @@ object CompletionMonitorScheduler {
 
     /** A best-effort prompt pass for newly armed work, including instantly-ready cached torrents. */
     fun runSoon(context: Context) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
+        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             UNIQUE_IMMEDIATE_WORK_NAME,
             ExistingWorkPolicy.REPLACE,
-            OneTimeWorkRequestBuilder<CompletionMonitorWorker>()
-                .setConstraints(constraints)
-                .build(),
+            OneTimeWorkRequestBuilder<CompletionMonitorWorker>().setConstraints(constraints).build(),
         )
     }
 
     fun cancelFallback(context: Context) {
+        // Notification-only callers must not cancel the durable fallback while Drive work remains.
+        if (AdditionalMonitoredWork.hasWork()) return
         WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_WORK_NAME)
     }
 }
