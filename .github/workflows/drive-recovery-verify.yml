@@ -38,6 +38,14 @@ jobs:
           allowed = lambda p: p.startswith('tools/drive-recovery/') or p == '.github/workflows/drive-recovery-verify.yml'
           assert all(allowed(p) for p in paths), 'Source changed since recovery base; refusing to overwrite'
           parts = [pathlib.Path(f'tools/drive-recovery/patch.b64.{i}').read_text().strip() for i in range(1, 5)]
+          blob = lambda s: hashlib.sha1(('blob ' + str(len(s)) + '\0').encode() + s.encode()).hexdigest()
+          expected = ['b0dcd5c6d113ab9c04a2caef2d590b51ff2ea8a4', '215cd0b2ed1057bb29062178db5eb8dc9bde6cb7', '76f972eb359a7c301adbde2a918dc2ec2ce57397', '5519d9fffe00b2df89b18dc183f5ccd39615d99c']
+          if blob(parts[1]) != expected[1]:
+              assert len(parts[1]) == 10292, 'Unexpected transport damage'
+              fixes = {parts[1][:i] + parts[1][i+4:] for i in range(len(parts[1])-3) if blob(parts[1][:i] + parts[1][i+4:]) == expected[1]}
+              assert len(fixes) == 1, 'No uniquely checksum-verified transport correction'
+              parts[1] = fixes.pop()
+          assert [blob(s) for s in parts] == expected, 'Recovery part checksum mismatch'
           patch = bz2.decompress(base64.b64decode(''.join(parts), validate=True))
           assert hashlib.sha256(patch).hexdigest() == os.environ['PATCH_SHA256'], 'Recovery patch checksum mismatch'
           path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'drive-recovery.patch'
