@@ -2,7 +2,6 @@ package app.jabs.torboxdrop.notifications
 
 import app.jabs.torboxdrop.data.TorBoxBadTokenException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 fun interface CompletionNotificationPublisher {
@@ -24,7 +23,7 @@ class CompletionMonitorRunner(
     private val dependencies: CompletionMonitorDependencies,
     private val publisher: CompletionNotificationPublisher,
 ) {
-    suspend fun runOnce(): MonitorPassResult = processMutex.withLock {
+    suspend fun runOnce(): MonitorPassResult = AccountSensitiveWorkGate.mutex.withLock {
         val armed = try {
             dependencies.armedDownloads()
         } catch (error: CancellationException) {
@@ -86,7 +85,7 @@ class CompletionMonitorRunner(
             true
         } else {
             try {
-                dependencies.armedDownloads().isNotEmpty()
+                dependencies.armedDownloads().isNotEmpty() || AdditionalMonitoredWork.hasWork()
             } catch (error: CancellationException) {
                 throw error
             } catch (_: TorBoxBadTokenException) {
@@ -108,12 +107,9 @@ class CompletionMonitorRunner(
     }
 
     companion object {
-        /** Service and WorkManager run in one app process; serialize their claim/post passes. */
-        private val processMutex = Mutex()
-
-        /** Waits for any service/worker pass to leave its account-sensitive critical section. */
+        /** Waits for notification and Drive work to leave their shared account-sensitive gate. */
         suspend fun awaitIdle() {
-            processMutex.withLock { Unit }
+            AccountSensitiveWorkGate.awaitIdle()
         }
     }
 }
