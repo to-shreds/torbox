@@ -1,5 +1,7 @@
 package app.jabs.torboxdrop.data
 
+import app.jabs.torboxdrop.drive.DriveStore
+import app.jabs.torboxdrop.drive.driveAccountScope
 import app.jabs.torboxdrop.model.AccountInfo
 import app.jabs.torboxdrop.model.AddOptions
 import app.jabs.torboxdrop.model.AddResult
@@ -105,6 +107,9 @@ class TorBoxRepository(
     private val api: TorBoxApiClient,
     private val localStore: LocalStore,
     private val preferences: AppPreferences,
+    private val driveStore: DriveStore? = null,
+    private val tokenProvider: () -> String? = { null },
+    private val onDriveWatchArmed: () -> Unit = {},
 ) {
     private val writeMutex = Mutex()
     private val relayRequestCoalescer = RelayRequestCoalescer()
@@ -225,6 +230,13 @@ class TorBoxRepository(
     ): AddResult {
         val result = api.createMagnet(magnet, options)
         localStore.addRecent(magnet, DownloadType.TORRENT, source)
+        armDriveIfRequested(
+            result = result,
+            options = options,
+            type = DownloadType.TORRENT,
+            fallbackName = "New torrent",
+            sourceValue = magnet,
+        )
         return result
     }
 
@@ -236,6 +248,13 @@ class TorBoxRepository(
     ): AddResult {
         val result = api.createTorrent(bytes, fileName, options)
         localStore.addRecent(fileName, DownloadType.TORRENT, source)
+        armDriveIfRequested(
+            result = result,
+            options = options,
+            type = DownloadType.TORRENT,
+            fallbackName = fileName,
+            sourceValue = fileName,
+        )
         return result
     }
 
@@ -295,6 +314,48 @@ class TorBoxRepository(
         hashes: Collection<String>,
         includeFiles: Boolean = false,
     ): Map<String, CachedDownload> = api.checkWebCached(hashes, includeFiles)
+
+    private suspend fun armDriveIfRequested(
+        result: AddResult,
+        options: AddOptions,
+        type: DownloadType,
+        fallbackName: String,
+        sourceValue: String,
+    ) {
+        if (type != DownloadType.TORRENT) return
+        val shouldSend = options.sendToGoogleDrive ?: preferences.googleDriveByDefault
+        if (!shouldSend || !preferences.googleDriveConnected) return
+        val store = driveStore ?: return
+        val accountScope = driveAccountScope(tokenProvider()) ?: return
+        val displayName = result.name ?: fallbackName
+        when {
+            result.id != null -> {
+                store.armActive(
+                    accountScope = accountScope,
+                    item = DownloadItem(
+                        id = result.id,
+                        type = type,
+                        name = displayName,
+                        hash = result.sourceHash,
+                    ),
+                    sourceValue = sourceValue,
+                    hasBeenSeen = false,
+                )
+                onDriveWatchArmed()
+            }
+            result.queuedId != null -> {
+                store.armQueued(
+                    accountScope = accountScope,
+                    type = type,
+                    queueId = result.queuedId,
+                    name = displayName,
+                    sourceHash = result.sourceHash,
+                    sourceValue = sourceValue,
+                )
+                onDriveWatchArmed()
+            }
+        }
+    }
 
     private suspend fun updateCachedDownload(updated: DownloadItem) = writeMutex.withLock {
         val current = localStore.loadDownloads()
