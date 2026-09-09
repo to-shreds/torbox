@@ -26,7 +26,11 @@ import app.jabs.torboxdrop.model.DownloadsUiState
 import app.jabs.torboxdrop.model.IncomingAdd
 import app.jabs.torboxdrop.model.QueuedDownload
 import app.jabs.torboxdrop.model.RecentSend
+import app.jabs.torboxdrop.drive.driveAccountScope
+import app.jabs.torboxdrop.notifications.AccountSensitiveWorkGate
 import app.jabs.torboxdrop.notifications.CompletionMonitorRunner
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import app.jabs.torboxdrop.notifications.CompletionMonitorScheduler
 import app.jabs.torboxdrop.notifications.CompletionMonitorService
 import app.jabs.torboxdrop.notifications.CompletionMonitorServiceLocator
@@ -185,7 +189,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun navigate(destination: AppDestination) {
-        _uiState.update { it.copy(destination = destination, selectedDownload = null) }
+        _uiState.update { it.copy(destination = destination, selectedDownload = null,
+            addOptions = if (destination == AppDestination.ADD) it.addOptions.copy(sendToGoogleDrive = null) else it.addOptions) }
         updatePolling()
     }
 
@@ -850,10 +855,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             preservePendingTorrent = preserveUnassignedTorrent,
                         )
                         accountWorkSuspended = true
-                        CompletionNotifications.cancelAccountNotifications(app)
-                        localStore.clearAccountScopedData()
-                        container.tokenStore.save(trimmed)
-                        preferences.relayUserId = account.userId
+                        AccountSensitiveWorkGate.mutex.withLock {
+                            withContext(NonCancellable) {
+                                CompletionNotifications.cancelAccountNotifications(app)
+                                preferences.clearDriveConnection()
+                                localStore.clearAccountScopedData()
+                                container.tokenStore.save(trimmed)
+                                preferences.relayUserId = account.userId
+                            }
+                        }
                         restartAccountWork()
                         accountWorkSuspended = false
                         resetAccountUi(account, preservePendingTorrent = preserveUnassignedTorrent)
@@ -899,10 +909,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             tokenReplaceMutex.withLock {
                 suspendAccountWorkAndMonitoring()
                 try {
-                    CompletionNotifications.cancelAccountNotifications(app)
-                    container.tokenStore.clear()
-                    preferences.relayUserId = null
-                    localStore.clearAccountScopedData()
+                    AccountSensitiveWorkGate.mutex.withLock {
+                        withContext(NonCancellable) {
+                            CompletionNotifications.cancelAccountNotifications(app)
+                            preferences.clearDriveConnection()
+                            container.tokenStore.clear()
+                            preferences.relayUserId = null
+                            localStore.clearAccountScopedData()
+                        }
+                    }
                     _uiState.update {
                         it.copy(
                             settings = settingsState(defaults = defaultAddOptions()),
@@ -995,6 +1010,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetSettings() {
+        viewModelScope.launch {
+            AccountSensitiveWorkGate.mutex.withLock {
+                driveAccountScope(container.tokenStore.read())?.let { container.driveStore.stopUnsubmitted(it) }
+                resetSettingsLocked()
+            }
+            stopMonitoringIfEmpty()
+        }
+    }
+
+    private fun resetSettingsLocked() {
         fileSearchGeneration++
         fileSearchJob?.cancel()
         val relayUserId = preferences.relayUserId
@@ -1344,9 +1369,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun stopMonitoringIfEmpty() {
-        if (localStore.monitoredSubscriptions().isNotEmpty()) return
-        app.stopService(android.content.Intent(app, CompletionMonitorService::class.java))
-        CompletionMonitorScheduler.cancelFallback(app)
+        CompletionMonitorScheduler.cancelIfIdle(app)
     }
 
     private fun submitText(
@@ -1727,7 +1750,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ),
             )
         }
-        if (_uiState.value.watchedKeys.isNotEmpty()) CompletionMonitorScheduler.scheduleFallback(app)
+        launchAccountWork {
+            if (localStore.monitoredSubscriptions().isNotEmpty() || CompletionMonitorScheduler.hasDriveWork(app)) {
+                CompletionMonitorScheduler.scheduleFallback(app)
+                CompletionMonitorScheduler.runSoon(app)
+            }
+        }
         updatePolling()
     }
 
@@ -1762,7 +1790,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             pendingTorrentPayload = null
         }
         app.stopService(android.content.Intent(app, CompletionMonitorService::class.java))
-        CompletionMonitorScheduler.cancelFallback(app)
+        CompletionMonitorScheduler.cancelAll(app)
         accountWorkJob.cancelAndJoin()
         CompletionMonitorRunner.awaitIdle()
         _uiState.update {
@@ -1811,7 +1839,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         foregroundPollingJob?.cancel()
         foregroundPollingJob = null
         app.stopService(android.content.Intent(app, CompletionMonitorService::class.java))
-        CompletionMonitorScheduler.cancelFallback(app)
+        CompletionMonitorScheduler.cancelAll(app)
         _uiState.update {
             it.copy(
                 settings = it.settings.copy(

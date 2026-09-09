@@ -32,6 +32,14 @@ class AddFlowSourceTest {
         assertThat(addScreenSource).contains("Text(\"Add to TorBox\")")
     }
 
+    @Test
+    fun perTorrentDriveOverrideDoesNotRewriteGlobalDefault() {
+        assertThat(viewModelSource)
+            .contains("fun setAddOptions(options: AddOptions) = _uiState.update { it.copy(addOptions = options) }")
+        assertThat(viewModelSource)
+            .doesNotContain("options.sendToGoogleDrive?.let { preferences.googleDriveByDefault = it }")
+    }
+
     private fun findProjectRoot(): Path {
         val start = Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize()
         return generateSequence(start) { it.parent }

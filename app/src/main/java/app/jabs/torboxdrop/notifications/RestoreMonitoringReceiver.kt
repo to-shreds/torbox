@@ -21,8 +21,9 @@ class RestoreMonitoringReceiver : BroadcastReceiver() {
                     try {
                         val app = context.applicationContext as? TorBoxDropApplication
                         val hasArmed = app?.container?.localStore?.monitoredSubscriptions()?.isNotEmpty() == true
-                        if (hasArmed) CompletionMonitorScheduler.scheduleFallback(context)
-                        else CompletionMonitorScheduler.cancelFallback(context)
+                        if (hasArmed || CompletionMonitorScheduler.hasDriveWork(context)) {
+                            CompletionMonitorScheduler.scheduleFallback(context)
+                        } else CompletionMonitorScheduler.cancelIfIdle(context)
                     } finally {
                         pendingResult.finish()
                     }

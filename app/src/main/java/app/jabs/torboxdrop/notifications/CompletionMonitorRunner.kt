@@ -2,7 +2,6 @@ package app.jabs.torboxdrop.notifications
 
 import app.jabs.torboxdrop.data.TorBoxBadTokenException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 fun interface CompletionNotificationPublisher {
@@ -18,13 +17,15 @@ data class MonitorPassResult(
     val hasArmedDownloads: Boolean,
     /** The configured credential was authoritatively rejected; do not keep retrying in background. */
     val authBlocked: Boolean = false,
+    val accountScope: String? = null,
 )
 
 class CompletionMonitorRunner(
     private val dependencies: CompletionMonitorDependencies,
     private val publisher: CompletionNotificationPublisher,
 ) {
-    suspend fun runOnce(): MonitorPassResult = processMutex.withLock {
+    suspend fun runOnce(): MonitorPassResult = AccountSensitiveWorkGate.mutex.withLock {
+        val account = dependencies.accountScope()
         val armed = try {
             dependencies.armedDownloads()
         } catch (error: CancellationException) {
@@ -37,6 +38,7 @@ class CompletionMonitorRunner(
                 retryableFailures = 0,
                 hasArmedDownloads = true,
                 authBlocked = true,
+                accountScope = account,
             )
         } catch (_: Exception) {
             return@withLock MonitorPassResult(
@@ -104,16 +106,14 @@ class CompletionMonitorRunner(
             retryableFailures = failures,
             hasArmedDownloads = stillArmed,
             authBlocked = authBlocked,
+            accountScope = account,
         )
     }
 
     companion object {
-        /** Service and WorkManager run in one app process; serialize their claim/post passes. */
-        private val processMutex = Mutex()
-
-        /** Waits for any service/worker pass to leave its account-sensitive critical section. */
+        /** Waits for notification and Drive work to leave their shared account-sensitive gate. */
         suspend fun awaitIdle() {
-            processMutex.withLock { Unit }
+            AccountSensitiveWorkGate.awaitIdle()
         }
     }
 }

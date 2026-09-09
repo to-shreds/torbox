@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import app.jabs.torboxdrop.TorBoxDropApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -21,7 +22,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * User-started, visible live monitoring. Persisted subscriptions remain owned by the repository;
+ * User-started, visible live monitoring. Persisted notification and Drive work remains durable;
  * WorkManager provides the slower fallback whenever Android cannot legally keep this service live.
  */
 class CompletionMonitorService : Service() {
@@ -46,9 +47,7 @@ class CompletionMonitorService : Service() {
         }
 
         if (monitorJob?.isActive != true) {
-            monitorJob = scope.launch {
-                monitorUntilDone()
-            }
+            monitorJob = scope.launch { monitorUntilDone() }
         }
         return START_NOT_STICKY
     }
@@ -69,7 +68,6 @@ class CompletionMonitorService : Service() {
     } catch (_: SecurityException) {
         false
     } catch (_: RuntimeException) {
-        // Includes platform start/type/time-budget rejections. The periodic fallback remains armed.
         false
     }
 
@@ -78,21 +76,29 @@ class CompletionMonitorService : Service() {
             while (scope.isActive) {
                 if (!NotificationCapabilities.current(this).canRunLiveMonitoring) break
                 val dependencies = CompletionMonitorServiceLocator.get(this)
-                if (dependencies == null) break
-                val pass = CompletionMonitorRunner(dependencies) { claim ->
-                    CompletionNotifications.postCompletion(this, claim)
-                }.runOnce()
-                if (pass.authBlocked) {
-                    // Keep the durable watches, but stop all background retries until the user
-                    // validates or replaces the rejected credential in the foreground.
-                    CompletionMonitorScheduler.cancelFallback(this)
-                    break
+                val notificationPass = dependencies?.let {
+                    CompletionMonitorRunner(it) { claim ->
+                        CompletionNotifications.postCompletion(this, claim)
+                    }.runOnce()
                 }
-                if (!pass.hasArmedDownloads) {
-                    CompletionMonitorScheduler.cancelFallback(this)
-                    break
+                val drivePass = if (notificationPass?.authBlocked == true) null else
+                    (application as? TorBoxDropApplication)?.driveAutomationRunner()?.runOnce()
+
+                val authBlocked = notificationPass?.authBlocked == true ||
+                    drivePass?.torBoxAuthBlocked == true
+                if (authBlocked) {
+                    val stopped = CompletionMonitorScheduler.cancelRejectedAccount(this,
+                        if (notificationPass?.authBlocked == true) notificationPass.accountScope else drivePass?.accountScope)
+                    if (stopped) break else continue
                 }
-                val remaining = (pass.armedAtStart - pass.delivered - pass.removed).coerceAtLeast(1)
+                val hasWork = notificationPass?.hasArmedDownloads == true || drivePass?.hasWork == true
+                if (!hasWork && CompletionMonitorScheduler.cancelIfIdle(this)) break
+
+                val notificationRemaining = notificationPass?.let {
+                    (it.armedAtStart - it.delivered - it.removed).coerceAtLeast(0)
+                } ?: 0
+                val driveRemaining = drivePass?.watchedAtStart ?: 0
+                val remaining = (notificationRemaining + driveRemaining).coerceAtLeast(1)
                 val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                     ContextCompat.checkSelfPermission(
                         this,
@@ -140,7 +146,7 @@ class CompletionMonitorService : Service() {
         const val ACTION_STOP_LIVE = "app.jabs.torboxdrop.action.STOP_COMPLETION_MONITOR"
         private const val POLL_INTERVAL_MILLIS = 15_000L
 
-        /** Call only from a visible user action after the subscription has been durably armed. */
+        /** Call only from a visible user action after durable work has been armed. */
         fun startFromUserAction(context: Context): StartResult {
             CompletionNotificationChannels.ensureCreated(context)
             CompletionMonitorScheduler.scheduleFallback(context)

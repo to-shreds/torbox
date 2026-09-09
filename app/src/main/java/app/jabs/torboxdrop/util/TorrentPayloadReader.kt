@@ -78,23 +78,52 @@ internal object BencodeTorrentValidator {
         }
     }
 
+    /** Hash the original info bytes, never a decoded and re-encoded dictionary. */
+    fun infoHash(bytes: ByteArray): String {
+        validate(bytes)
+        val parser = Parser(bytes)
+        parser.parseRootDictionary()
+        val algorithm = if (parser.infoV2 && !parser.infoHasPieces) "SHA-256" else "SHA-1"
+        val digest = java.security.MessageDigest.getInstance(algorithm)
+            .digest(bytes.copyOfRange(parser.infoStart, parser.infoEnd))
+        return digest.joinToString("") { "%02x".format(it.toInt() and 255) }
+    }
+
     private class Parser(private val bytes: ByteArray) {
         var position: Int = 0
             private set
         var rootHasInfo: Boolean = false
             private set
 
+        var infoStart = 0
+        var infoEnd = 0
+        var infoV2 = false
+        var infoHasPieces = false
+
         fun parseRootDictionary() {
             expect('d')
             while (peek() != 'e') {
                 val key = parseByteString()
                 if (key.contentEquals(INFO_KEY)) {
+                    if (rootHasInfo) throw InvalidTorrentException("Duplicate .torrent info dictionary")
                     if (peek() != 'd') {
                         throw InvalidTorrentException("The .torrent info value is not a dictionary")
                     }
                     rootHasInfo = true
-                }
-                parseValue(depth = 1)
+                    infoStart = position
+                    expect('d')
+                    while (peek() != 'e') {
+                        val infoKey = parseByteString().toString(Charsets.US_ASCII)
+                        val valueStart = position
+                        parseValue(depth = 2)
+                        if (infoKey == "pieces") infoHasPieces = true
+                        if (infoKey == "meta version") {
+                            infoV2 = bytes.copyOfRange(valueStart, position).contentEquals("i2e".toByteArray())
+                        }
+                    }
+                    expect('e')
+                    infoEnd = position
+                } else parseValue(depth = 1)
             }
             expect('e')
         }

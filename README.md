@@ -16,6 +16,7 @@ The application ID remains `app.jabs.torboxdrop`. The project contains no Usenet
 - The queue is fetched separately for torrent and web-download records and supports Start and Delete.
 - Add accepts magnets, HTTP or HTTPS links, and `.torrent` content URIs from the picker or Android intents.
 - Completion watches are durable and use a user-started visible foreground service with a slower WorkManager fallback.
+- Google Drive automation can send a torrent's individual files through TorBox directly to one configured Drive folder as soon as TorBox says the torrent is truly ready. The Drive action is durable and independent of the completion-notification toggle.
 - The dedicated browser has native controls, bookmarks, magnet handoff, long-press link actions, download choices, and request-level host blocking from a bundled ruleset.
 - The last download and queue snapshot is cached locally so Downloads can render before a network refresh.
 
@@ -36,6 +37,12 @@ Inspection of the supplied APK confirmed these behaviors, which remain represent
 
 The old app kept the API token, preferences, history, and browser state in WebView local storage. The replacement does not reuse that storage. The token is encrypted with an Android Keystore AES-GCM key, and app data is held in native preferences and SQLite.
 
+## Google Drive automation
+
+Settings can connect one Google Drive account and one global destination folder. Add then exposes **Send to Google Drive when ready** for each torrent, with a separate remembered default. Cached torrents can proceed promptly; ordinary and queued torrents wait for the same authoritative readiness rule used elsewhere in the app. TorBox performs the file transfer server-side.
+
+Production Google OAuth configuration is required before the signed app can authorize Drive. See [GOOGLE_DRIVE_SETUP.md](GOOGLE_DRIVE_SETUP.md) for the exact package and certificate values, and [GOOGLE_DRIVE_VERIFICATION.md](GOOGLE_DRIVE_VERIFICATION.md) for the completed automated and adversarial checks.
+
 ## Architecture
 
 | Area | Implementation |
@@ -43,11 +50,11 @@ The old app kept the API token, preferences, history, and browser state in WebVi
 | UI | Kotlin, Jetpack Compose, Material 3, edge-to-edge layout, stable-key lazy lists |
 | App state | `MainViewModel` with immutable UI state and lifecycle-aware collection |
 | TorBox API | Native OkHttp client and repository; the browser never owns the token |
-| Local data | SQLite for last-known records, files, bookmarks, recent sends, and notification subscriptions |
+| Local data | SQLite for last-known records, files, bookmarks, recent sends, notification subscriptions, and durable Drive automation state |
 | Preferences | Native `SharedPreferences` for add, browser, and list-view choices |
 | Credential | Non-exportable Android Keystore AES key plus AES-GCM ciphertext in `noBackupFilesDir` |
 | Browser | One dedicated hardened WebView controlled by native Compose chrome |
-| Background work | User-started `dataSync` foreground service plus constrained periodic WorkManager fallback |
+| Background work | Shared user-started `dataSync` live monitor plus constrained WorkManager fallback for completion and Drive automation |
 
 The browser has no JavaScript bridge. File and content access are disabled in WebView, mixed content is rejected, certificate errors fail closed, Safe Browsing remains enabled where available, popups are suppressed, and third-party cookies are off by default.
 
@@ -79,7 +86,9 @@ From the repository root in a networked build environment:
 ./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for this release is `release/TorBox-Drop-v2.0.2.apk`; it is minified, resource-shrunk, zip-aligned, and signed with the TorBox Drop v2 release key. The private key is deliberately not committed.
+The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for this release is `release/TorBox-Drop-v2.0.3.apk`; it is minified, resource-shrunk, zip-aligned, and signed with the TorBox Drop v2 release key. The private key is deliberately not committed.
+
+The Google Drive source is versioned as 2.0.4. CI produces a debug APK and an unsigned minified 2.0.4 release candidate, but neither is represented as the production update. The final distribution APK must be signed with the existing TorBox Drop v2 private key and exercised with the production Google OAuth client before publication.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 
@@ -91,15 +100,15 @@ Uninstall the original WebView-based v1.0 before installing the native v2 line:
 
 ```bash
 adb uninstall app.jabs.torboxdrop
-adb install release/TorBox-Drop-v2.0.2.apk
+adb install release/TorBox-Drop-v2.0.3.apk
 ```
 
 Uninstalling removes the old WebView local-storage token, settings, and history. Enter the TorBox API token again in Settings. This project does not bypass Android signature verification and does not claim an in-place upgrade path.
 
-If TorBox Drop v2.0.0 or v2.0.1 is already installed, v2.0.2 uses the same package and signing certificate and can update it in place:
+If TorBox Drop v2.0.0, v2.0.1, or v2.0.2 is already installed, v2.0.3 uses the same package and signing certificate and can update it in place:
 
 ```bash
-adb install -r release/TorBox-Drop-v2.0.2.apk
+adb install -r release/TorBox-Drop-v2.0.3.apk
 ```
 
 ## Platform limits

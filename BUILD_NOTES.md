@@ -1,11 +1,11 @@
-# TorBox Drop 2.0.3 build notes
+# TorBox Drop 2.0.4 release-candidate build notes
 
 ## Build identity
 
 | Property | Value |
 | --- | --- |
 | Application ID | `app.jabs.torboxdrop` |
-| Version | `2.0.3` (`versionCode 20003`) |
+| Version | `2.0.4` (`versionCode 20004`) |
 | Minimum Android | API 23 |
 | Target and compile SDK | API 36 |
 | Build Tools | 36.0.0 |
@@ -21,6 +21,20 @@ Build and verification commands:
 ```
 
 The CI workflow runs the same clean unit-test, lint, debug-APK, and release shrinking tasks on pushes and pull requests. It uploads test reports and the debug APK as workflow artifacts. The CI release output is an unsigned verification artifact and is not distributed.
+
+## v2.0.4 Google Drive automation release candidate
+
+- Settings connects Google Drive using Google Play services authorization with only the `drive.file` scope and configures one global app-managed destination folder.
+- Add exposes a per-torrent **Send to Google Drive when ready** choice without rewriting the remembered default.
+- Cached torrents can be acted on promptly; unfinished and queued torrents remain durable until TorBox reports both `download_finished` and `download_present`.
+- Multi-file torrents are submitted as individual files to TorBox's Google Drive integration. Media bytes do not pass through Android for this automation.
+- Drive state is account-scoped and durable across process restart. Ambiguous remote POST results are quarantined and reconciled instead of blindly replayed.
+- Raw magnet URLs are not retained in the Drive automation journal. Credential-bearing Google and TorBox Drive clients reject redirects and automatic request replay.
+- Drive-only monitoring works without arming a completion notification. WorkManager remains the durable fallback; the faster foreground loop is available only when Android permits its visible monitoring notification.
+
+Automated verification passed the complete JVM suite, Android lint, debug assembly and minified release assembly after the final pre-adversarial repairs. Separate security/OAuth and state-machine/recovery adversarial gates then passed. See [GOOGLE_DRIVE_VERIFICATION.md](GOOGLE_DRIVE_VERIFICATION.md).
+
+The automated source is ready for deployment validation, but a production distribution is not claimed yet. The Google Cloud Android OAuth client must be registered for `app.jabs.torboxdrop` and the existing v2 release certificate SHA-1, and the APK must be signed with the existing v2 private key. CI does not possess that private key. A live consent flow, live TorBox-to-Drive transfer and physical-device background check therefore remain deployment tests.
 
 ## v2.0.3 targeted corrective release
 
@@ -192,7 +206,7 @@ There is no legitimate automatic migration from the old WebView local storage af
 
 The v2 distribution APK is signed with a newly generated RSA-4096 release key whose certificate subject is `CN=TorBox Drop, O=Jabs`. Its certificate SHA-256 fingerprint is `AA:AE:1A:1A:53:DE:80:CA:FE:F3:FF:98:B9:30:BF:83:A6:34:F8:6C:8B:F9:5F:D1:88:92:3B:4F:1A:C2:07:F7`. The private key and credentials are preserved separately and are not committed. Future v2 updates must use this exact key.
 
-## Verification scope
+## Baseline v2 verification scope
 
 GitHub Actions completed `testDebugUnitTest`, full `lintDebug`, debug assembly, release lint-vital, and minified/resource-shrunk release assembly with 141 tests, 0 failures, 0 errors, and 0 skipped. Android lint completed with 0 errors and 22 non-blocking dependency, API-level, and KTX suggestions.
 

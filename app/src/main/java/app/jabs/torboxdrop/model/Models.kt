@@ -125,6 +125,8 @@ data class AddOptions(
     val customName: String? = null,
     val seed: Int = 1,
     val allowZip: Boolean = true,
+    /** Null inherits the global Drive default; true/false is an explicit per-add choice. */
+    val sendToGoogleDrive: Boolean? = null,
 )
 
 data class AddResult(

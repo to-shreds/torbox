@@ -1,6 +1,10 @@
 package app.jabs.torboxdrop
 
 import android.app.Application
+import app.jabs.torboxdrop.drive.DriveAutomationRunner
+import app.jabs.torboxdrop.drive.DriveAutomationSource
+import app.jabs.torboxdrop.drive.driveAccountScope
+import app.jabs.torboxdrop.data.RepositorySnapshot
 import app.jabs.torboxdrop.model.DownloadType
 import app.jabs.torboxdrop.model.DownloadItem
 import app.jabs.torboxdrop.model.QueuedDownload
@@ -26,6 +30,32 @@ class TorBoxDropApplication : Application() {
         CompletionMonitorServiceLocator.install { MonitoringDependencies(container) }
     }
 
+    fun driveAutomationRunner(): DriveAutomationRunner = DriveAutomationRunner(
+        source = object : DriveAutomationSource {
+            override suspend fun queuedSnapshot() = RepositorySnapshot(
+                downloads = container.api.getTorrentDownloads(bypassCache = true),
+                queue = container.api.getQueuedDownloads(bypassCache = true),
+                lastUpdated = Instant.now(), fromCache = false,
+            )
+            override suspend fun download(id: String) =
+                container.api.getDownload(DownloadType.TORRENT, id, bypassCache = true)
+            override suspend fun files(id: String) =
+                container.api.getFiles(DownloadType.TORRENT, id, bypassCache = true)
+        },
+        integrationClient = container.driveIntegration,
+        store = container.driveStore,
+        googleAuthorization = container.googleDriveAuthorization,
+        tokenProvider = container.tokenStore::read,
+        googleDriveApi = container.googleDriveApi,
+        connected = { container.preferences.driveConfiguredFor(driveAccountScope(container.tokenStore.read())) },
+        folderId = { container.preferences.googleDriveFolderId },
+        onGoogleAuthorizationRequired = {
+            // This is a non-secret capability hint only. The actual authorization is always
+            // re-checked with Google Identity Services before a Drive submission.
+            container.preferences.googleDriveConnected = false
+        },
+    )
+
     fun monitoringDependencies(
         freshDownloads: List<DownloadItem>,
         currentQueue: List<QueuedDownload>,
@@ -40,6 +70,8 @@ class TorBoxDropApplication : Application() {
         seededDownloads: List<DownloadItem>? = null,
         seededQueue: List<QueuedDownload>? = null,
     ) : CompletionMonitorDependencies {
+        override fun accountScope(): String? = driveAccountScope(container.tokenStore.read())
+
         private var snapshotAttempt: Result<MonitorSnapshot>? = seededDownloads?.let {
             Result.success(MonitorSnapshot(it, seededQueue.orEmpty()))
         }

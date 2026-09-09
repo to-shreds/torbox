@@ -48,6 +48,9 @@ data class CompletionClaim(
  * completion notifications when the service and worker overlap.
  */
 interface CompletionMonitorDependencies {
+    /** Non-secret identity captured under the work gate, for account-safe rejection handling. */
+    fun accountScope(): String? = null
+
     suspend fun armedDownloads(): List<ArmedDownload>
 
     suspend fun checkCompletion(download: ArmedDownload): CompletionState

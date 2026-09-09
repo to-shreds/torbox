@@ -1,5 +1,12 @@
 package app.jabs.torboxdrop.data
 
+import app.jabs.torboxdrop.drive.DriveStore
+import app.jabs.torboxdrop.drive.DriveTorrentIdentity
+import app.jabs.torboxdrop.util.BencodeTorrentValidator
+import app.jabs.torboxdrop.notifications.AccountSensitiveWorkGate
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import app.jabs.torboxdrop.drive.driveAccountScope
 import app.jabs.torboxdrop.model.AccountInfo
 import app.jabs.torboxdrop.model.AddOptions
 import app.jabs.torboxdrop.model.AddResult
@@ -105,6 +112,9 @@ class TorBoxRepository(
     private val api: TorBoxApiClient,
     private val localStore: LocalStore,
     private val preferences: AppPreferences,
+    private val driveStore: DriveStore? = null,
+    private val tokenProvider: () -> String? = { null },
+    private val onDriveWatchArmed: () -> Unit = {},
 ) {
     private val writeMutex = Mutex()
     private val relayRequestCoalescer = RelayRequestCoalescer()
@@ -222,10 +232,15 @@ class TorBoxRepository(
         magnet: String,
         options: AddOptions = AddOptions(),
         source: String = "manual",
-    ): AddResult {
-        val result = api.createMagnet(magnet, options)
-        localStore.addRecent(magnet, DownloadType.TORRENT, source)
-        return result
+    ): AddResult = AccountSensitiveWorkGate.mutex.withLock {
+        val admission = prepareDriveAdmission(options, DriveTorrentIdentity.fromMagnet(magnet), null, "New torrent")
+        val result = try { api.createMagnet(magnet, options)
+        } catch (error: Exception) { failDefinitiveAdmission(admission, error); throw error }
+        withContext(NonCancellable) {
+            finishDriveAdmission(result, admission, null, "New torrent").also {
+                runCatching { localStore.addRecent(magnet, DownloadType.TORRENT, source) }
+            }
+        }
     }
 
     suspend fun createTorrent(
@@ -233,10 +248,17 @@ class TorBoxRepository(
         fileName: String,
         options: AddOptions = AddOptions(),
         source: String = "file",
-    ): AddResult {
-        val result = api.createTorrent(bytes, fileName, options)
-        localStore.addRecent(fileName, DownloadType.TORRENT, source)
-        return result
+    ): AddResult = AccountSensitiveWorkGate.mutex.withLock {
+        val requested = options.sendToGoogleDrive ?: preferences.googleDriveByDefault
+        val hash = if (requested) BencodeTorrentValidator.infoHash(bytes) else null
+        val admission = prepareDriveAdmission(options, hash, fileName, fileName)
+        val result = try { api.createTorrent(bytes, fileName, options)
+        } catch (error: Exception) { failDefinitiveAdmission(admission, error); throw error }
+        withContext(NonCancellable) {
+            finishDriveAdmission(result, admission, fileName, fileName).also {
+                runCatching { localStore.addRecent(fileName, DownloadType.TORRENT, source) }
+            }
+        }
     }
 
     suspend fun createWebDownload(
@@ -251,7 +273,10 @@ class TorBoxRepository(
 
     suspend fun startQueued(id: String) = api.controlQueue(id, QueueControlOperation.START)
 
-    suspend fun deleteQueued(id: String) = api.controlQueue(id, QueueControlOperation.DELETE)
+    suspend fun deleteQueued(id: String) = AccountSensitiveWorkGate.mutex.withLock {
+        driveAccountScope(tokenProvider())?.let { driveStore?.stopUnsubmitted(it, id, queued = true) }
+        api.controlQueue(id, QueueControlOperation.DELETE)
+    }
 
     suspend fun reannounceTorrent(id: String) = api.controlTorrent(id, TorrentControlOperation.REANNOUNCE)
 
@@ -259,7 +284,10 @@ class TorBoxRepository(
 
     suspend fun resumeTorrent(id: String) = api.controlTorrent(id, TorrentControlOperation.RESUME)
 
-    suspend fun deleteTorrent(id: String) = api.controlTorrent(id, TorrentControlOperation.DELETE)
+    suspend fun deleteTorrent(id: String) = AccountSensitiveWorkGate.mutex.withLock {
+        driveAccountScope(tokenProvider())?.let { driveStore?.stopUnsubmitted(it, id) }
+        api.controlTorrent(id, TorrentControlOperation.DELETE)
+    }
 
     suspend fun deleteWebDownload(id: String) = api.deleteWebDownload(id)
 
@@ -295,6 +323,62 @@ class TorBoxRepository(
         hashes: Collection<String>,
         includeFiles: Boolean = false,
     ): Map<String, CachedDownload> = api.checkWebCached(hashes, includeFiles)
+
+    private data class DriveAdmission(val scope: String, val hash: String, val queueId: String)
+
+    private suspend fun prepareDriveAdmission(
+        options: AddOptions, hash: String?, sourceValue: String?, name: String,
+    ): DriveAdmission? {
+        if (!(options.sendToGoogleDrive ?: preferences.googleDriveByDefault)) return null
+        val scope = driveAccountScope(tokenProvider())
+        check(preferences.driveConfiguredFor(scope) && driveStore != null) {
+            "Connect Google Drive in Settings before adding with Send to Google Drive enabled."
+        }
+        require(!hash.isNullOrBlank()) { "This torrent has no usable identity for safe Drive automation." }
+        val admission = DriveAdmission(requireNotNull(scope), hash, "ADMISSION:$hash:${java.util.UUID.randomUUID()}")
+        // Persist intent BEFORE remote creation. A process death after TorBox accepts the torrent
+        // cannot lose the Drive request; its exact hash will correlate when the torrent appears.
+        requireNotNull(driveStore).armQueued(admission.scope, DownloadType.TORRENT, admission.queueId, name, hash, sourceValue)
+        runCatching { onDriveWatchArmed() }
+        return admission
+    }
+
+    private suspend fun failDefinitiveAdmission(admission: DriveAdmission?, error: Exception) {
+        if (admission == null || error is CancellationException) return
+        if (error is TorBoxBadTokenException || error is TorBoxRateLimitException ||
+            error is TorBoxApiException && error.statusCode in 400..499) {
+            withContext(NonCancellable) {
+                driveStore?.stopUnsubmitted(admission.scope, admission.queueId, queued = true)
+            }
+        } else runCatching { onDriveWatchArmed() }
+    }
+
+    private suspend fun finishDriveAdmission(
+        result: AddResult, admission: DriveAdmission?, sourceValue: String?, fallbackName: String,
+    ): AddResult {
+        if (admission == null) return result
+        val store = requireNotNull(driveStore)
+        return try {
+            val resolved = result.copy(sourceHash = result.sourceHash ?: admission.hash)
+            when {
+                resolved.id != null -> store.armActive(admission.scope, DownloadItem(
+                    id = resolved.id, type = DownloadType.TORRENT, name = resolved.name ?: fallbackName,
+                    hash = resolved.sourceHash), sourceValue, hasBeenSeen = false)
+                resolved.queuedId != null -> store.armQueued(admission.scope, DownloadType.TORRENT,
+                    resolved.queuedId, resolved.name ?: fallbackName, resolved.sourceHash, sourceValue)
+            }
+            if (resolved.id != null || resolved.queuedId != null) {
+                store.stopUnsubmitted(admission.scope, admission.queueId, queued = true)
+            }
+            val scheduled = runCatching { onDriveWatchArmed() }.isSuccess
+            resolved.copy(detail = resolved.detail + if (scheduled) {
+                " Drive automation is armed; transfer status is in Settings."
+            } else " Drive intent was saved, but Android could not schedule it. Open Drive settings and check again.")
+        } catch (_: Exception) {
+            // TorBox already accepted this add. Never show it as a failed add and invite a duplicate.
+            result.copy(detail = result.detail + " TorBox added the torrent, but Drive setup could not finish. Check Drive settings; do not re-add it.")
+        }
+    }
 
     private suspend fun updateCachedDownload(updated: DownloadItem) = writeMutex.withLock {
         val current = localStore.loadDownloads()
