@@ -13,8 +13,8 @@ android {
         applicationId = "app.jabs.torboxdrop"
         minSdk = 23
         targetSdk = 36
-        versionCode = 20003
-        versionName = "2.0.3"
+        versionCode = 20004
+        versionName = "2.0.4"
 
         vectorDrawables.useSupportLibrary = true
     }

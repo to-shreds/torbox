@@ -1,6 +1,6 @@
 # Acceptance test report
 
-Date: 2026-09-04
+Date: 2026-09-08
 
 ## Status definitions
 
@@ -11,7 +11,25 @@ Date: 2026-09-04
 | Requires real TorBox account/device/manual | Supporting code may be present, but the complete flow still needs the named runtime environment and human verification. It is not claimed as passed. |
 | API limitation | The current official TorBox or Android contract prevents the exact requested behavior; the closest legitimate behavior is documented. |
 
-The final JVM suite contains 142 tests with 0 failures, 0 errors, and 0 skipped tests. A clean GitHub Actions build produced both debug and minified release APKs. Full Android lint and release lint-vital completed with 0 errors; `lintDebug` reported 22 non-blocking dependency, API-level, and KTX suggestions. An API 36 emulator was started twice during the original v2.0 verification under software-only emulation; it reached ADB, zygote, service manager, and SurfaceFlinger but did not reach `sys.boot_completed` within the bounded test window. No physical device or live TorBox account was available for this patch. Accordingly, no row is marked Emulator / pass, and complete Android or account flows remain manual even when unit tests cover part of the implementation.
+The v2.0.4 Google Drive release-candidate source passes the complete JVM regression suite, and a clean GitHub Actions build produces both debug and minified unsigned release APKs. The earlier baseline suite counts below remain historical inventory rather than a current total. Full Android lint and release lint-vital completed with 0 errors; `lintDebug` reported 22 non-blocking dependency, API-level, and KTX suggestions. An API 36 emulator was started twice during the original v2.0 verification under software-only emulation; it reached ADB, zygote, service manager, and SurfaceFlinger but did not reach `sys.boot_completed` within the bounded test window. No physical device or live TorBox account was available for this patch. Accordingly, no row is marked Emulator / pass, and complete Android or account flows remain manual even when unit tests cover part of the implementation.
+
+## v2.0.4 Google Drive automation
+
+| Acceptance criterion | Status | Evidence or remaining check |
+| --- | --- | --- |
+| Connect one Google Drive account with `drive.file` scope | Automated boundary pass; live setup required | Authorization code requests and verifies only `drive.file`; production Google OAuth registration and consent remain external. |
+| Use one global Drive destination folder | Automated / pass | Folder reservation, creation, conflict recovery, writable-folder validation, persistence and reconnect tests pass. |
+| Per-torrent Send to Google Drive choice | Automated / pass | Add-flow source guard confirms the per-torrent override does not rewrite the remembered global default. |
+| Cached/ready torrent can trigger promptly | Automated / pass | New Drive work schedules an immediate constrained worker pass and ready-state tests submit without waiting for a download transition. |
+| Ordinary torrent waits for true readiness | Automated / pass | Tests require both `download_finished` and `download_present`; progress 100% or a `completed` label is insufficient. |
+| Queued torrent keeps Drive intent until activation | Automated / pass | Exact torrent hash correlation is required; filename-only and ambiguous matches are rejected. |
+| Multi-file torrent submits individual files | Automated / pass | Runner tests submit one TorBox Google Drive job per eligible file and block incomplete file lists. |
+| No Android media re-download for automation | Automated source/boundary pass | Drive runner calls TorBox integration jobs directly; no temporary download URL is used by the Drive path. |
+| Duplicate prevention and crash recovery | Adversarial / pass | Gate 8 run `34304701984` passed targeted duplicate, ambiguity, restart, account and recovery attacks plus full-suite replay. |
+| Google/TorBox credential boundary | Adversarial / pass | Gate 7 run `34304470086` passed redirect, replay, token sanitization, persistence, OAuth-scope and account-isolation attacks. |
+| Drive automation works without Notify when complete | Automated / pass with Android timing limit | Worker and service run Drive work independently of notification subscriptions. If Android notification capability prevents the live foreground service, WorkManager still owns durable delivery but may be slower. |
+| Live Google consent and TorBox-to-Drive transfer | Requires configured production OAuth client, TorBox account and device | Not claimed by CI. |
+| Update-compatible signed 2.0.4 APK | Requires existing v2 private signing key | Public certificate is known; the private key is deliberately absent from the repository and CI workspace. |
 
 ## Criteria 1 through 50
 
