@@ -7,93 +7,79 @@ import app.jabs.torboxdrop.model.DownloadTab
 
 class AppPreferences(context: Context) {
     private val preferences = context.getSharedPreferences("torbox_drop_preferences_v2", Context.MODE_PRIVATE)
+    private val driveSetup = context.getSharedPreferences("torbox_drop_drive_setup_v1", Context.MODE_PRIVATE)
 
     var confirmBeforeSending: Boolean
         get() = preferences.getBoolean(KEY_CONFIRM, false)
         set(value) = edit(KEY_CONFIRM, value)
-
     var autoSendClipboardMagnets: Boolean
         get() = preferences.getBoolean(KEY_AUTO_CLIPBOARD, true)
         set(value) = edit(KEY_AUTO_CLIPBOARD, value)
-
     var autoSendBrowserMagnets: Boolean
         get() = preferences.getBoolean(KEY_AUTO_BROWSER, true)
         set(value) = edit(KEY_AUTO_BROWSER, value)
-
     var queueByDefault: Boolean
         get() = preferences.getBoolean(KEY_QUEUE, false)
         set(value) = edit(KEY_QUEUE, value)
-
     var cachedOnlyByDefault: Boolean
         get() = preferences.getBoolean(KEY_CACHED_ONLY, false)
         set(value) = edit(KEY_CACHED_ONLY, value)
-
     var notifyNewByDefault: Boolean
         get() = preferences.getBoolean(KEY_NOTIFY_NEW, false)
         set(value) = edit(KEY_NOTIFY_NEW, value)
 
-    /** Global default only. An Add flow may explicitly override this for one torrent. */
+    /** Resettable behavioral default. Drive connection/folder setup itself is kept separately. */
     var googleDriveByDefault: Boolean
         get() = preferences.getBoolean(KEY_GOOGLE_DRIVE_DEFAULT, false)
         set(value) = edit(KEY_GOOGLE_DRIVE_DEFAULT, value)
 
-    /** Non-secret hint that the interactive Drive authorization flow succeeded at least once. */
+    /** Non-secret hint only. OAuth bearer tokens are never stored here. */
     var googleDriveConnected: Boolean
-        get() = preferences.getBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false)
-        set(value) = edit(KEY_GOOGLE_DRIVE_CONNECTED, value)
+        get() = driveSetup.getBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false)
+        set(value) = driveSetup.edit().putBoolean(KEY_GOOGLE_DRIVE_CONNECTED, value).apply()
 
-    /** TorBox account-level Drive destination. This is a non-secret Google Drive folder ID. */
     var googleDriveFolderId: String?
-        get() = preferences.getString(KEY_GOOGLE_DRIVE_FOLDER_ID, null)
+        get() = driveSetup.getString(KEY_GOOGLE_DRIVE_FOLDER_ID, null)
         set(value) {
             val normalized = value?.trim()?.takeIf(String::isNotEmpty)
-            if (normalized == null) preferences.edit().remove(KEY_GOOGLE_DRIVE_FOLDER_ID).apply()
-            else edit(KEY_GOOGLE_DRIVE_FOLDER_ID, normalized)
+            if (normalized == null) driveSetup.edit().remove(KEY_GOOGLE_DRIVE_FOLDER_ID).apply()
+            else driveSetup.edit().putString(KEY_GOOGLE_DRIVE_FOLDER_ID, normalized).apply()
         }
 
-    /** Friendly local label for the app-created Drive destination. Never used as an authority ID. */
     var googleDriveFolderName: String
-        get() = preferences.getString(KEY_GOOGLE_DRIVE_FOLDER_NAME, DEFAULT_DRIVE_FOLDER_NAME)
+        get() = driveSetup.getString(KEY_GOOGLE_DRIVE_FOLDER_NAME, DEFAULT_DRIVE_FOLDER_NAME)
             ?: DEFAULT_DRIVE_FOLDER_NAME
-        set(value) = edit(KEY_GOOGLE_DRIVE_FOLDER_NAME, value.trim().ifBlank { DEFAULT_DRIVE_FOLDER_NAME })
+        set(value) = driveSetup.edit()
+            .putString(KEY_GOOGLE_DRIVE_FOLDER_NAME, value.trim().ifBlank { DEFAULT_DRIVE_FOLDER_NAME })
+            .apply()
 
     var seedPreference: Int
         get() = preferences.getInt(KEY_SEED, 1).coerceIn(1, 3)
         set(value) = edit(KEY_SEED, value.coerceIn(1, 3))
-
     var allowZipByDefault: Boolean
         get() = preferences.getBoolean(KEY_ALLOW_ZIP, true)
         set(value) = edit(KEY_ALLOW_ZIP, value)
-
     var density: DownloadDensity
         get() = enumValue(KEY_DENSITY, DownloadDensity.COMPACT)
         set(value) = edit(KEY_DENSITY, value.name)
-
     var downloadsTab: DownloadTab
         get() = enumValue(KEY_TAB, DownloadTab.ACTIVE)
         set(value) = edit(KEY_TAB, value.name)
-
     var sort: DownloadSort
         get() = enumValue(KEY_SORT, DownloadSort.NEWEST)
         set(value) = edit(KEY_SORT, value.name)
-
     var browserHomePage: String
         get() = preferences.getString(KEY_BROWSER_HOME, DEFAULT_HOME) ?: DEFAULT_HOME
         set(value) = edit(KEY_BROWSER_HOME, value)
-
     var adBlockingEnabled: Boolean
         get() = preferences.getBoolean(KEY_AD_BLOCK, true)
         set(value) = edit(KEY_AD_BLOCK, value)
-
     var thirdPartyCookiesEnabled: Boolean
         get() = preferences.getBoolean(KEY_THIRD_PARTY_COOKIES, false)
         set(value) = edit(KEY_THIRD_PARTY_COOKIES, value)
-
     var lastDownloadsRefreshEpochMillis: Long
         get() = preferences.getLong(KEY_LAST_REFRESH, 0L)
         set(value) = edit(KEY_LAST_REFRESH, value)
-
-    /** Non-secret account identifier needed by TorBox Relay to request fresh torrent stats. */
     var relayUserId: String?
         get() = preferences.getString(KEY_RELAY_USER_ID, null)
         set(value) {
@@ -101,9 +87,7 @@ class AppPreferences(context: Context) {
             else edit(KEY_RELAY_USER_ID, value.trim())
         }
 
-    fun siteExceptions(): Set<String> =
-        preferences.getStringSet(KEY_SITE_EXCEPTIONS, emptySet())?.toSet().orEmpty()
-
+    fun siteExceptions(): Set<String> = preferences.getStringSet(KEY_SITE_EXCEPTIONS, emptySet())?.toSet().orEmpty()
     fun setSiteException(host: String, disabled: Boolean) {
         val normalized = host.trim().lowercase()
         if (normalized.isBlank()) return
@@ -111,27 +95,17 @@ class AppPreferences(context: Context) {
         if (disabled) next += normalized else next -= normalized
         preferences.edit().putStringSet(KEY_SITE_EXCEPTIONS, next).apply()
     }
-
     fun resetDownloadViewPreferences() {
-        preferences.edit()
-            .remove(KEY_DENSITY)
-            .remove(KEY_TAB)
-            .remove(KEY_SORT)
-            .apply()
+        preferences.edit().remove(KEY_DENSITY).remove(KEY_TAB).remove(KEY_SORT).apply()
     }
-
-    fun resetAll() {
-        preferences.edit().clear().apply()
-    }
+    fun resetAll() { preferences.edit().clear().apply() }
 
     private fun edit(key: String, value: Boolean) = preferences.edit().putBoolean(key, value).apply()
     private fun edit(key: String, value: Int) = preferences.edit().putInt(key, value).apply()
     private fun edit(key: String, value: Long) = preferences.edit().putLong(key, value).apply()
     private fun edit(key: String, value: String) = preferences.edit().putString(key, value).apply()
-
     private inline fun <reified T : Enum<T>> enumValue(key: String, default: T): T =
-        runCatching { enumValueOf<T>(preferences.getString(key, default.name) ?: default.name) }
-            .getOrDefault(default)
+        runCatching { enumValueOf<T>(preferences.getString(key, default.name) ?: default.name) }.getOrDefault(default)
 
     companion object {
         const val DEFAULT_HOME = "https://www.google.com"
