@@ -9,7 +9,6 @@ import app.jabs.torboxdrop.data.TorBoxRateLimitException
 import app.jabs.torboxdrop.data.TorBoxRepository
 import app.jabs.torboxdrop.model.DownloadItem
 import app.jabs.torboxdrop.model.DownloadType
-import app.jabs.torboxdrop.model.QueuedDownload
 import java.time.Duration
 import java.time.Instant
 import java.util.Locale
@@ -31,6 +30,7 @@ class DriveAutomationRunner(
     private val googleAuthorization: GoogleDriveAuthorizationManager,
     private val tokenProvider: () -> String?,
     private val relayUserId: () -> String?,
+    private val folderId: () -> String?,
     private val onGoogleAuthorizationRequired: () -> Unit = {},
     private val now: () -> Instant = Instant::now,
 ) {
@@ -138,7 +138,6 @@ class DriveAutomationRunner(
         if (watch.queueId != null) {
             val activated = DriveQueuedMatcher.findActivated(watch, snapshot.downloads)
             if (activated != null && store.rebindQueued(watch, activated)) {
-                // Re-read the newly bound durable identity on the next pass.
                 return null
             }
             val stillQueued = snapshot.queue.any { it.type == watch.type && it.id == watch.queueId }
@@ -169,6 +168,14 @@ class DriveAutomationRunner(
             store.markWatchFailed(watch.watchKey, "Google Drive automation currently supports torrents only.")
             return FilePassOutcome(failedFiles = 1)
         }
+
+        when (ensureTorBoxDestination(watch)) {
+            DestinationResult.READY -> Unit
+            DestinationResult.AUTH_REQUIRED -> return FilePassOutcome(authRequired = true)
+            DestinationResult.RETRY -> return FilePassOutcome(retryableFailures = 1)
+            DestinationResult.TORBOX_AUTH_BLOCKED -> return FilePassOutcome(torBoxAuthBlocked = true)
+        }
+
         val files = try {
             repository.getFiles(item.type, item.id, forceRefresh = true)
         } catch (error: CancellationException) {
@@ -236,26 +243,20 @@ class DriveAutomationRunner(
                                 fileId = transfer.fileId,
                                 googleAccessToken = accessToken,
                             )
-                            // TorBox documents this POST as a queue operation with no typed response.
-                            // Record the submission before any follow-up lookup so a process death
-                            // cannot immediately resend the same file.
                             store.markFileSubmitted(transfer.transferKey)
                             queuedFiles++
                         } catch (error: CancellationException) {
                             throw error
                         } catch (_: TorBoxBadTokenException) {
-                            // Do not reinterpret this as a Google failure.
                             store.markFileSubmitted(transfer.transferKey)
                             return FilePassOutcome(queuedFiles = queuedFiles, torBoxAuthBlocked = true)
                         } catch (error: TorBoxApiException) {
-                            if (error.statusCode in 400..499 && error.statusCode != 429) {
+                            if (error.statusCode in 400..499) {
                                 store.markFileFailed(
                                     transfer.transferKey,
                                     error.userDetail.ifBlank { "TorBox rejected the Drive transfer." },
                                 )
                             } else {
-                                // A transport/server response can be ambiguous. Reconcile before
-                                // another submission rather than risking an immediate duplicate.
                                 store.markFileSubmitted(transfer.transferKey)
                                 retryableFailures++
                             }
@@ -297,6 +298,41 @@ class DriveAutomationRunner(
         )
     }
 
+    private suspend fun ensureTorBoxDestination(watch: DriveWatch): DestinationResult {
+        val destination = folderId()?.trim()?.takeIf(String::isNotEmpty)
+        if (destination == null) {
+            store.markAuthorizationRequired(
+                watch.watchKey,
+                "Choose a Google Drive destination in Settings before this transfer can continue.",
+            )
+            return DestinationResult.AUTH_REQUIRED
+        }
+        return try {
+            integrationClient.updateGoogleDriveFolderId(destination)
+            DestinationResult.READY
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: TorBoxBadTokenException) {
+            DestinationResult.TORBOX_AUTH_BLOCKED
+        } catch (error: TorBoxApiException) {
+            if (error.statusCode in 400..499) {
+                store.markAuthorizationRequired(
+                    watch.watchKey,
+                    "TorBox rejected the saved Google Drive destination. Reconnect Drive in Settings.",
+                )
+                DestinationResult.AUTH_REQUIRED
+            } else {
+                DestinationResult.RETRY
+            }
+        } catch (_: TorBoxRateLimitException) {
+            DestinationResult.RETRY
+        } catch (_: TorBoxOfflineException) {
+            DestinationResult.RETRY
+        } catch (_: Exception) {
+            DestinationResult.RETRY
+        }
+    }
+
     private suspend fun syncKnownJobs(
         watch: DriveWatch,
         transfers: List<DriveFileTransfer>,
@@ -329,6 +365,13 @@ class DriveAutomationRunner(
                 "pending", "uploading" -> store.markFileSubmitted(transfer.transferKey, candidate.id)
             }
         }
+    }
+
+    private enum class DestinationResult {
+        READY,
+        AUTH_REQUIRED,
+        RETRY,
+        TORBOX_AUTH_BLOCKED,
     }
 
     private data class FilePassOutcome(
