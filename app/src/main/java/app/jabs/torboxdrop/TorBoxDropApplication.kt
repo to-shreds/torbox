@@ -34,6 +34,7 @@ class TorBoxDropApplication : Application() {
         googleAuthorization = container.googleDriveAuthorization,
         tokenProvider = container.tokenStore::read,
         relayUserId = { container.preferences.relayUserId },
+        folderId = { container.preferences.googleDriveFolderId },
         onGoogleAuthorizationRequired = {
             // This is a non-secret capability hint only. The actual authorization is always
             // re-checked with Google Identity Services before a Drive submission.
