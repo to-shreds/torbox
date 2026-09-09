@@ -41,7 +41,7 @@ The old app kept the API token, preferences, history, and browser state in WebVi
 
 Settings can connect one Google Drive account and one global destination folder. Add then exposes **Send to Google Drive when ready** for each torrent, with a separate remembered default. Cached torrents can proceed promptly; ordinary and queued torrents wait for the same authoritative readiness rule used elsewhere in the app. TorBox performs the file transfer server-side.
 
-Production Google OAuth configuration is required before the signed app can authorize Drive. See [GOOGLE_DRIVE_SETUP.md](GOOGLE_DRIVE_SETUP.md) for the exact package and certificate values, and [GOOGLE_DRIVE_VERIFICATION.md](GOOGLE_DRIVE_VERIFICATION.md) for the completed automated and adversarial checks.
+Google Android OAuth configuration is required before a signed app can authorize Drive. See [GOOGLE_DRIVE_SETUP.md](GOOGLE_DRIVE_SETUP.md) for the package and certificate values for the current private build, and [GOOGLE_DRIVE_VERIFICATION.md](GOOGLE_DRIVE_VERIFICATION.md) for the completed automated and adversarial checks.
 
 ## Architecture
 
@@ -86,30 +86,19 @@ From the repository root in a networked build environment:
 ./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for this release is `release/TorBox-Drop-v2.0.3.apk`; it is minified, resource-shrunk, zip-aligned, and signed with the TorBox Drop v2 release key. The private key is deliberately not committed.
+The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for the historical v2.0.3 line is `release/TorBox-Drop-v2.0.3.apk`; it is minified, resource-shrunk, zip-aligned, and signed with that line's release key. Private signing keys are deliberately not committed.
 
-The Google Drive source is versioned as 2.0.4. CI produces a debug APK and an unsigned minified 2.0.4 release candidate, but neither is represented as the production update. The final distribution APK must be signed with the existing TorBox Drop v2 private key and exercised with the production Google OAuth client before publication.
+The Google Drive source is versioned as 2.0.4. CI produces a debug APK and an unsigned minified release candidate. For current personal/private use, a verified candidate may be signed with a retained private-use key. If the previous private key is unavailable, generate a new key and require uninstall/reinstall rather than blocking the build. Google Drive authorization must be registered for the certificate of the APK actually installed. Public distribution remains a separate release decision.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 
-## Installation and v1.0 signing
+## Installation and signing
 
-The supplied v1.0 APK's private signing key was not provided and cannot be recovered from the APK. Android will reject an APK with the same application ID when it is signed by a different key.
+Android requires an installed package update to be signed by a compatible signing identity. If the matching private key is unavailable, it cannot be recovered from the APK.
 
-Uninstall the original WebView-based v1.0 before installing the native v2 line:
+For current private-use builds, an unavailable old key is not a build blocker. Generate a replacement signing key, sign the verified APK, uninstall the differently signed installed copy, and install the replacement fresh. Uninstalling removes local app data, so the TorBox API token and preferences must be entered again.
 
-```bash
-adb uninstall app.jabs.torboxdrop
-adb install release/TorBox-Drop-v2.0.3.apk
-```
-
-Uninstalling removes the old WebView local-storage token, settings, and history. Enter the TorBox API token again in Settings. This project does not bypass Android signature verification and does not claim an in-place upgrade path.
-
-If TorBox Drop v2.0.0, v2.0.1, or v2.0.2 is already installed, v2.0.3 uses the same package and signing certificate and can update it in place:
-
-```bash
-adb install -r release/TorBox-Drop-v2.0.3.apk
-```
+If you still have the signing key for the installed private build, reuse it for an in-place update. If not, fresh-install the newly signed APK and retain its new key when convenient for later private updates. Never commit private signing keys or passwords to this public repository.
 
 ## Platform limits
 
