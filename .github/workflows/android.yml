@@ -3,7 +3,11 @@ name: Android
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "release/**"
+      - "**/*.md"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -42,8 +47,20 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Unit tests, lint, debug APK, and release shrink check
-        run: ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleDebug assembleRelease
+      - name: Clean build outputs
+        run: ./gradlew --no-daemon clean
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Android lint
+        run: ./gradlew --no-daemon lintDebug
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Build unsigned release APK and shrink check
+        run: ./gradlew --no-daemon assembleRelease
 
       - name: Upload test reports
         if: always()

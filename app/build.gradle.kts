@@ -74,7 +74,8 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.android.gms:play-services-auth:22.0.0")
+    // AuthorizationClient is available here without dropping this app's API 23 support.
+    implementation("com.google.android.gms:play-services-auth:21.4.0")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
