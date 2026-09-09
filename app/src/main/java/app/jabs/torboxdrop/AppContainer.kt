@@ -5,15 +5,24 @@ import app.jabs.torboxdrop.data.AppPreferences
 import app.jabs.torboxdrop.data.LocalStore
 import app.jabs.torboxdrop.data.SecureTokenStore
 import app.jabs.torboxdrop.data.TorBoxApiClient
+import app.jabs.torboxdrop.data.TorBoxDriveIntegrationClient
 import app.jabs.torboxdrop.data.TorBoxRepository
+import app.jabs.torboxdrop.drive.DriveStore
+import app.jabs.torboxdrop.drive.GoogleDriveAuthorizationManager
 import app.jabs.torboxdrop.model.AccountInfo
+import app.jabs.torboxdrop.notifications.CompletionMonitorScheduler
+import app.jabs.torboxdrop.notifications.CompletionMonitorService
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 
 class AppContainer(context: Context) {
-    val preferences = AppPreferences(context)
-    val tokenStore = SecureTokenStore(context)
-    val localStore = LocalStore(context)
+    private val appContext = context.applicationContext
+
+    val preferences = AppPreferences(appContext)
+    val tokenStore = SecureTokenStore(appContext)
+    val localStore = LocalStore(appContext)
+    val driveStore = DriveStore(appContext)
+    val googleDriveAuthorization = GoogleDriveAuthorizationManager(appContext)
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -29,7 +38,22 @@ class AppContainer(context: Context) {
         httpClient = httpClient,
         tokenProvider = tokenStore::read,
     )
-    val repository = TorBoxRepository(api, localStore, preferences)
+    val driveIntegration = TorBoxDriveIntegrationClient(
+        httpClient = httpClient,
+        tokenProvider = tokenStore::read,
+    )
+    val repository = TorBoxRepository(
+        api = api,
+        localStore = localStore,
+        preferences = preferences,
+        driveStore = driveStore,
+        tokenProvider = tokenStore::read,
+        onDriveWatchArmed = {
+            CompletionMonitorScheduler.scheduleFallback(appContext)
+            CompletionMonitorScheduler.runSoon(appContext)
+            CompletionMonitorService.startFromUserAction(appContext)
+        },
+    )
 
     suspend fun validateToken(candidate: String): AccountInfo = TorBoxApiClient(
         httpClient = httpClient,
