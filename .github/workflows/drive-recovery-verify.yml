@@ -59,7 +59,9 @@ jobs:
           subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
           pathlib.Path('recovery-evidence/PATCH_SHA256.txt').write_text(os.environ['PATCH_SHA256'] + '\n')
           pathlib.Path('recovery-evidence/TEST_HARNESS_FIX.txt').write_text('Use the non-generic Robolectric 4.16.1 RuntimeEnvironment.getApplication API in:\n' + '\n'.join(fixed) + '\n')
+          subprocess.run(['git', 'diff', '--cached', '--binary'], stdout=open('recovery-evidence/applied-repairs.diff','wb'), check=True)
           PY
+          tar -czf recovery-evidence/applied-source.tar.gz app/src app/build.gradle.kts tools/drive-reproduction
       - uses: gradle/actions/wrapper-validation@v6
       - uses: actions/setup-java@v6
         with:
