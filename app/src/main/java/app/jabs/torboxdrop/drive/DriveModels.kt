@@ -14,6 +14,7 @@ enum class DriveWatchState {
 
 data class DriveWatch(
     val watchKey: String,
+    val accountScope: String,
     val downloadId: String,
     val type: DownloadType,
     val name: String,
