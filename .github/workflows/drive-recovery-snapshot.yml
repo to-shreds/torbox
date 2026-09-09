@@ -1,0 +1,32 @@
+name: Drive recovery snapshot
+
+on:
+  push:
+    branches: [feature/google-drive-automation]
+    paths: [.github/workflows/drive-recovery-snapshot.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Export tracked source without changing it
+        run: |
+          git archive --format=zip --output=torbox-source.zip HEAD
+          git rev-parse HEAD > SOURCE_COMMIT.txt
+          sha256sum torbox-source.zip > SOURCE_SHA256.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: drive-recovery-source
+          path: |
+            torbox-source.zip
+            SOURCE_COMMIT.txt
+            SOURCE_SHA256.txt
+          if-no-files-found: error
+          retention-days: 7
