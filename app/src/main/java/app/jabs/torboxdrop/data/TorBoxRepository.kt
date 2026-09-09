@@ -233,11 +233,11 @@ class TorBoxRepository(
         options: AddOptions = AddOptions(),
         source: String = "manual",
     ): AddResult = AccountSensitiveWorkGate.mutex.withLock {
-        val admission = prepareDriveAdmission(options, DriveTorrentIdentity.fromMagnet(magnet), magnet, "New torrent")
+        val admission = prepareDriveAdmission(options, DriveTorrentIdentity.fromMagnet(magnet), null, "New torrent")
         val result = try { api.createMagnet(magnet, options)
         } catch (error: Exception) { failDefinitiveAdmission(admission, error); throw error }
         withContext(NonCancellable) {
-            finishDriveAdmission(result, admission, magnet, "New torrent").also {
+            finishDriveAdmission(result, admission, null, "New torrent").also {
                 runCatching { localStore.addRecent(magnet, DownloadType.TORRENT, source) }
             }
         }
@@ -327,7 +327,7 @@ class TorBoxRepository(
     private data class DriveAdmission(val scope: String, val hash: String, val queueId: String)
 
     private suspend fun prepareDriveAdmission(
-        options: AddOptions, hash: String?, sourceValue: String, name: String,
+        options: AddOptions, hash: String?, sourceValue: String?, name: String,
     ): DriveAdmission? {
         if (!(options.sendToGoogleDrive ?: preferences.googleDriveByDefault)) return null
         val scope = driveAccountScope(tokenProvider())
@@ -339,7 +339,7 @@ class TorBoxRepository(
         // Persist intent BEFORE remote creation. A process death after TorBox accepts the torrent
         // cannot lose the Drive request; its exact hash will correlate when the torrent appears.
         requireNotNull(driveStore).armQueued(admission.scope, DownloadType.TORRENT, admission.queueId, name, hash, sourceValue)
-        onDriveWatchArmed()
+        runCatching { onDriveWatchArmed() }
         return admission
     }
 
@@ -354,7 +354,7 @@ class TorBoxRepository(
     }
 
     private suspend fun finishDriveAdmission(
-        result: AddResult, admission: DriveAdmission?, sourceValue: String, fallbackName: String,
+        result: AddResult, admission: DriveAdmission?, sourceValue: String?, fallbackName: String,
     ): AddResult {
         if (admission == null) return result
         val store = requireNotNull(driveStore)

@@ -51,7 +51,7 @@ class DriveAdmissionAndConnectionTest {
         var witnessed = false
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
-                witnessed = runBlocking { store.runnableWatches(scope).single().sourceHash == hash }
+                witnessed = runBlocking { store.runnableWatches(scope).single().let { it.sourceHash == hash && it.sourceValue == null } }
                 return added()
             }
         }
@@ -82,6 +82,13 @@ class DriveAdmissionAndConnectionTest {
             .createMagnet(magnet, AddOptions(sendToGoogleDrive = true))
         assertEquals("17", result.id); assertEquals(1, server.requestCount)
         assertTrue(result.detail.contains("could not schedule"))
+    }
+    @Test fun schedulerFailureBeforeRemoteCreateCannotAbortOrDuplicateAdd() = runBlocking {
+        var calls = 0; server.enqueue(added())
+        val result = repo { calls++; if (calls == 1) throw IllegalStateException("scheduler unavailable") }
+            .createMagnet(magnet, AddOptions(sendToGoogleDrive = true))
+        assertEquals("17", result.id); assertEquals(1, server.requestCount); assertTrue(calls >= 2)
+        assertEquals("17", store.runnableWatches(scope).single().downloadId)
     }
     @Test fun folderReservationSurvivesTorBoxSettingsFailureAndRetryReusesIt() = runBlocking {
         preferences.clearDriveConnection()

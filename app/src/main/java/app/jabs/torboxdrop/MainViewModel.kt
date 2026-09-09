@@ -427,10 +427,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setAddOptions(options: AddOptions) {
-        options.sendToGoogleDrive?.let { preferences.googleDriveByDefault = it }
-        _uiState.update { it.copy(addOptions = options) }
-    }
+    fun setAddOptions(options: AddOptions) = _uiState.update { it.copy(addOptions = options) }
 
     fun submit(incoming: IncomingAdd, options: AddOptions = _uiState.value.addOptions) {
         when (incoming) {
