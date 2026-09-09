@@ -226,11 +226,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             pendingTorrentPayload = null
         }
         val shouldAutoSend = when (source) {
+            // Anything arriving from another Android app is always staged on Add so the user can
+            // choose per-torrent options, including Google Drive, before TorBox sees it.
+            "android-share", "deep-link" -> false
             // Browser magnets may auto-send only through receiveTrustedBrowserMagnet().
             "browser-magnet" -> false
             "browser", "browser-download" -> true
             "clipboard" -> parsed.kind == InputParser.Kind.MAGNET && preferences.autoSendClipboardMagnets
-            else -> !preferences.confirmBeforeSending
+            else -> false
         }
         if (shouldAutoSend && container.tokenStore.hasToken()) {
             submitText(parsed, defaultAddOptions(), source, remainInBrowser)
@@ -265,7 +268,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (
             BrowserNavigationPolicy.shouldAutoSendBrowserMagnet(
                 autoSendBrowserMagnets = preferences.autoSendBrowserMagnets,
-                confirmBeforeSending = preferences.confirmBeforeSending,
             ) && container.tokenStore.hasToken()
         ) {
             submitText(parsed, defaultAddOptions(), "browser-magnet", remainInBrowser = true)
@@ -301,7 +303,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun receiveTorrentUri(
         uri: Uri,
         source: String,
-        options: AddOptions = _uiState.value.addOptions,
     ) {
         dismissDownloadSurfacesForIncoming()
         pendingTorrentPayload = null
@@ -336,14 +337,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         } else null,
                     )
                 }
-                val explicitlyChosenHere = source == "file-picker"
-                if (
-                    container.tokenStore.hasToken() &&
-                    !explicitlyChosenHere &&
-                    !preferences.confirmBeforeSending
-                ) {
-                    submitPendingTorrent(options)
-                }
+                // URI ingestion is staging only. Whether it came from Share, Open with, or the
+                // file picker, the user must press Add to TorBox after choosing the add options.
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
@@ -439,7 +434,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     submitText(parsed, options, incoming.source, remainInBrowser = false)
                 }
             }
-            is IncomingAdd.TorrentFile -> receiveTorrentUri(Uri.parse(incoming.uri), "file", options)
+            is IncomingAdd.TorrentFile -> receiveTorrentUri(Uri.parse(incoming.uri), "file")
         }
     }
 
@@ -951,7 +946,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             input = next.browserHomePage,
             defaultHomePage = AppPreferences.DEFAULT_HOME,
         )
-        preferences.confirmBeforeSending = !next.autoSendSharedLinks
         preferences.autoSendClipboardMagnets = next.autoSendClipboardMagnets
         preferences.autoSendBrowserMagnets = next.autoSendBrowserMagnets
         preferences.queueByDefault = next.defaultAddOptions.queued
@@ -1869,7 +1863,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         tokenHint = token?.let(::maskToken),
         defaultAddOptions = defaults,
         density = preferences.density,
-        autoSendSharedLinks = !preferences.confirmBeforeSending,
         autoSendClipboardMagnets = preferences.autoSendClipboardMagnets,
         autoSendBrowserMagnets = preferences.autoSendBrowserMagnets,
         blockAdsAndTrackers = preferences.adBlockingEnabled,

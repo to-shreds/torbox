@@ -15,12 +15,18 @@ class AddFlowSourceTest {
     private val addScreenSource: String by lazy {
         projectRoot.resolve("app/src/main/java/app/jabs/torboxdrop/ui/screens/AddScreen.kt").readText()
     }
+    private val settingsSource: String by lazy {
+        projectRoot.resolve("app/src/main/java/app/jabs/torboxdrop/ui/screens/SettingsScreen.kt").readText()
+    }
 
     @Test
-    fun addDestinationNeverAutoSubmitsClipboardOrChosenTorrent() {
-        assertThat(viewModelSource).contains("_uiState.value.destination == AppDestination.ADD")
-        assertThat(viewModelSource).contains("!explicitlyChosenHere &&")
-        assertThat(viewModelSource).doesNotContain("explicitlyChosenHere || !preferences.confirmBeforeSending")
+    fun externalSharesAndTorrentUrisAlwaysStageForExplicitConfirmation() {
+        assertThat(viewModelSource).contains("\"android-share\", \"deep-link\" -> false")
+        assertThat(viewModelSource).contains("else -> false")
+        assertThat(viewModelSource).contains("URI ingestion is staging only")
+        assertThat(viewModelSource).doesNotContain("preferences.confirmBeforeSending")
+        assertThat(settingsSource).doesNotContain("Instantly send shared links")
+        assertThat(addScreenSource).contains("Text(\"Add to TorBox\")")
     }
 
     @Test

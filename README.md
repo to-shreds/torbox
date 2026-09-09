@@ -15,6 +15,7 @@ The application ID remains `app.jabs.torboxdrop`. The project contains no Usenet
 - Infected files are blocked from Share and Open; Download requires an explicit warning confirmation.
 - The queue is fetched separately for torrent and web-download records and supports Start and Delete.
 - Add accepts magnets, HTTP or HTTPS links, and `.torrent` content URIs from the picker or Android intents.
+- Anything shared or externally opened into TorBox Drop is staged on Add and waits for **Add to TorBox**, so per-item options such as Google Drive can be reviewed before creation.
 - Completion watches are durable and use a user-started visible foreground service with a slower WorkManager fallback.
 - Google Drive automation can send a torrent's individual files through TorBox directly to one configured Drive folder as soon as TorBox says the torrent is truly ready. The Drive action is durable and independent of the completion-notification toggle.
 - The dedicated browser has native controls, bookmarks, magnet handoff, long-press link actions, download choices, and request-level host blocking from a bundled ruleset.

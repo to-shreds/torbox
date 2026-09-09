@@ -22,6 +22,13 @@ Build and verification commands:
 
 The CI workflow runs the same clean unit-test, lint, debug-APK, and release shrinking tasks on pushes and pull requests. It uploads test reports and the debug APK as workflow artifacts. The CI release output is an unsigned verification artifact and is not distributed.
 
+## v2.0.5 targeted confirmation-flow correction
+
+- Android text shares now always stage the shared magnet or URL on Add instead of submitting immediately.
+- Shared or externally opened `.torrent` files now always finish parsing on Add and wait for the user to press **Add to TorBox**.
+- External `magnet:` deep links likewise stage on Add. This guarantees the per-torrent Google Drive, Queue, Cached Only, notification, seed, and ZIP choices are visible before creation.
+- Removed the obsolete **Instantly send shared links** setting. Browser-magnet and clipboard instant-send behavior remain independently controlled by their existing explicit settings.
+
 ## v2.0.4 Google Drive automation release candidate
 
 - Settings connects Google Drive using Google Play services authorization with only the `drive.file` scope and configures one global app-managed destination folder.

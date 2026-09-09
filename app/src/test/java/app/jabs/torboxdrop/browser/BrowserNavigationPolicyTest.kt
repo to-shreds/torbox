@@ -71,11 +71,9 @@ class BrowserNavigationPolicyTest {
     }
 
     @Test
-    fun browserAutoSend_requiresBothInstantModeAndNoConfirmation() {
-        assertThat(BrowserNavigationPolicy.shouldAutoSendBrowserMagnet(true, false)).isTrue()
-        assertThat(BrowserNavigationPolicy.shouldAutoSendBrowserMagnet(true, true)).isFalse()
-        assertThat(BrowserNavigationPolicy.shouldAutoSendBrowserMagnet(false, false)).isFalse()
-        assertThat(BrowserNavigationPolicy.shouldAutoSendBrowserMagnet(false, true)).isFalse()
+    fun browserAutoSend_followsItsOwnExplicitSetting() {
+        assertThat(BrowserNavigationPolicy.shouldAutoSendBrowserMagnet(true)).isTrue()
+        assertThat(BrowserNavigationPolicy.shouldAutoSendBrowserMagnet(false)).isFalse()
     }
 
     @Test
