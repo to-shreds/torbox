@@ -8,6 +8,7 @@ import app.jabs.torboxdrop.data.TorBoxApiClient
 import app.jabs.torboxdrop.data.TorBoxDriveIntegrationClient
 import app.jabs.torboxdrop.data.TorBoxRepository
 import app.jabs.torboxdrop.drive.DriveStore
+import app.jabs.torboxdrop.drive.GoogleDriveApiClient
 import app.jabs.torboxdrop.drive.GoogleDriveAuthorizationManager
 import app.jabs.torboxdrop.model.AccountInfo
 import app.jabs.torboxdrop.notifications.CompletionMonitorScheduler
@@ -42,6 +43,7 @@ class AppContainer(context: Context) {
         httpClient = httpClient,
         tokenProvider = tokenStore::read,
     )
+    val googleDriveApi = GoogleDriveApiClient(httpClient)
     val repository = TorBoxRepository(
         api = api,
         localStore = localStore,
