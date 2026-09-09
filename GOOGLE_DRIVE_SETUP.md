@@ -4,17 +4,25 @@ TorBox Drop uses Google Play services authorization and TorBox's server-side Goo
 
 ## One-time Google Cloud configuration
 
-Before the production-signed app can authorize Google Drive, create an Android OAuth client in a Google Cloud project that has the Google Drive API enabled.
+Before a signed app can authorize Google Drive, create an Android OAuth client in a Google Cloud project that has the Google Drive API enabled.
 
-Use these exact production values:
+Google identifies an Android OAuth client by the app package and the signing certificate SHA-1. Use the certificate of the APK you actually install.
+
+### Current private fresh-install 2.0.4 build
 
 - Android package name: `app.jabs.torboxdrop`
-- Production signing certificate SHA-1: `A2:96:72:48:6C:21:30:67:76:10:A6:3B:2D:EC:E1:6A:49:C4:00:A0`
+- Signing certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`
 - Requested Google Drive scope: `https://www.googleapis.com/auth/drive.file`
 
-Google identifies an Android OAuth client by its package name and signing-certificate SHA-1. Do not put a client secret in the APK. If the OAuth consent configuration is in testing mode, make the Google account that will use TorBox Drop an allowed test user when Google requires it.
+This certificate belongs to the private-use key generated for the fresh-install 2.0.4 build on September 9, 2026. It does not match the older v2.0.3 signing certificate, so an older installed build must be uninstalled before this private build is installed.
 
-The production SHA-1 above comes from the existing TorBox Drop v2 public release certificate. The corresponding private signing key is still required to produce an update-compatible APK.
+Do not put a Google client secret in the APK. If the OAuth consent configuration is in testing mode, make the Google account that will use TorBox Drop an allowed test user when Google requires it.
+
+### Private-build signing policy
+
+TorBox Drop builds are currently personal/private-use builds unless Jon expressly says otherwise. Preserve the current private signing key when convenient so later APKs can update this fresh-install line in place. If that key is unavailable later, do not block the build: generate a new signing key, sign the APK, clearly state that uninstall/reinstall is required, and register the replacement certificate SHA-1 with the Google Android OAuth client.
+
+Public or third-party distribution is a separate signing/release decision and should not be inferred from this private-build policy.
 
 ## In the app
 
@@ -36,8 +44,8 @@ If Android notification permission or the monitoring notification channel is dis
 
 ## Release and troubleshooting notes
 
-A debug APK uses a different signing certificate, so the production OAuth client above will not authorize a debug build. For debug testing, create a separate Android OAuth client for the debug certificate.
+A debug APK uses a different signing certificate, so an Android OAuth client registered only for the private release certificate above will not authorize a debug build. For debug testing, create a separate Android OAuth client for the debug certificate.
 
 If Google authorization reports a developer-configuration error, first verify the package name and SHA-1 registered for the Android OAuth client. Google notes that OAuth client configuration changes can take time to propagate.
 
-The automated suite validates request construction, credential boundaries, durable recovery, duplicate suppression, account replacement and failure handling. A real Google consent flow, a live TorBox-to-Drive transfer and physical-device background behavior still require the configured production environment and cannot be truthfully simulated by CI alone.
+The automated suite validates request construction, credential boundaries, durable recovery, duplicate suppression, account replacement and failure handling. A real Google consent flow, a live TorBox-to-Drive transfer and physical-device background behavior still require the configured environment and cannot be truthfully simulated by CI alone.
