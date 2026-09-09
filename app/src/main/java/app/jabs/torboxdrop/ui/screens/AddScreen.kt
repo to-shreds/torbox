@@ -63,12 +63,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.jabs.torboxdrop.TorBoxDropApplication
 import app.jabs.torboxdrop.model.AddOptions
 import app.jabs.torboxdrop.model.AddResult
 import app.jabs.torboxdrop.model.DownloadType
@@ -79,8 +80,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * Hoisted, callback-only add flow. File selection and persistence deliberately
- * live outside this composable; [onPickTorrent] should launch the platform picker.
+ * Hoisted add flow. File selection and ordinary persistence live outside this composable. The
+ * Google Drive toggle reads only non-secret local setup state so a per-torrent choice can cleanly
+ * inherit or override the global Drive default.
  */
 @Composable
 fun AddScreen(
@@ -105,6 +107,13 @@ fun AddScreen(
 ) {
     val detection = remember(candidate) { detectCandidate(candidate) }
     var advancedExpanded by rememberSaveable { mutableStateOf(false) }
+    val app = LocalContext.current.applicationContext as TorBoxDropApplication
+    val drivePreferences = app.container.preferences
+    val driveConnected = drivePreferences.googleDriveConnected &&
+        !drivePreferences.googleDriveFolderId.isNullOrBlank()
+    val sendToDrive = options.sendToGoogleDrive ?: drivePreferences.googleDriveByDefault
+    val isTorrentInput = pendingTorrentName != null || detection.kind == CandidateKind.MAGNET
+    val driveRequirementUnmet = isTorrentInput && sendToDrive && !driveConnected
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -263,6 +272,24 @@ fun AddScreen(
                         icon = { Icon(Icons.Rounded.NotificationsActive, contentDescription = null) },
                         onCheckedChange = { onOptionsChange(options.copy(notifyWhenComplete = it)) },
                     )
+                    if (isTorrentInput) {
+                        AddOptionToggle(
+                            title = "Send to Google Drive when ready",
+                            description = if (driveConnected) {
+                                "Destination: ${drivePreferences.googleDriveFolderName}"
+                            } else {
+                                "Connect Google Drive in Settings first"
+                            },
+                            checked = sendToDrive,
+                            enabled = driveConnected || sendToDrive,
+                            icon = { Icon(Icons.Rounded.CloudUpload, contentDescription = null) },
+                            onCheckedChange = { requested ->
+                                if (!requested || driveConnected) {
+                                    onOptionsChange(options.copy(sendToGoogleDrive = requested))
+                                }
+                            },
+                        )
+                    }
 
                     Surface(
                         onClick = { advancedExpanded = !advancedExpanded },
@@ -322,6 +349,14 @@ fun AddScreen(
                         }
                     }
 
+                    if (driveRequirementUnmet) {
+                        Text(
+                            "Google Drive is selected, but it needs to be connected in Settings before this torrent can be added.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
                     Button(
                         onClick = {
                             if (pendingTorrentName != null) {
@@ -336,7 +371,8 @@ fun AddScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
-                        enabled = (detection.isValid || pendingTorrentName != null) && !submitting,
+                        enabled = (detection.isValid || pendingTorrentName != null) &&
+                            !submitting && !driveRequirementUnmet,
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = TorBoxColors.Teal,
@@ -536,20 +572,21 @@ private fun AddOptionToggle(
     checked: Boolean,
     icon: @Composable () -> Unit,
     onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(15.dp))
-            .clickable { onCheckedChange(!checked) }
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
             modifier = Modifier.size(38.dp),
             shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.11f),
-            contentColor = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 0.11f else 0.05f),
+            contentColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         ) {
             Box(contentAlignment = Alignment.Center) { icon() }
         }
@@ -563,7 +600,7 @@ private fun AddOptionToggle(
             )
         }
         Spacer(Modifier.width(8.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, enabled = enabled, onCheckedChange = onCheckedChange)
     }
 }
 
