@@ -32,6 +32,25 @@ class AppPreferences(context: Context) {
         get() = preferences.getBoolean(KEY_NOTIFY_NEW, false)
         set(value) = edit(KEY_NOTIFY_NEW, value)
 
+    /** Global default only. An Add flow may explicitly override this for one torrent. */
+    var googleDriveByDefault: Boolean
+        get() = preferences.getBoolean(KEY_GOOGLE_DRIVE_DEFAULT, false)
+        set(value) = edit(KEY_GOOGLE_DRIVE_DEFAULT, value)
+
+    /** Non-secret hint that the interactive Drive authorization flow succeeded at least once. */
+    var googleDriveConnected: Boolean
+        get() = preferences.getBoolean(KEY_GOOGLE_DRIVE_CONNECTED, false)
+        set(value) = edit(KEY_GOOGLE_DRIVE_CONNECTED, value)
+
+    /** TorBox account-level Drive destination. This is a non-secret Google Drive folder ID. */
+    var googleDriveFolderId: String?
+        get() = preferences.getString(KEY_GOOGLE_DRIVE_FOLDER_ID, null)
+        set(value) {
+            val normalized = value?.trim()?.takeIf(String::isNotEmpty)
+            if (normalized == null) preferences.edit().remove(KEY_GOOGLE_DRIVE_FOLDER_ID).apply()
+            else edit(KEY_GOOGLE_DRIVE_FOLDER_ID, normalized)
+        }
+
     var seedPreference: Int
         get() = preferences.getInt(KEY_SEED, 1).coerceIn(1, 3)
         set(value) = edit(KEY_SEED, value.coerceIn(1, 3))
@@ -116,6 +135,9 @@ class AppPreferences(context: Context) {
         private const val KEY_QUEUE = "queue_by_default"
         private const val KEY_CACHED_ONLY = "cached_only_by_default"
         private const val KEY_NOTIFY_NEW = "notify_new_by_default"
+        private const val KEY_GOOGLE_DRIVE_DEFAULT = "google_drive_by_default"
+        private const val KEY_GOOGLE_DRIVE_CONNECTED = "google_drive_connected"
+        private const val KEY_GOOGLE_DRIVE_FOLDER_ID = "google_drive_folder_id"
         private const val KEY_SEED = "seed_preference"
         private const val KEY_ALLOW_ZIP = "allow_zip_by_default"
         private const val KEY_DENSITY = "download_density"
