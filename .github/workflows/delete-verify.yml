@@ -1,4 +1,4 @@
-name: Delete correction verification
+name: Delete correction final verification
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: delete-correction-verification
@@ -26,7 +27,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Preserve baseline and apply checksum-verified correction
+      - name: Preserve baseline and apply unchanged checksum-verified correction
         shell: bash
         run: |
           mkdir -p delete-evidence
@@ -45,6 +46,34 @@ jobs:
           subprocess.run(['git','diff','--cached','--check'],check=True)
           pathlib.Path('delete-evidence/PATCH_SHA256.txt').write_text(os.environ['PATCH_SHA256']+'\n')
           PY
+      - name: Reuse already-passed historical reproduction and primary regression evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error --retry 2 --header "Authorization: Bearer $GH_TOKEN" --header "Accept: application/vnd.github+json" https://api.github.com/repos/to-shreds/torbox/actions/artifacts/10263767999/zip --output delete-evidence/initial-verification.zip
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, hashlib, zipfile, xml.etree.ElementTree as ET
+          p=Path('delete-evidence/initial-verification.zip')
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='aa01127f30f8753f08a0ef577dce65b62d7735d530dff3c19ce5e0f0af95761b'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              assert z.read('delete-evidence/PATCH_SHA256.txt').decode().strip()==os.environ['PATCH_SHA256']
+              for stage, expected in [('baseline',2),('primary',259)]:
+                  names=[n for n in z.namelist() if n.startswith(f'delete-evidence/{stage}-test-results/') and n.endswith('.xml')]
+                  roots=[ET.fromstring(z.read(n)) for n in names]
+                  totals={k:sum(int(r.get(k,'0')) for r in roots) for k in ['tests','failures','errors','skipped']}
+                  assert totals=={'tests':expected,'failures':0,'errors':0,'skipped':0},totals
+                  for n in names:
+                      target=Path(n)
+                      assert '..' not in target.parts and not target.is_absolute()
+                      target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(z.read(n))
+              for name in ['baseline.log','primary.log','BASELINE_FINDINGS.txt']:
+                  Path('delete-evidence',name).write_bytes(z.read('delete-evidence/'+name))
+              assert 'BUILD SUCCESSFUL' in z.read('delete-evidence/primary.log').decode()
+          Path('delete-evidence/RECOVERY_NOTE.txt').write_text('Run 34599333834 proved both old defects and passed 259 regression tests, lint and both builds. Its 38 targeted security tests also passed; the subsequent static script incorrectly searched for a withAccount helper instead of the actual mutex and under-lock account check. Only that audit harness is corrected here. Source patch bytes are unchanged. Historical reproduction is reused, not rerun.\n')
+          PY
       - uses: gradle/actions/wrapper-validation@v6
       - uses: actions/setup-java@v6
         with:
@@ -53,29 +82,12 @@ jobs:
       - uses: android-actions/setup-android@v4
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v6
-      - name: Reproduce both historical defects on unchanged 2.0.6 source
-        shell: bash
-        run: |
-          git worktree add --detach "$RUNNER_TEMP/delete-baseline" "$BASE"
-          mkdir -p "$RUNNER_TEMP/delete-baseline/app/src/test/java/app/jabs/torboxdrop/data"
-          cp tools/delete-reproduction/DeletionBaselineTest.kt "$RUNNER_TEMP/delete-baseline/app/src/test/java/app/jabs/torboxdrop/data/"
-          set -o pipefail
-          (cd "$RUNNER_TEMP/delete-baseline" && ./gradlew --no-daemon testDebugUnitTest --tests '*DeletionBaselineTest') 2>&1 | tee delete-evidence/baseline.log
-          cp -R "$RUNNER_TEMP/delete-baseline/app/build/test-results" delete-evidence/baseline-test-results
-          python3 - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-          roots=[ET.parse(p).getroot() for p in Path('delete-evidence/baseline-test-results').rglob('TEST-*.xml')]
-          counts={k:sum(int(r.get(k,'0')) for r in roots) for k in ['tests','failures','errors','skipped']}
-          assert counts == {'tests':2,'failures':0,'errors':0,'skipped':0}, counts
-          Path('delete-evidence/BASELINE_FINDINGS.txt').write_text('Both old-source defects reproduced: successful remote delete retains cache; rejected remote delete cancels a pending Drive instruction. Tests pass by asserting the old broken behavior. No live user data was deleted.\n')
-          PY
-      - name: Primary verification - full regression, lint and both APK builds
+      - name: Produce final candidates from unchanged source with lint and both builds
+        id: build
         shell: bash
         run: |
           set -o pipefail
-          ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleDebug assembleRelease 2>&1 | tee delete-evidence/primary.log
-          cp -R app/build/test-results delete-evidence/primary-test-results
+          ./gradlew --no-daemon lintDebug assembleDebug assembleRelease 2>&1 | tee delete-evidence/final-build.log
       - name: Final gate 1 - separate credentials, confirmation and account-safety check
         shell: bash
         run: |
@@ -91,11 +103,13 @@ jobs:
           assert 'remoteDelete()' in section and 'localStore.markDeleted' in section
           assert section.index('remoteDelete()') < section.index('localStore.markDeleted')
           assert 'ITEM_NOT_FOUND' in section and '401, 403, 429' in section
-          assert 'withAccount(expectedAccount, tokenProvider)' in section
+          assert 'AccountSensitiveWorkGate.mutex.withLock' in section
+          assert 'check(expectedAccount == driveAccountScope(tokenProvider()))' in section
+          assert section.index('check(expectedAccount') < section.index('remoteDelete()')
           unchanged=['app/src/main/java/app/jabs/torboxdrop/data/TorBoxApiClient.kt','app/src/main/java/app/jabs/torboxdrop/drive','app/src/main/java/app/jabs/torboxdrop/ui/screens/ManualDriveDialog.kt']
           assert not subprocess.check_output(['git','diff','--cached','--name-only','--',*unchanged]).strip(), 'Unrelated API or Drive change'
           assert not list(Path('.').glob('**/*.p12')), 'Private signing material must not enter source or CI'
-          Path('delete-evidence/SECURITY_STATIC.txt').write_text('PASS: unchanged API request construction and Drive implementation; account barrier; cache/Drive cleanup follows confirmed remote result; auth and rate errors cannot masquerade as deletion; private signing material absent.\n')
+          Path('delete-evidence/SECURITY_STATIC.txt').write_text('PASS: unchanged API and Drive implementation; actual account mutex and under-lock identity check; cache/Drive cleanup follows confirmed remote result; auth and rate errors cannot masquerade as deletion; private signing material absent.\n')
           PY
       - name: Final gate 2 - separate cache, migration and race-recovery replay
         shell: bash
@@ -107,10 +121,10 @@ jobs:
           from pathlib import Path
           import xml.etree.ElementTree as ET
           lines=[]
-          for stage in ['primary','security','state']:
+          for stage, expected in [('primary',259),('security',38),('state',259)]:
               roots=[ET.parse(p).getroot() for p in Path(f'delete-evidence/{stage}-test-results').rglob('TEST-*.xml')]
               totals={k:sum(int(r.get(k,'0')) for r in roots) for k in ['tests','failures','errors','skipped']}
-              assert roots and totals['tests'] and not any(totals[k] for k in ['failures','errors','skipped']),totals
+              assert totals=={'tests':expected,'failures':0,'errors':0,'skipped':0},totals
               lines.append(f'{stage}: {len(roots)} suites, {totals}')
           Path('delete-evidence/TEST_TOTALS.txt').write_text('\n'.join(lines)+'\n');print('\n'.join(lines))
           PY
@@ -132,18 +146,18 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: delete-verification-evidence
+          name: delete-final-verification-evidence
           path: |
             delete-evidence/
             app/build/test-results/
             app/build/reports/lint-results-debug.html
           if-no-files-found: error
           retention-days: 30
-      - name: Preserve verified APK candidates
-        if: success()
+      - name: Preserve built candidates without treating incomplete reviews as approved
+        if: always() && steps.build.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
-          name: delete-2.0.7-builds
+          name: delete-2.0.7-build-candidates
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/release/app-release-unsigned.apk
