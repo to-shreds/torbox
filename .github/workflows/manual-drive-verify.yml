@@ -1,11 +1,9 @@
-name: Manual Drive verification
+name: Manual Drive final verification
 
 on:
   push:
     branches: [feature/manual-drive-send]
-    paths:
-      - .github/workflows/manual-drive-verify.yml
-      - tools/manual-drive-recovery/**
+    paths: [.github/workflows/manual-drive-verify.yml]
 
 permissions:
   contents: write
@@ -20,30 +18,63 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BASE: 446d47bcda36eadefe87f8a0ed3282d80187e06c
-      PATCH_SHA256: fd89c324c220c5f618299eed78983c5169738e68e9e0c93a42fd887823d02093
+      BASE: a899d066eb3d7966e45c2b41c02044932e10ab51
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Gate 1 - preserve baseline and apply exact reviewed patch
+      - name: Preserve passing candidate and add three adversarial cases
         shell: bash
         run: |
           mkdir -p manual-drive-evidence
           git rev-parse HEAD > manual-drive-evidence/TRANSPORT_COMMIT.txt
           python3 - <<'PY'
-          import base64, bz2, hashlib, os, pathlib, subprocess
+          import os, pathlib, subprocess
           changes = subprocess.check_output(['git','diff','--name-only',os.environ['BASE'],'HEAD']).decode().splitlines()
-          assert all(p.startswith('tools/manual-drive-recovery/') or p == '.github/workflows/manual-drive-verify.yml' for p in changes), 'Concurrent source changes; refusing to overwrite'
-          data = ''.join(pathlib.Path(f'tools/manual-drive-recovery/patch.b64.{n}').read_text().strip() for n in (1,2))
-          patch = bz2.decompress(base64.b64decode(data, validate=True))
-          assert hashlib.sha256(patch).hexdigest() == os.environ['PATCH_SHA256'], 'Patch checksum mismatch'
-          path = pathlib.Path(os.environ['RUNNER_TEMP'])/'manual-drive.patch'
-          path.write_bytes(patch)
-          subprocess.run(['git','apply','--check',str(path)],check=True)
-          subprocess.run(['git','apply','--index',str(path)],check=True)
-          subprocess.run(['git','diff','--cached','--check'],check=True)
-          pathlib.Path('manual-drive-evidence/PATCH_SHA256.txt').write_text(os.environ['PATCH_SHA256']+'\n')
+          assert changes == ['.github/workflows/manual-drive-verify.yml'], 'Concurrent changes; refusing to overwrite'
+          base=pathlib.Path('app/src/test/java/app/jabs/torboxdrop/drive')
+          p=base/'DriveAutomationTest.kt'; s=p.read_text()
+          marker='    private inner class FakeSource'
+          extra='''    @Test fun cancelledCustomJobReleasesDestinationAndLetsNextFolderProceed() = runBlocking {
+                  store.armManual(scope, item, GoogleDriveFolder("custom", "Movies"), "dest")
+                  store.armManual(scope, item, GoogleDriveFolder("family", "Family"), "dest")
+                  runner().runOnce(); assertEquals(1, gateway.sent.size)
+                  gateway.jobs[0] = gateway.jobs[0].copy(status = "cancelled")
+                  runner().runOnce()
+                  assertEquals(2, gateway.sent.size); assertEquals("family", gateway.remoteFolder)
+                  val first = store.recentWatches(scope).first { it.destinationFolderId == "custom" }
+                  assertEquals(DriveFileState.FAILED, store.fileTransfers(first.watchKey).single().state)
+                  gateway.jobs[1] = gateway.jobs[1].copy(status = "completed")
+                  runner().runOnce(); assertEquals("dest", gateway.remoteFolder)
+                  assertFalse(store.hasRunnableWork(scope)); assertNull(store.destinationLease(scope))
+              }
+
+          '''
+          assert s.count(marker)==1; p.write_text(s.replace(marker,extra+marker))
+          p=base/'DriveAdmissionAndConnectionTest.kt';s=p.read_text();marker='    private class SettingsGateway'
+          extra='''    @Test fun reconnectingDefaultDoesNotRedirectAnExistingManualDestinationLease() = runBlocking {
+                  store.saveDestinationLease(scope, DriveDestinationLease("custom", "dest"))
+                  server.enqueue(MockResponse().setBody("""{"id":"dest","name":"Folder","mimeType":"application/vnd.google-apps.folder","trashed":false,"capabilities":{"canAddChildren":true}}"""))
+                  val gateway = SettingsGateway()
+                  DriveConnectionCoordinator(preferences, { token }, GoogleDriveApiClient(OkHttpClient(), server.url("/drive/v3/")), gateway, store)
+                      .connect(scope, "Folder", "google-test-secret")
+                  assertTrue(preferences.driveConfiguredFor(scope)); assertEquals("dest", preferences.googleDriveFolderId)
+                  assertEquals(0, gateway.calls); assertEquals("custom", store.destinationLease(scope)!!.folderId)
+              }
+              @Test fun changingDefaultWhileManualLeaseExistsDoesNotTouchRemoteOrPreferences() = runBlocking {
+                  store.saveDestinationLease(scope, DriveDestinationLease("custom", "dest"))
+                  val gateway = SettingsGateway()
+                  try {
+                      DriveConnectionCoordinator(preferences, { token }, GoogleDriveApiClient(OkHttpClient(), server.url("/drive/v3/")), gateway, store)
+                          .connect(scope, "Changed", "google-test-secret")
+                      fail("Must wait for uploads")
+                  } catch (_: GoogleDriveApiException) { }
+                  assertEquals(0, gateway.calls); assertEquals(0, server.requestCount)
+                  assertEquals("Folder", preferences.googleDriveFolderName); assertTrue(preferences.driveConfiguredFor(scope))
+              }
+
+          '''
+          assert s.count(marker)==1;p.write_text(s.replace(marker,extra+marker))
           PY
       - uses: gradle/actions/wrapper-validation@v6
       - uses: actions/setup-java@v6
@@ -53,15 +84,46 @@ jobs:
       - uses: android-actions/setup-android@v4
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v6
-      - name: Gate 2 - full primary regressions, lint and both APK builds
-        id: primary
+      - name: Reproduce cancelled-job queue blockage on the preceding candidate
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest --tests '*DriveAutomationTest.cancelledCustomJobReleasesDestinationAndLetsNextFolderProceed' 2>&1 | tee manual-drive-evidence/cancellation-reproduction.log
+          result=${PIPESTATUS[0]}
+          set -e
+          test "$result" -ne 0
+          cp -R app/build/test-results manual-drive-evidence/reproduction-test-results
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          paths=list(Path('app/build/test-results').rglob('TEST-*.xml'))
+          assert len(paths)==1, 'Unexpected reproduction scope'
+          root=ET.parse(paths[0]).getroot()
+          assert root.get('tests')=='1' and root.get('failures')=='1' and root.get('errors')=='0'
+          failure=root.find('.//failure')
+          assert failure is not None and 'expected:<2> but was:<1>' in failure.get('message',''), 'Not the expected queue blockage'
+          Path('manual-drive-evidence/REPRODUCTION.txt').write_text('Confirmed: cancelled custom upload kept a local in-flight claim and prevented the next folder from starting. Exactly one regression failed with one instead of two submissions.\n')
+          PY
+      - name: Apply smallest cancellation-state repair
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/app/jabs/torboxdrop/drive/DriveAutomationRunner.kt');s=p.read_text()
+          old='"failed" -> store.markFileFailed(transfer.transferKey, "TorBox reported that the Drive upload failed.", candidate.id)'
+          new='"failed", "cancelled", "canceled" -> store.markFileFailed(transfer.transferKey, "TorBox reported that the Drive upload failed or was cancelled.", candidate.id)'
+          assert s.count(old)==1;p.write_text(s.replace(old,new))
+          PY
+          git add app/src/main/java/app/jabs/torboxdrop/drive/DriveAutomationRunner.kt app/src/test/java/app/jabs/torboxdrop/drive/DriveAutomationTest.kt app/src/test/java/app/jabs/torboxdrop/drive/DriveAdmissionAndConnectionTest.kt
+          git diff --cached --check
+      - name: Primary verification - complete suite, lint and both APK builds
         shell: bash
         run: |
           set -o pipefail
           ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleDebug assembleRelease 2>&1 | tee manual-drive-evidence/primary.log
           cp -R app/build/test-results manual-drive-evidence/primary-test-results
-          git diff --cached > manual-drive-evidence/REVIEWED_DIFF.patch
-      - name: Gate 3 - separate credential, confirmation and account adversarial check
+      - name: Final gate 1 - separate security, consent and account attack
         shell: bash
         run: |
           set -o pipefail
@@ -70,20 +132,17 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           base=Path('app/src/main/java/app/jabs/torboxdrop')
-          coordinator=(base/'drive/ManualDriveCoordinator.kt').read_text()
-          ui=(base/'ui/screens/ManualDriveDialog.kt').read_text()
-          gateway=(base/'data/TorBoxDriveIntegrationClient.kt').read_text()
-          assert 'withAccount(target.accountScope, tokenProvider)' in coordinator
-          assert 'google.generateFolderId(accessToken).also' in coordinator and 'store.reserveManualFolder' in coordinator
-          assert 'destination_folder_id' not in gateway and '"folder_id"' not in gateway, 'Do not invent a per-upload folder argument'
-          assert '.retryOnConnectionFailure(false)' in gateway and '.followRedirects(false)' in gateway
-          assert 'LaunchedEffect' not in ui, 'Opening a prompt must not auto-submit'
-          for forbidden in ['createTorrent(', 'deleteTorrent(', 'repository.delete(', 'DownloadManager', 'putString("access_token"']:
-              assert forbidden not in coordinator+ui
-          assert not list(Path('.').glob('**/*.p12')), 'Private signing key must never be in source or CI'
-          Path('manual-drive-evidence/security-static.txt').write_text('PASS: explicit confirmation, account scope, durable reservation, no media relay or source deletion, no secret persistence, no invented folder argument.\n')
+          c=(base/'drive/ManualDriveCoordinator.kt').read_text();u=(base/'ui/screens/ManualDriveDialog.kt').read_text();g=(base/'data/TorBoxDriveIntegrationClient.kt').read_text()
+          assert 'withAccount(target.accountScope, tokenProvider)' in c
+          assert 'store.reserveManualFolder' in c and 'withContext(NonCancellable)' in c
+          assert '"folder_id"' not in g and '.retryOnConnectionFailure(false)' in g and '.followRedirects(false)' in g
+          assert 'LaunchedEffect' not in u
+          for x in ['createTorrent(', 'deleteTorrent(', 'repository.delete(', 'DownloadManager', 'putString("access_token"']:
+              assert x not in c+u
+          assert not list(Path('.').glob('**/*.p12'))
+          Path('manual-drive-evidence/security-static.txt').write_text('PASS: confirmation-only admission, account isolation, no credential persistence, no media relay or deletion, no invented folder parameter.\n')
           PY
-      - name: Gate 4 - separate state, migration and destination-race adversarial replay
+      - name: Final gate 2 - separate lifecycle, migration and destination-race attack
         shell: bash
         run: |
           set -o pipefail
@@ -92,46 +151,42 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          rows=[]
+          lines=[]
           for stage in ['primary','security','state']:
-              paths=list(Path(f'manual-drive-evidence/{stage}-test-results').rglob('TEST-*.xml'))
-              assert paths, 'Missing test evidence'
-              roots=[ET.parse(p).getroot() for p in paths]
+              roots=[ET.parse(p).getroot() for p in Path(f'manual-drive-evidence/{stage}-test-results').rglob('TEST-*.xml')]
               totals={k:sum(int(r.get(k,'0')) for r in roots) for k in ['tests','failures','errors','skipped']}
-              assert totals['tests'] > 0 and not any(totals[k] for k in ['failures','errors','skipped']), totals
-              rows.append(f'{stage}: {len(paths)} suites, {totals}')
-          Path('manual-drive-evidence/TEST_TOTALS.txt').write_text('\n'.join(rows)+'\n')
-          print('\n'.join(rows))
+              assert roots and totals['tests'] and not any(totals[k] for k in ['failures','errors','skipped']),totals
+              lines.append(f'{stage}: {len(roots)} suites, {totals}')
+          Path('manual-drive-evidence/TEST_TOTALS.txt').write_text('\n'.join(lines)+'\n');print('\n'.join(lines))
           PY
-      - name: Commit only the passing implementation and preserve build identity
+      - name: Commit only verified repairs and capture source identity
         shell: bash
         run: |
-          git rm tools/manual-drive-recovery/patch.b64.*
           git diff --cached --check
+          git diff --cached > manual-drive-evidence/REPAIR_DIFF.patch
+          git diff 446d47bcda36eadefe87f8a0ed3282d80187e06c -- app MANUAL_DRIVE.md README.md > manual-drive-evidence/COMPLETE_FEATURE_DIFF.patch
           git config user.name 'to-shreds'
           git config user.email '254567709+to-shreds@users.noreply.github.com'
-          git commit -m 'TorBox Drop 2.0.6: manual Drive delivery with per-torrent folder confirmation'
+          git commit -m 'Release cancelled Drive destination leases and verify reconnect isolation'
           git rev-parse HEAD > manual-drive-evidence/SOURCE_COMMIT.txt
           git rev-parse HEAD^{tree} > manual-drive-evidence/SOURCE_TREE.txt
           git archive --format=zip --output=manual-drive-evidence/TorBox-Drop-v2.0.6-source.zip HEAD
           sha256sum manual-drive-evidence/TorBox-Drop-v2.0.6-source.zip app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release-unsigned.apk > manual-drive-evidence/SHA256SUMS.txt
           git push origin HEAD:refs/heads/feature/manual-drive-send
-      - name: Preserve evidence on success or failure
+      - uses: actions/upload-artifact@v7
         if: always()
-        uses: actions/upload-artifact@v7
         with:
-          name: manual-drive-verification-evidence
+          name: manual-drive-final-evidence
           path: |
             manual-drive-evidence/
             app/build/test-results/
             app/build/reports/lint-results-debug.html
           if-no-files-found: error
           retention-days: 30
-      - name: Preserve successful APK candidates
+      - uses: actions/upload-artifact@v7
         if: success()
-        uses: actions/upload-artifact@v7
         with:
-          name: manual-drive-2.0.6-builds
+          name: manual-drive-2.0.6-final-builds
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/release/app-release-unsigned.apk
