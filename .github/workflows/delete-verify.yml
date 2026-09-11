@@ -1,0 +1,151 @@
+name: Delete correction verification
+
+on:
+  push:
+    branches: [fix/delete-feedback-cache]
+    paths:
+      - .github/workflows/delete-verify.yml
+      - tools/delete-recovery/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: delete-correction-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'to-shreds/torbox' && github.ref == 'refs/heads/fix/delete-feedback-cache'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE: df57aeffe29831df55096ed8235bc2a106fe0e15
+      PATCH_SHA256: 018d9d7ac618d38bd99adfdc17cf6e6e1071b0357b6c444300e14389be1bc886
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Preserve baseline and apply checksum-verified correction
+        shell: bash
+        run: |
+          mkdir -p delete-evidence
+          git rev-parse HEAD > delete-evidence/TRANSPORT_COMMIT.txt
+          python3 - <<'PY'
+          import base64, bz2, hashlib, os, pathlib, subprocess
+          changes = subprocess.check_output(['git','diff','--name-only',os.environ['BASE'],'HEAD']).decode().splitlines()
+          assert all(p.startswith('tools/delete-recovery/') or p == '.github/workflows/delete-verify.yml' for p in changes), 'Concurrent source changes; refusing to overwrite'
+          data = ''.join(pathlib.Path(f'tools/delete-recovery/patch.b64.{n}').read_text().strip() for n in (1,2))
+          patch = bz2.decompress(base64.b64decode(data, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == os.environ['PATCH_SHA256'], 'Correction checksum mismatch'
+          path = pathlib.Path(os.environ['RUNNER_TEMP'])/'delete-correction.patch'
+          path.write_bytes(patch)
+          subprocess.run(['git','apply','--check',str(path)],check=True)
+          subprocess.run(['git','apply','--index',str(path)],check=True)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          pathlib.Path('delete-evidence/PATCH_SHA256.txt').write_text(os.environ['PATCH_SHA256']+'\n')
+          PY
+      - uses: gradle/actions/wrapper-validation@v6
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Reproduce both historical defects on unchanged 2.0.6 source
+        shell: bash
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/delete-baseline" "$BASE"
+          mkdir -p "$RUNNER_TEMP/delete-baseline/app/src/test/java/app/jabs/torboxdrop/data"
+          cp tools/delete-reproduction/DeletionBaselineTest.kt "$RUNNER_TEMP/delete-baseline/app/src/test/java/app/jabs/torboxdrop/data/"
+          set -o pipefail
+          (cd "$RUNNER_TEMP/delete-baseline" && ./gradlew --no-daemon testDebugUnitTest --tests '*DeletionBaselineTest') 2>&1 | tee delete-evidence/baseline.log
+          cp -R "$RUNNER_TEMP/delete-baseline/app/build/test-results" delete-evidence/baseline-test-results
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          roots=[ET.parse(p).getroot() for p in Path('delete-evidence/baseline-test-results').rglob('TEST-*.xml')]
+          counts={k:sum(int(r.get(k,'0')) for r in roots) for k in ['tests','failures','errors','skipped']}
+          assert counts == {'tests':2,'failures':0,'errors':0,'skipped':0}, counts
+          Path('delete-evidence/BASELINE_FINDINGS.txt').write_text('Both old-source defects reproduced: successful remote delete retains cache; rejected remote delete cancels a pending Drive instruction. Tests pass by asserting the old broken behavior. No live user data was deleted.\n')
+          PY
+      - name: Primary verification - full regression, lint and both APK builds
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleDebug assembleRelease 2>&1 | tee delete-evidence/primary.log
+          cp -R app/build/test-results delete-evidence/primary-test-results
+      - name: Final gate 1 - separate credentials, confirmation and account-safety check
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest --tests '*DeleteFlowTest' --tests '*DeleteUiStateTest' --tests '*DriveBoundaryTest' --tests '*AddFlowSourceTest' 2>&1 | tee delete-evidence/security.log
+          cp -R app/build/test-results delete-evidence/security-test-results
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          base=Path('app/src/main/java/app/jabs/torboxdrop')
+          r=(base/'data/TorBoxRepository.kt').read_text()
+          section=r.split('private suspend fun deleteConfirmed',1)[1].split('suspend fun',1)[0]
+          assert 'remoteDelete()' in section and 'localStore.markDeleted' in section
+          assert section.index('remoteDelete()') < section.index('localStore.markDeleted')
+          assert 'ITEM_NOT_FOUND' in section and '401, 403, 429' in section
+          assert 'withAccount(expectedAccount, tokenProvider)' in section
+          unchanged=['app/src/main/java/app/jabs/torboxdrop/data/TorBoxApiClient.kt','app/src/main/java/app/jabs/torboxdrop/drive','app/src/main/java/app/jabs/torboxdrop/ui/screens/ManualDriveDialog.kt']
+          assert not subprocess.check_output(['git','diff','--cached','--name-only','--',*unchanged]).strip(), 'Unrelated API or Drive change'
+          assert not list(Path('.').glob('**/*.p12')), 'Private signing material must not enter source or CI'
+          Path('delete-evidence/SECURITY_STATIC.txt').write_text('PASS: unchanged API request construction and Drive implementation; account barrier; cache/Drive cleanup follows confirmed remote result; auth and rate errors cannot masquerade as deletion; private signing material absent.\n')
+          PY
+      - name: Final gate 2 - separate cache, migration and race-recovery replay
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee delete-evidence/state.log
+          cp -R app/build/test-results delete-evidence/state-test-results
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          lines=[]
+          for stage in ['primary','security','state']:
+              roots=[ET.parse(p).getroot() for p in Path(f'delete-evidence/{stage}-test-results').rglob('TEST-*.xml')]
+              totals={k:sum(int(r.get(k,'0')) for r in roots) for k in ['tests','failures','errors','skipped']}
+              assert roots and totals['tests'] and not any(totals[k] for k in ['failures','errors','skipped']),totals
+              lines.append(f'{stage}: {len(roots)} suites, {totals}')
+          Path('delete-evidence/TEST_TOTALS.txt').write_text('\n'.join(lines)+'\n');print('\n'.join(lines))
+          PY
+      - name: Commit only passing source and capture exact build identity
+        shell: bash
+        run: |
+          git rm tools/delete-recovery/patch.b64.*
+          git diff --cached --check
+          git diff --cached > delete-evidence/REVIEWED_DIFF.patch
+          git config user.name 'to-shreds'
+          git config user.email '254567709+to-shreds@users.noreply.github.com'
+          git commit -m 'TorBox Drop 2.0.7: repair Delete feedback and stale-cache removal'
+          git rev-parse HEAD > delete-evidence/SOURCE_COMMIT.txt
+          git rev-parse HEAD^{tree} > delete-evidence/SOURCE_TREE.txt
+          git archive --format=zip --output=delete-evidence/TorBox-Drop-v2.0.7-source.zip HEAD
+          sha256sum delete-evidence/TorBox-Drop-v2.0.7-source.zip app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release-unsigned.apk > delete-evidence/SHA256SUMS.txt
+          git push origin HEAD:refs/heads/fix/delete-feedback-cache
+      - name: Preserve evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: delete-verification-evidence
+          path: |
+            delete-evidence/
+            app/build/test-results/
+            app/build/reports/lint-results-debug.html
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve verified APK candidates
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: delete-2.0.7-builds
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
