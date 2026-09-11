@@ -39,7 +39,8 @@ class DriveAutomationRunner(
         AccountSensitiveWorkGate.mutex.withLock {
             val scope = driveAccountScope(tokenProvider())
                 ?: return@withLock DriveAutomationPassResult(watchedAtStart = 0)
-            val watches = store.runnableWatches(scope, includeReview)
+            val destinationGate = DriveDestinationGate(store, integrationClient)
+            val watches = store.runnableWatches(scope, includeReview || store.destinationLease(scope) != null)
             var submitted = 0
             var retries = 0
             var blocked = false
@@ -58,6 +59,11 @@ class DriveAutomationRunner(
                     store.note(original.watchKey, "Could not check Drive transfer status. A later check will retry safely.")
                 }
             }
+            if (!blocked) try {
+                destinationGate.releaseIfIdle(scope)
+            } catch (error: CancellationException) { throw error
+            } catch (_: TorBoxBadTokenException) { blocked = true
+            } catch (_: Exception) { retries++ }
             DriveAutomationPassResult(
                 watchedAtStart = watches.size,
                 accountScope = scope,
@@ -118,7 +124,7 @@ class DriveAutomationRunner(
             store.finishWatchIfTerminal(bound.watchKey)
             return 0
         }
-        val destination = folderId()?.trim()?.takeIf(String::isNotEmpty)
+        val destination = (bound.destinationFolderId ?: folderId())?.trim()?.takeIf(String::isNotEmpty)
         if (!connected() || destination == null) {
             requireAuthorization(bound.watchKey, "Reconnect Google Drive in Settings to continue these unsent files.")
             return 0
@@ -143,7 +149,11 @@ class DriveAutomationRunner(
         // Failed or malformed lookups do NOT count as an empty baseline and cannot authorize a send.
         val before = integrationClient.getJobsByHash(hash)
         val priorIds = before.mapNotNull { it.id }.toSet()
-        integrationClient.updateGoogleDriveFolderId(destination)
+        if (!DriveDestinationGate(store, integrationClient).acquire(bound.accountScope, bound.watchKey, destination)) {
+            store.note(bound.watchKey, "Waiting for other Drive transfers to finish before selecting this folder. Do not change the Drive folder or start uploads in another TorBox client meanwhile.")
+            return 0
+        }
+        store.snapshotDestination(bound.watchKey, destination)
         var submitted = 0
         for (transfer in pending) {
             if (!store.claimFileForSubmission(transfer.transferKey, now(), priorIds)) continue
@@ -240,7 +250,7 @@ class DriveAutomationRunner(
             val candidate = DriveJobMatcher.find(transfer, watch.sourceHash, jobs)
             when (candidate?.status?.trim()?.lowercase(Locale.ROOT)) {
                 "completed" -> store.markFileComplete(transfer.transferKey, candidate.id)
-                "failed" -> store.markFileFailed(transfer.transferKey, "TorBox reported that the Drive upload failed.", candidate.id)
+                "failed", "cancelled", "canceled" -> store.markFileFailed(transfer.transferKey, "TorBox reported that the Drive upload failed or was cancelled.", candidate.id)
                 "pending", "uploading" -> store.markFileSubmitted(transfer.transferKey, candidate.id)
             }
             store.markAmbiguousIfStale(transfer.transferKey, now().minus(Duration.ofMinutes(10)))

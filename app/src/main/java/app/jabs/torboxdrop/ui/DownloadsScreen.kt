@@ -27,6 +27,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.AddToDrive
+import app.jabs.torboxdrop.drive.ManualDriveCoordinator
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -117,6 +121,7 @@ fun DownloadsScreen(
     onDownloadClick: (DownloadItem) -> Unit,
     onToggleNotification: (DownloadItem) -> Unit,
     onShare: (DownloadItem) -> Unit,
+    onDrive: (DownloadItem) -> Unit = {},
     onFiles: (DownloadItem) -> Unit,
     onToggleAirLock: (DownloadItem) -> Unit,
     onDownloadMenu: (DownloadItem) -> Unit,
@@ -260,6 +265,7 @@ fun DownloadsScreen(
                         onClick = onDownloadClick,
                         onToggleNotification = onToggleNotification,
                         onShare = onShare,
+                        onDrive = onDrive,
                         onFiles = onFiles,
                         onToggleAirLock = { item ->
                             if (item.airLocked) pendingAirLockRemoval = item else onToggleAirLock(item)
@@ -555,6 +561,7 @@ private fun DownloadList(
     onClick: (DownloadItem) -> Unit,
     onToggleNotification: (DownloadItem) -> Unit,
     onShare: (DownloadItem) -> Unit,
+    onDrive: (DownloadItem) -> Unit = {},
     onFiles: (DownloadItem) -> Unit,
     onToggleAirLock: (DownloadItem) -> Unit,
     onMenu: (DownloadItem) -> Unit,
@@ -583,6 +590,7 @@ private fun DownloadList(
                     onClick = { onClick(item) },
                     onToggleNotification = { onToggleNotification(item) },
                     onShare = { onShare(item) },
+                    onDrive = { onDrive(item) },
                     onToggleAirLock = { onToggleAirLock(item) },
                     onMenu = { onMenu(item) },
                 )
@@ -595,6 +603,7 @@ private fun DownloadList(
                     onClick = { onClick(item) },
                     onToggleNotification = { onToggleNotification(item) },
                     onShare = { onShare(item) },
+                    onDrive = { onDrive(item) },
                     onFiles = { onFiles(item) },
                     onToggleAirLock = { onToggleAirLock(item) },
                     onMenu = { onMenu(item) },
@@ -632,6 +641,7 @@ private fun WideDownloadRow(
     onClick: () -> Unit,
     onToggleNotification: () -> Unit,
     onShare: () -> Unit,
+    onDrive: () -> Unit,
     onToggleAirLock: () -> Unit,
     onMenu: () -> Unit,
 ) {
@@ -690,6 +700,7 @@ private fun WideDownloadRow(
             }
         } else {
             IconButton(onClick = onShare, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.Share, "Share", Modifier.size(20.dp)) }
+            ManualDriveButton(item, onDrive)
             if (tab == DownloadTab.AIRLOCK) {
                 IconButton(onClick = onToggleAirLock, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.LockOpen, "Remove from AirLock", Modifier.size(20.dp)) }
             }
@@ -707,19 +718,20 @@ private fun DownloadRow(
     onClick: () -> Unit,
     onToggleNotification: () -> Unit,
     onShare: () -> Unit,
+    onDrive: () -> Unit,
     onFiles: () -> Unit,
     onToggleAirLock: () -> Unit,
     onMenu: () -> Unit,
 ) {
     when (density) {
         DownloadDensity.COMPACT -> CompactDownloadRow(
-            item, tab, watched, onClick, onToggleNotification, onShare, onToggleAirLock, onMenu,
+            item, tab, watched, onClick, onToggleNotification, onShare, onDrive, onToggleAirLock, onMenu,
         )
         DownloadDensity.COZY -> CozyDownloadRow(
-            item, tab, watched, onClick, onToggleNotification, onShare, onFiles, onToggleAirLock, onMenu,
+            item, tab, watched, onClick, onToggleNotification, onShare, onDrive, onFiles, onToggleAirLock, onMenu,
         )
         DownloadDensity.DETAILED -> DetailedDownloadRow(
-            item, tab, watched, onClick, onToggleNotification, onShare, onFiles, onToggleAirLock, onMenu,
+            item, tab, watched, onClick, onToggleNotification, onShare, onDrive, onFiles, onToggleAirLock, onMenu,
         )
     }
 }
@@ -732,6 +744,7 @@ private fun CompactDownloadRow(
     onClick: () -> Unit,
     onToggleNotification: () -> Unit,
     onShare: () -> Unit,
+    onDrive: () -> Unit,
     onToggleAirLock: () -> Unit,
     onMenu: () -> Unit,
 ) {
@@ -798,6 +811,7 @@ private fun CompactDownloadRow(
             IconButton(onClick = onShare, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Outlined.Share, contentDescription = "Share file", modifier = Modifier.size(20.dp))
             }
+            ManualDriveButton(item, onDrive)
             if (tab == DownloadTab.AIRLOCK) {
                 IconButton(onClick = onToggleAirLock, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.Outlined.LockOpen, contentDescription = "Remove from AirLock", modifier = Modifier.size(20.dp))
@@ -818,6 +832,7 @@ private fun CozyDownloadRow(
     onClick: () -> Unit,
     onToggleNotification: () -> Unit,
     onShare: () -> Unit,
+    onDrive: () -> Unit,
     onFiles: () -> Unit,
     onToggleAirLock: () -> Unit,
     onMenu: () -> Unit,
@@ -864,6 +879,7 @@ private fun CozyDownloadRow(
                 Row {
                     IconButton(onClick = onFiles, modifier = Modifier.size(42.dp)) { Icon(Icons.Outlined.FolderOpen, "Files", Modifier.size(20.dp)) }
                     IconButton(onClick = onShare, modifier = Modifier.size(42.dp)) { Icon(Icons.Outlined.Share, "Share", Modifier.size(20.dp)) }
+                    ManualDriveButton(item, onDrive)
                 }
             }
             Row {
@@ -878,6 +894,7 @@ private fun CozyDownloadRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailedDownloadRow(
     item: DownloadItem,
@@ -886,6 +903,7 @@ private fun DetailedDownloadRow(
     onClick: () -> Unit,
     onToggleNotification: () -> Unit,
     onShare: () -> Unit,
+    onDrive: () -> Unit,
     onFiles: () -> Unit,
     onToggleAirLock: () -> Unit,
     onMenu: () -> Unit,
@@ -928,7 +946,7 @@ private fun DetailedDownloadRow(
                 Text(detailedFinishedMetadata(item, tab), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(9.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (active) {
                     AssistChip(
                         onClick = onToggleNotification,
@@ -939,6 +957,7 @@ private fun DetailedDownloadRow(
                 } else {
                     SmallAction(Icons.Outlined.FolderOpen, "Files", onFiles)
                     SmallAction(Icons.Outlined.Share, "Share", onShare)
+                    if (ManualDriveCoordinator.isEligible(item)) SmallAction(Icons.Outlined.AddToDrive, "Drive", onDrive)
                     SmallAction(if (item.airLocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock, if (item.airLocked) "Unprotect" else "AirLock", onToggleAirLock)
                 }
             }
@@ -1317,4 +1336,14 @@ private fun DownloadDensity.icon(): ImageVector = when (this) {
     DownloadDensity.COMPACT -> Icons.Outlined.TableRows
     DownloadDensity.COZY -> Icons.AutoMirrored.Outlined.ViewList
     DownloadDensity.DETAILED -> Icons.Outlined.ViewAgenda
+}
+
+/** Visible on every density/layout for actual ready torrents, not on unfinished/web rows. */
+@Composable
+private fun ManualDriveButton(item: DownloadItem, onDrive: () -> Unit) {
+    if (ManualDriveCoordinator.isEligible(item)) {
+        IconButton(onClick = onDrive, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Outlined.AddToDrive, "Send to Google Drive", Modifier.size(20.dp))
+        }
+    }
 }

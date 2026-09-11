@@ -25,6 +25,9 @@ data class DriveWatch(
     val queueId: String? = null,
     val sourceHash: String? = null,
     val sourceValue: String? = null,
+    // Null for legacy/automatic watches; manual requests snapshot their own destination.
+    val destinationFolderId: String? = null,
+    val destinationFolderName: String? = null,
     val state: DriveWatchState = DriveWatchState.WAITING,
     val lastError: String? = null,
 )

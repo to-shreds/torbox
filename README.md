@@ -1,5 +1,9 @@
 # TorBox Drop
 
+## 2.0.6 manual Google Drive delivery
+
+Ready torrent rows now include a Drive button. It opens a folder-name confirmation prompt, then queues a copy to that folder without changing the automatic-upload default or deleting the TorBox original. See [MANUAL_DRIVE.md](MANUAL_DRIVE.md) for the per-folder queue and the limitation on concurrent uploads from other TorBox clients.
+
 TorBox Drop is a native Android client for TorBox. It keeps the original app's fast share-to-TorBox flow, then adds a dense download manager, completion monitoring, file actions, queue and AirLock management, and a small privacy-focused browser.
 
 The application ID remains `app.jabs.torboxdrop`. The project contains no Usenet UI, filters, queue requests, or management calls.
