@@ -94,6 +94,7 @@ fun DownloadDetailScreen(
     onResume: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     actionInProgress: Boolean = false,
+    deleteError: String? = null,
 ) {
     BackHandler(onBack = onBack)
     var dialog by remember(download.id) { mutableStateOf<DetailDialog?>(null) }
@@ -207,11 +208,10 @@ fun DownloadDetailScreen(
 
         DetailDialog.Delete -> ConfirmDeleteDialog(
             name = download.name,
-            onDismiss = { dialog = null },
-            onConfirm = {
-                dialog = null
-                onDelete?.invoke()
-            },
+            busy = actionInProgress,
+            error = deleteError,
+            onDismiss = { if (!actionInProgress) dialog = null },
+            onConfirm = { onDelete?.invoke() },
         )
 
         null -> Unit
@@ -693,6 +693,8 @@ private fun ConfirmAirLockDialog(
 @Composable
 private fun ConfirmDeleteDialog(
     name: String,
+    busy: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -701,15 +703,19 @@ private fun ConfirmDeleteDialog(
         icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
         title = { Text("Delete download?") },
         text = {
-            Text(
-                "This removes “${name.ellipsizeMiddle(72)}” from TorBox. " +
-                    "The action may also remove its stored files and cannot be undone here.",
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "This removes “${name.ellipsizeMiddle(72)}” from TorBox. " +
+                        "The action may also remove its stored files and cannot be undone here.",
+                )
+                if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
         },
         confirmButton = {
-            Button(onClick = onConfirm) { Text("Delete") }
+            Button(onClick = onConfirm, enabled = !busy) { Text(if (busy) "Deleting…" else "Delete") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } },
     )
 }
 

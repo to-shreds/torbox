@@ -373,6 +373,7 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             } else null,
             onDelete = { viewModel.delete(item) },
             actionInProgress = state.actionInProgress,
+            deleteError = state.deleteError,
         )
     } else {
         Scaffold(
