@@ -250,7 +250,7 @@ class DriveAutomationRunner(
             val candidate = DriveJobMatcher.find(transfer, watch.sourceHash, jobs)
             when (candidate?.status?.trim()?.lowercase(Locale.ROOT)) {
                 "completed" -> store.markFileComplete(transfer.transferKey, candidate.id)
-                "failed" -> store.markFileFailed(transfer.transferKey, "TorBox reported that the Drive upload failed.", candidate.id)
+                "failed", "cancelled", "canceled" -> store.markFileFailed(transfer.transferKey, "TorBox reported that the Drive upload failed or was cancelled.", candidate.id)
                 "pending", "uploading" -> store.markFileSubmitted(transfer.transferKey, candidate.id)
             }
             store.markAmbiguousIfStale(transfer.transferKey, now().minus(Duration.ofMinutes(10)))

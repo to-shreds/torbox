@@ -230,6 +230,20 @@ class DriveAutomationTest {
         assertEquals(listOf("custom"),gateway.folders)
     }
 
+    @Test fun cancelledCustomJobReleasesDestinationAndLetsNextFolderProceed() = runBlocking {
+        store.armManual(scope, item, GoogleDriveFolder("custom", "Movies"), "dest")
+        store.armManual(scope, item, GoogleDriveFolder("family", "Family"), "dest")
+        runner().runOnce(); assertEquals(1, gateway.sent.size)
+        gateway.jobs[0] = gateway.jobs[0].copy(status = "cancelled")
+        runner().runOnce()
+        assertEquals(2, gateway.sent.size); assertEquals("family", gateway.remoteFolder)
+        val first = store.recentWatches(scope).first { it.destinationFolderId == "custom" }
+        assertEquals(DriveFileState.FAILED, store.fileTransfers(first.watchKey).single().state)
+        gateway.jobs[1] = gateway.jobs[1].copy(status = "completed")
+        runner().runOnce(); assertEquals("dest", gateway.remoteFolder)
+        assertFalse(store.hasRunnableWork(scope)); assertNull(store.destinationLease(scope))
+    }
+
     private inner class FakeSource(var item: DownloadItem?, var files: List<DownloadFile>) : DriveAutomationSource {
         override suspend fun queuedSnapshot() = RepositorySnapshot(listOfNotNull(item), emptyList(), clock, false)
         override suspend fun download(id: String) = item

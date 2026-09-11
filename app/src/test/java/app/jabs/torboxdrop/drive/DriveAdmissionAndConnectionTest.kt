@@ -119,6 +119,27 @@ class DriveAdmissionAndConnectionTest {
         assertEquals(0, server.requestCount); assertEquals(0, gateway.calls)
         assertFalse(preferences.driveConfiguredFor(scope))
     }
+    @Test fun reconnectingDefaultDoesNotRedirectAnExistingManualDestinationLease() = runBlocking {
+        store.saveDestinationLease(scope, DriveDestinationLease("custom", "dest"))
+        server.enqueue(MockResponse().setBody("""{"id":"dest","name":"Folder","mimeType":"application/vnd.google-apps.folder","trashed":false,"capabilities":{"canAddChildren":true}}"""))
+        val gateway = SettingsGateway()
+        DriveConnectionCoordinator(preferences, { token }, GoogleDriveApiClient(OkHttpClient(), server.url("/drive/v3/")), gateway, store)
+            .connect(scope, "Folder", "google-test-secret")
+        assertTrue(preferences.driveConfiguredFor(scope)); assertEquals("dest", preferences.googleDriveFolderId)
+        assertEquals(0, gateway.calls); assertEquals("custom", store.destinationLease(scope)!!.folderId)
+    }
+    @Test fun changingDefaultWhileManualLeaseExistsDoesNotTouchRemoteOrPreferences() = runBlocking {
+        store.saveDestinationLease(scope, DriveDestinationLease("custom", "dest"))
+        val gateway = SettingsGateway()
+        try {
+            DriveConnectionCoordinator(preferences, { token }, GoogleDriveApiClient(OkHttpClient(), server.url("/drive/v3/")), gateway, store)
+                .connect(scope, "Changed", "google-test-secret")
+            fail("Must wait for uploads")
+        } catch (_: GoogleDriveApiException) { }
+        assertEquals(0, gateway.calls); assertEquals(0, server.requestCount)
+        assertEquals("Folder", preferences.googleDriveFolderName); assertTrue(preferences.driveConfiguredFor(scope))
+    }
+
     private class SettingsGateway : TorBoxDriveGateway {
         var fail = false; var calls = 0
         override suspend fun getGoogleDriveFolderId(): String? = "old-destination"
