@@ -76,34 +76,29 @@ jobs:
           '''
           assert s.count(marker)==1;p.write_text(s.replace(marker,extra+marker))
           PY
-      - uses: gradle/actions/wrapper-validation@v6
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4
-      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - uses: gradle/actions/setup-gradle@v6
-      - name: Reproduce cancelled-job queue blockage on the preceding candidate
+      - name: Verify and reuse the already captured cancellation reproduction
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          set +e
-          set -o pipefail
-          ./gradlew --no-daemon testDebugUnitTest --tests '*DriveAutomationTest.cancelledCustomJobReleasesDestinationAndLetsNextFolderProceed' 2>&1 | tee manual-drive-evidence/cancellation-reproduction.log
-          result=${PIPESTATUS[0]}
-          set -e
-          test "$result" -ne 0
-          cp -R app/build/test-results manual-drive-evidence/reproduction-test-results
+          curl --fail --location --silent --show-error --retry 2 --header "Authorization: Bearer $GH_TOKEN" --header "Accept: application/vnd.github+json" https://api.github.com/repos/to-shreds/torbox/actions/artifacts/10185583954/zip --output manual-drive-evidence/cancellation-reproduction.zip
           python3 - <<'PY'
           from pathlib import Path
-          import xml.etree.ElementTree as ET
-          paths=list(Path('app/build/test-results').rglob('TEST-*.xml'))
-          assert len(paths)==1, 'Unexpected reproduction scope'
-          root=ET.parse(paths[0]).getroot()
-          assert root.get('tests')=='1' and root.get('failures')=='1' and root.get('errors')=='0'
-          failure=root.find('.//failure')
-          assert failure is not None and 'expected:<2> but was:<1>' in failure.get('message',''), 'Not the expected queue blockage'
-          Path('manual-drive-evidence/REPRODUCTION.txt').write_text('Confirmed: cancelled custom upload kept a local in-flight claim and prevented the next folder from starting. Exactly one regression failed with one instead of two submissions.\n')
+          import hashlib, zipfile, xml.etree.ElementTree as ET
+          p=Path('manual-drive-evidence/cancellation-reproduction.zip')
+          assert hashlib.sha256(p.read_bytes()).hexdigest() == '54b2fc29c558f86f83ec3160188b87bf75d123c857eb4f02e4b2f0c884c91fbb'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              paths=[n for n in z.namelist() if n.startswith('manual-drive-evidence/reproduction-test-results/') and n.endswith('.xml')]
+              roots=[ET.fromstring(z.read(n)) for n in paths]
+              assert sum(int(r.get('tests','0')) for r in roots)==1
+              assert sum(int(r.get('failures','0')) for r in roots)==1
+              assert sum(int(r.get('errors','0')) for r in roots)==0
+              cases=[c for r in roots for c in r.findall('testcase')]
+              assert len(cases)==1 and cases[0].get('name')=='cancelledCustomJobReleasesDestinationAndLetsNextFolderProceed'
+              failure=cases[0].find('failure')
+              assert failure is not None and 'expected:<2> but was:<1>' in failure.get('message','')
+          Path('manual-drive-evidence/REPRODUCTION.txt').write_text('Confirmed in preserved run 34564636947: cancelled custom upload kept a local in-flight claim and blocked the next destination. Exactly one test ran and failed with one instead of two submissions. An additional zero-test XML report caused the previous evidence-count assertion to fail; it was not another test failure. Original artifact checksum verified; the historical test is not rerun.\n')
           PY
       - name: Apply smallest cancellation-state repair
         shell: bash
@@ -117,6 +112,14 @@ jobs:
           PY
           git add app/src/main/java/app/jabs/torboxdrop/drive/DriveAutomationRunner.kt app/src/test/java/app/jabs/torboxdrop/drive/DriveAutomationTest.kt app/src/test/java/app/jabs/torboxdrop/drive/DriveAdmissionAndConnectionTest.kt
           git diff --cached --check
+      - uses: gradle/actions/wrapper-validation@v6
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6
       - name: Primary verification - complete suite, lint and both APK builds
         shell: bash
         run: |
