@@ -29,6 +29,9 @@ data class RepositorySnapshot(
     val fromCache: Boolean,
 )
 
+/** A successful remote deletion must not be mislabeled as failed by later local cleanup. */
+data class DeleteResult(val localCleanupComplete: Boolean)
+
 data class RelayRefreshResult(val requested: Int, val succeeded: Int)
 
 internal class RelayRequestCoalescer(
@@ -136,11 +139,13 @@ class TorBoxRepository(
         val queued = queue.await()
         val refreshedAt = Instant.now()
         writeMutex.withLock {
-            localStore.replaceDownloads(downloads)
-            localStore.replaceQueue(queued)
+            val visible = localStore.filterDeletedDownloads(downloads)
+            val visibleQueue = localStore.filterDeletedQueue(queued)
+            localStore.replaceDownloads(visible)
+            localStore.replaceQueue(visibleQueue)
             preferences.lastDownloadsRefreshEpochMillis = refreshedAt.toEpochMilli()
+            RepositorySnapshot(visible, visibleQueue, refreshedAt, fromCache = false)
         }
-        RepositorySnapshot(downloads, queued, refreshedAt, fromCache = false)
     }
 
     /** Uses bypass_cache for responsive, server-backed Active-screen refreshes. */
@@ -151,16 +156,18 @@ class TorBoxRepository(
         val webDownloads = async { api.getWebDownloads(bypassCache) }
         val downloads = torrents.await() + webDownloads.await()
         writeMutex.withLock {
-            localStore.replaceDownloads(downloads)
+            val visible = localStore.filterDeletedDownloads(downloads)
+            localStore.replaceDownloads(visible)
             preferences.lastDownloadsRefreshEpochMillis = Instant.now().toEpochMilli()
+            visible
         }
-        downloads
     }
 
     suspend fun refreshQueue(bypassCache: Boolean = false): List<QueuedDownload> {
         val queue = api.getQueuedDownloads(bypassCache)
-        writeMutex.withLock { localStore.replaceQueue(queue) }
-        return queue
+        return writeMutex.withLock {
+            localStore.filterDeletedQueue(queue).also { localStore.replaceQueue(it) }
+        }
     }
 
     /** Best-effort Relay refresh. Main API polling remains authoritative if Relay is unavailable. */
@@ -200,9 +207,14 @@ class TorBoxRepository(
         id: String,
         bypassCache: Boolean = false,
     ): DownloadItem? {
+        if (localStore.isDeleted(type, id)) return null
         val remote = api.getDownload(type, id, bypassCache)
-        if (remote != null) updateCachedDownload(remote)
-        return remote
+        return writeMutex.withLock {
+            if (localStore.isDeleted(type, id)) null else remote?.also { updated ->
+                val current = localStore.loadDownloads()
+                localStore.replaceDownloads(current.filterNot { it.type == type && it.id == id } + updated)
+            }
+        }
     }
 
     suspend fun getCachedDownload(type: DownloadType, id: String): DownloadItem? =
@@ -237,6 +249,7 @@ class TorBoxRepository(
         val result = try { api.createMagnet(magnet, options)
         } catch (error: Exception) { failDefinitiveAdmission(admission, error); throw error }
         withContext(NonCancellable) {
+            localStore.restoreAdded(result, DownloadType.TORRENT)
             finishDriveAdmission(result, admission, null, "New torrent").also {
                 runCatching { localStore.addRecent(magnet, DownloadType.TORRENT, source) }
             }
@@ -255,6 +268,7 @@ class TorBoxRepository(
         val result = try { api.createTorrent(bytes, fileName, options)
         } catch (error: Exception) { failDefinitiveAdmission(admission, error); throw error }
         withContext(NonCancellable) {
+            localStore.restoreAdded(result, DownloadType.TORRENT)
             finishDriveAdmission(result, admission, fileName, fileName).also {
                 runCatching { localStore.addRecent(fileName, DownloadType.TORRENT, source) }
             }
@@ -267,16 +281,17 @@ class TorBoxRepository(
         source: String = "manual",
     ): AddResult {
         val result = api.createWebDownload(url, options)
-        localStore.addRecent(url, DownloadType.WEB, source)
+        withContext(NonCancellable) {
+            localStore.restoreAdded(result, DownloadType.WEB)
+            localStore.addRecent(url, DownloadType.WEB, source)
+        }
         return result
     }
 
     suspend fun startQueued(id: String) = api.controlQueue(id, QueueControlOperation.START)
 
-    suspend fun deleteQueued(id: String) = AccountSensitiveWorkGate.mutex.withLock {
-        driveAccountScope(tokenProvider())?.let { driveStore?.stopUnsubmitted(it, id, queued = true) }
-        api.controlQueue(id, QueueControlOperation.DELETE)
-    }
+    suspend fun deleteQueued(id: String, type: DownloadType = DownloadType.TORRENT): DeleteResult =
+        deleteConfirmed(type, id, queued = true) { api.controlQueue(id, QueueControlOperation.DELETE) }
 
     suspend fun reannounceTorrent(id: String) = api.controlTorrent(id, TorrentControlOperation.REANNOUNCE)
 
@@ -284,12 +299,43 @@ class TorBoxRepository(
 
     suspend fun resumeTorrent(id: String) = api.controlTorrent(id, TorrentControlOperation.RESUME)
 
-    suspend fun deleteTorrent(id: String) = AccountSensitiveWorkGate.mutex.withLock {
-        driveAccountScope(tokenProvider())?.let { driveStore?.stopUnsubmitted(it, id) }
-        api.controlTorrent(id, TorrentControlOperation.DELETE)
-    }
+    suspend fun deleteTorrent(id: String): DeleteResult =
+        deleteConfirmed(DownloadType.TORRENT, id) { api.controlTorrent(id, TorrentControlOperation.DELETE) }
 
-    suspend fun deleteWebDownload(id: String) = api.deleteWebDownload(id)
+    suspend fun deleteWebDownload(id: String): DeleteResult =
+        deleteConfirmed(DownloadType.WEB, id) { api.deleteWebDownload(id) }
+
+    private suspend fun deleteConfirmed(
+        type: DownloadType,
+        id: String,
+        queued: Boolean = false,
+        remoteDelete: suspend () -> Unit,
+    ): DeleteResult {
+        val expectedAccount = driveAccountScope(tokenProvider())
+        return AccountSensitiveWorkGate.mutex.withLock {
+            check(expectedAccount == driveAccountScope(tokenProvider())) {
+                "The TorBox account changed. Select the download again before deleting."
+            }
+            // A rejected delete must not remove the item or stop an unrelated Drive instruction.
+            try {
+                remoteDelete()
+            } catch (error: TorBoxApiException) {
+                if (error.apiCode != "ITEM_NOT_FOUND" || error.statusCode !in 200..499 ||
+                    error.statusCode in listOf(401, 403, 429)) throw error
+            }
+            withContext(NonCancellable) {
+                val cacheCleaned = runCatching {
+                    writeMutex.withLock { localStore.markDeleted(type, id, queued) }
+                }.isSuccess
+                val driveCleaned = runCatching {
+                    if (type == DownloadType.TORRENT && expectedAccount != null) {
+                        driveStore?.stopUnsubmitted(expectedAccount, id, queued)
+                    }
+                }.isSuccess
+                DeleteResult(cacheCleaned && driveCleaned)
+            }
+        }
+    }
 
     suspend fun editDownload(type: DownloadType, id: String, edit: DownloadEdit): DownloadItem {
         val updated = api.editDownload(type, id, edit)

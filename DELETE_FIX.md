@@ -1,0 +1,11 @@
+# 2.0.7: targeted Delete repair
+
+The user reported that Delete did not work in 2.0.6. Source inspection found that Delete was wired to the documented TorBox control endpoint, but success relied entirely on a subsequent whole-list refresh. The separate recent-addition cache could reinsert a deleted item. Failures were sent to a snackbar hosted only on Downloads, while Delete normally runs inside the separate details screen. The repository also stopped unsent Drive work before learning whether TorBox accepted deletion.
+
+This repair preserves the same API endpoints, individual target IDs and `all=false`. The confirmation stays open with progress while deletion runs and shows a sanitized error in place on rejection. A confirmed success immediately removes the selected item from the displayed list, recent-addition retention, cache, file metadata and completion watch. Durable deletion markers prevent stale lists or already-running refreshes from reintroducing it. An explicitly accepted re-add clears its returned identity's marker; account replacement clears all account-scoped markers. Local cache schema 2 migrates to 3 without clearing existing records. The Drive database schema is unchanged.
+
+Only a successful control response or an explicit non-authentication `ITEM_NOT_FOUND` response permits cleanup. Unsent Drive instructions are stopped after remote confirmation, not before. Completed or already-submitted Drive transfers are not deleted or reset. A local cleanup error after remote success is reported as a cleanup warning, not as a rejected remote deletion. Queue and web targets remain isolated from torrent targets with the same ID.
+
+The retained historical reproducer is for the frozen 2.0.6 baseline only. Its tests pass when they observe the old defects; it is not part of the current passing regression suite. All network tests use loopback MockWebServer, not the user's TorBox account. This investigation does not establish which remote response the user's phone received; the previous UI hid that information. Live deletion on the phone remains an acceptance check, not something exercised against the user's downloads here.
+
+Official control contract checked: https://api.torbox.app/openapi.json (`ControlTorrent`, `ControlWebDownload`, `ControlQueuedDownload`).

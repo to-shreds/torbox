@@ -94,6 +94,7 @@ data class MainUiState(
     val selectedDownload: DownloadItem? = null,
     val fileSheet: FileSheetState? = null,
     val actionInProgress: Boolean = false,
+    val deleteError: String? = null,
     val watchedKeys: Set<String> = emptySet(),
     val loadedFiles: Map<String, List<DownloadFile>> = emptyMap(),
     val cachedFileMatchKeys: Set<String> = emptySet(),
@@ -519,7 +520,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openDetail(item: DownloadItem) = _uiState.update {
-        it.copy(selectedDownload = item, fileSheet = null)
+        it.copy(selectedDownload = item, fileSheet = null, deleteError = null)
     }
 
     fun closeDetail() = _uiState.update { it.copy(selectedDownload = null) }
@@ -776,10 +777,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteQueued(item: QueuedDownload) = performAction("Deleting queued download") {
-        repository.deleteQueued(item.id)
-        localStore.disarmQueuedSubscription(item.type, item.id)
-        refreshWatchedState()
-        stopMonitoringIfEmpty()
+        val result = refreshMutex.withLock {
+            val deleted = repository.deleteQueued(item.id, item.type)
+            recentlyQueuedDownloads.remove(item.key)
+            _uiState.update { state -> state.copy(downloads = state.downloads.copy(
+                queue = state.downloads.queue.filterNot { it.type == item.type && it.id == item.id },
+            )) }
+            deleted
+        }
+        emitMessage(if (result.localCleanupComplete) "Queued download deleted." else
+            "Deleted on TorBox, but local cleanup did not finish. Refresh the list.")
+        runCatching { refreshWatchedState(); stopMonitoringIfEmpty() }
         refreshSnapshot(bypassCache = true, showSpinner = false)
     }
 
@@ -813,12 +821,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshSnapshot(bypassCache = true, showSpinner = false)
     }
 
-    fun delete(item: DownloadItem) = performAction("Deleting download") {
-        if (item.type == DownloadType.TORRENT) repository.deleteTorrent(item.id)
-        else repository.deleteWebDownload(item.id)
-        localStore.disarmSubscription(item.type, item.id)
-        _uiState.update { it.copy(selectedDownload = null, fileSheet = null) }
-        refreshSnapshot(bypassCache = true, showSpinner = false)
+    fun delete(item: DownloadItem) {
+        if (_uiState.value.actionInProgress) return
+        _uiState.update { it.copy(actionInProgress = true, deleteError = null) }
+        launchAccountWork {
+            try {
+                val result = refreshMutex.withLock {
+                    val deleted = if (item.type == DownloadType.TORRENT) repository.deleteTorrent(item.id)
+                        else repository.deleteWebDownload(item.id)
+                    recentlyAddedDownloads.remove(item.key)
+                    // A successful DELETE stands on its own, even when the next list refresh fails.
+                    _uiState.update { it.withDeletedDownload(item) }
+                    deleted
+                }
+                emitMessage(if (result.localCleanupComplete) "Download deleted." else
+                    "Deleted on TorBox, but local cleanup did not finish. Refresh the list.")
+                runCatching { refreshWatchedState(); stopMonitoringIfEmpty() }
+                refreshSnapshot(bypassCache = true, showSpinner = false)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                recordOperationalFailure(error)
+                val message = "Could not delete: ${safeMessage(error)}"
+                _uiState.update { it.copy(deleteError = message) }
+                emitMessage(message)
+            } finally {
+                _uiState.update { it.copy(actionInProgress = false) }
+            }
+        }
     }
 
     fun validateCurrentToken() {
@@ -1553,15 +1583,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             if (current != null) recentlyAddedDownloads[pendingKey] = current
         }
-        return RecentAdditions.mergeDownloads(serverDownloads, recentlyAddedDownloads.values)
+        return localStore.filterDeletedDownloads(RecentAdditions.mergeDownloads(serverDownloads, recentlyAddedDownloads.values))
     }
 
-    private fun reconcileRecentlyQueuedDownloads(
+    private suspend fun reconcileRecentlyQueuedDownloads(
         serverQueue: List<QueuedDownload>,
     ): List<QueuedDownload> {
         val serverKeys = serverQueue.mapTo(HashSet()) { it.key }
         recentlyQueuedDownloads.keys.removeAll(serverKeys)
-        return RecentAdditions.mergeQueue(serverQueue, recentlyQueuedDownloads.values)
+        return localStore.filterDeletedQueue(RecentAdditions.mergeQueue(serverQueue, recentlyQueuedDownloads.values))
     }
 
     private suspend fun <T> captureRefreshResult(block: suspend () -> T): Result<T> = try {
@@ -1725,6 +1755,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun performAction(label: String, operation: suspend () -> Unit) {
+        if (_uiState.value.actionInProgress) return
         _uiState.update { it.copy(actionInProgress = true) }
         launchAccountWork {
             try {

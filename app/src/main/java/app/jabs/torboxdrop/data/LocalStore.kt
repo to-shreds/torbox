@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import app.jabs.torboxdrop.model.AddResult
 import app.jabs.torboxdrop.model.Bookmark
 import app.jabs.torboxdrop.model.DownloadFile
 import app.jabs.torboxdrop.model.DownloadItem
@@ -19,6 +20,7 @@ import org.json.JSONObject
 
 class LocalStore(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
     override fun onCreate(db: SQLiteDatabase) {
+        createDeletedItemsTable(db)
         db.execSQL("CREATE TABLE downloads (cache_key TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL)")
         db.execSQL("CREATE TABLE queue_items (cache_key TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL)")
         db.execSQL(
@@ -61,6 +63,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, nu
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 3) createDeletedItemsTable(db)
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE subscriptions ADD COLUMN queue_id TEXT")
             db.execSQL("ALTER TABLE subscriptions ADD COLUMN source_hash TEXT")
@@ -68,10 +71,55 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, nu
         }
     }
 
+    private fun createDeletedItemsTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE deleted_items (cache_key TEXT PRIMARY KEY NOT NULL)")
+    }
+
+    /** Only confirmed remote deletions belong here. Account replacement clears these markers. */
+    suspend fun markDeleted(type: DownloadType, id: String, queued: Boolean = false) = io {
+        writableDatabase.transaction {
+            val marker = if (queued) queuedKey(type, id) else key(type, id)
+            insertWithOnConflict("deleted_items", null, ContentValues().apply {
+                put("cache_key", marker)
+            }, SQLiteDatabase.CONFLICT_IGNORE)
+            delete(if (queued) "queue_items" else "downloads", "cache_key = ?", arrayOf(key(type, id)))
+            if (!queued) delete("files", "download_key = ?", arrayOf(key(type, id)))
+            delete("subscriptions", "cache_key = ?", arrayOf(marker))
+        }
+    }
+
+    /** An explicitly accepted re-add may legitimately reuse an identity. */
+    suspend fun restoreAdded(result: AddResult, type: DownloadType) = io {
+        writableDatabase.transaction {
+            result.id?.let { delete("deleted_items", "cache_key = ?", arrayOf(key(type, it))) }
+            result.queuedId?.let { delete("deleted_items", "cache_key = ?", arrayOf(queuedKey(type, it))) }
+        }
+    }
+
+    suspend fun isDeleted(type: DownloadType, id: String): Boolean = io {
+        key(type, id) in readableDatabase.deletedKeys()
+    }
+
+    suspend fun filterDeletedDownloads(items: List<DownloadItem>): List<DownloadItem> = io {
+        val deleted = readableDatabase.deletedKeys()
+        items.filterNot { it.key in deleted }
+    }
+
+    suspend fun filterDeletedQueue(items: List<QueuedDownload>): List<QueuedDownload> = io {
+        val deleted = readableDatabase.deletedKeys()
+        items.filterNot { queuedKey(it.type, it.id) in deleted }
+    }
+
+    private fun SQLiteDatabase.deletedKeys(): Set<String> =
+        rawQuery("SELECT cache_key FROM deleted_items", null).use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
+        }
+
     suspend fun replaceDownloads(items: List<DownloadItem>) = io {
         writableDatabase.transaction {
             delete("downloads", null, null)
-            items.forEach { item ->
+            val deleted = deletedKeys()
+            items.filterNot { it.key in deleted }.forEach { item ->
                 insertWithOnConflict(
                     "downloads",
                     null,
@@ -98,7 +146,8 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, nu
     suspend fun replaceQueue(items: List<QueuedDownload>) = io {
         writableDatabase.transaction {
             delete("queue_items", null, null)
-            items.forEach { item ->
+            val deleted = deletedKeys()
+            items.filterNot { queuedKey(it.type, it.id) in deleted }.forEach { item ->
                 insertWithOnConflict(
                     "queue_items",
                     null,
@@ -126,6 +175,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, nu
         val parentKey = key(type, downloadId)
         writableDatabase.transaction {
             delete("files", "download_key = ?", arrayOf(parentKey))
+            if (parentKey in deletedKeys()) return@transaction
             files.forEach { file ->
                 insertWithOnConflict(
                     "files",
@@ -513,6 +563,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, nu
             delete("queue_items", null, null)
             delete("files", null, null)
             delete("subscriptions", null, null)
+            delete("deleted_items", null, null)
         }
     }
 
@@ -690,7 +741,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, nu
 
     private companion object {
         const val DATABASE_NAME = "torbox_drop.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
         const val STATE_ARMED = "ARMED"
         const val STATE_PENDING = "PENDING"
         const val STATE_POSTED = "POSTED"
