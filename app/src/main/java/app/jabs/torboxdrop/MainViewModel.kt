@@ -26,6 +26,8 @@ import app.jabs.torboxdrop.model.DownloadsUiState
 import app.jabs.torboxdrop.model.IncomingAdd
 import app.jabs.torboxdrop.model.QueuedDownload
 import app.jabs.torboxdrop.model.RecentSend
+import app.jabs.torboxdrop.drive.ManualDriveTarget
+import app.jabs.torboxdrop.drive.ManualDriveCoordinator
 import app.jabs.torboxdrop.drive.driveAccountScope
 import app.jabs.torboxdrop.notifications.AccountSensitiveWorkGate
 import app.jabs.torboxdrop.notifications.CompletionMonitorRunner
@@ -99,6 +101,7 @@ data class MainUiState(
     val browserGeneration: Int = 0,
     val browserRequestedUrl: String? = null,
     val pendingBrowserMagnet: String? = null,
+    val pendingManualDrive: ManualDriveTarget? = null,
 )
 
 sealed interface PendingNotificationAction {
@@ -187,6 +190,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         launchAccountWork { loadInitialState() }
     }
+
+    fun requestManualDrive(item: DownloadItem) {
+        if (!ManualDriveCoordinator.isEligible(item)) return
+        val account = driveAccountScope(container.tokenStore.read()) ?: return
+        _uiState.update { it.copy(pendingManualDrive = ManualDriveTarget(item, account)) }
+    }
+
+    fun dismissManualDrive() = _uiState.update { it.copy(pendingManualDrive = null) }
 
     fun navigate(destination: AppDestination) {
         _uiState.update { it.copy(destination = destination, selectedDownload = null,

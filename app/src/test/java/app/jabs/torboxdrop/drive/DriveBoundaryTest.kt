@@ -113,6 +113,37 @@ class DriveBoundaryTest {
         server.enqueue(folder()); google().ensureDestinationFolder("dest", "Folder", googleToken)
         assertEquals("GET", server.takeRequest().method); assertEquals(1, server.requestCount)
     }
+    @Test fun destinationReadsUseSettingsAndDistinguishExplicitRootFromMissingSetting() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"success":true,"data":{"settings":{"google_drive_folder_id":"dest"}}}"""))
+        assertEquals("dest", torBox().getGoogleDriveFolderId())
+        val request = server.takeRequest()
+        assertEquals("/v1/api/user/me?settings=true", request.path)
+        assertEquals("Bearer $torBoxToken", request.getHeader("Authorization"))
+        server.enqueue(MockResponse().setBody("""{"success":true,"data":{"settings":{"google_drive_folder_id":null}}}"""))
+        assertNull(torBox().getGoogleDriveFolderId())
+        server.enqueue(MockResponse().setBody("""{"success":true,"data":{"settings":{}}}"""))
+        try { torBox().getGoogleDriveFolderId(); fail("Missing is not root") } catch (_: TorBoxInvalidResponseException) { }
+    }
+    @Test fun allJobLookupCannotSilentlyDropMalformedOrUnknownRecords() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"success":true,"data":[]}"""))
+        assertTrue(torBox().getAllJobs().isEmpty()); assertEquals("/v1/api/integration/jobs",server.takeRequest().path)
+        server.enqueue(MockResponse().setBody("""{"success":true,"data":[7]}"""))
+        try { torBox().getAllJobs(); fail("Malformed must fail") } catch (_: TorBoxInvalidResponseException) { }
+        server.enqueue(MockResponse().setBody("""{"success":true,"data":[{}]}"""))
+        assertTrue(DriveDestinationGate.blocksFolderChange(torBox().getAllJobs().single()))
+    }
+    @Test fun destinationWritesDoNotModifyAnyOtherTorBoxSetting() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"success":true}"""))
+        torBox().updateGoogleDriveFolderId("movies")
+        val r = server.takeRequest(); assertEquals("PUT",r.method)
+        assertEquals("/v1/api/user/settings/editsettings",r.path)
+        assertEquals("""{"google_drive_folder_id":"movies"}""",r.body.readUtf8())
+    }
+    @Test fun invalidDestinationDoesNotReachTheNetwork() = runBlocking {
+        try { torBox().updateGoogleDriveFolderId("../a?token=oops"); fail("Invalid ID") } catch (_: IllegalArgumentException) { }
+        assertEquals(0,server.requestCount)
+    }
+
     @Test fun authorizationObjectCannotPrintItsBearerToken() {
         assertFalse(GoogleDriveAuthorizationResult.Authorized(googleToken).toString().contains(googleToken))
     }

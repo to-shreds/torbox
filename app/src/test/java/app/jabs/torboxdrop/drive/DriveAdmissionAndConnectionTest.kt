@@ -121,6 +121,8 @@ class DriveAdmissionAndConnectionTest {
     }
     private class SettingsGateway : TorBoxDriveGateway {
         var fail = false; var calls = 0
+        override suspend fun getGoogleDriveFolderId(): String? = "old-destination"
+        override suspend fun getAllJobs() = emptyList<TorBoxIntegrationJob>()
         override suspend fun updateGoogleDriveFolderId(folderId: String?) { calls++; if (fail) throw IOException("not saved") }
         override suspend fun queueGoogleDrive(torrentId: String, fileId: Long, googleAccessToken: String) = Unit
         override suspend fun getJobsByHash(hash: String) = emptyList<TorBoxIntegrationJob>()

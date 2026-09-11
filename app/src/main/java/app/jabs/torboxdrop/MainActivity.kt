@@ -76,6 +76,7 @@ import app.jabs.torboxdrop.notifications.NotificationCapabilities
 import app.jabs.torboxdrop.notifications.NotificationCapabilityIssue
 import app.jabs.torboxdrop.notifications.NotificationCapabilityUse
 import app.jabs.torboxdrop.ui.DownloadsScreen
+import app.jabs.torboxdrop.ui.screens.ManualDriveDialog
 import app.jabs.torboxdrop.ui.screens.AddScreen
 import app.jabs.torboxdrop.ui.screens.DownloadDetailScreen
 import app.jabs.torboxdrop.ui.screens.FileSelectionSheet
@@ -334,6 +335,15 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
         }
     }
 
+    state.pendingManualDrive?.let { target ->
+        ManualDriveDialog(
+            target = target,
+            onDismiss = viewModel::dismissManualDrive,
+            onMessage = viewModel::emitMessage,
+            onSettings = { viewModel.dismissManualDrive(); viewModel.navigate(AppDestination.SETTINGS) },
+        )
+    }
+
     if (state.selectedDownload != null) {
         val item = state.selectedDownload!!
         DownloadDetailScreen(
@@ -400,6 +410,7 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
                             }
                         },
                         onShare = { viewModel.openFiles(it, shareIfSingle = true) },
+                        onDrive = viewModel::requestManualDrive,
                         onFiles = viewModel::openFiles,
                         onToggleAirLock = { viewModel.setAirLock(it, !it.airLocked) },
                         onDownloadMenu = viewModel::openDetail,

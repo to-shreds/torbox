@@ -22,6 +22,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
 interface TorBoxDriveGateway {
+    suspend fun getGoogleDriveFolderId(): String? = error("Folder lookup is not implemented")
+    suspend fun getAllJobs(): List<TorBoxIntegrationJob> = error("Active job lookup is not implemented")
     suspend fun updateGoogleDriveFolderId(folderId: String?)
     suspend fun queueGoogleDrive(torrentId: String, fileId: Long, googleAccessToken: String)
     suspend fun getJobsByHash(hash: String): List<TorBoxIntegrationJob>
@@ -47,9 +49,34 @@ class TorBoxDriveIntegrationClient(
         ) { "TorBox API base URL must use HTTPS" }
     }
 
+    override suspend fun getGoogleDriveFolderId(): String? {
+        val envelope = execute(Request.Builder().url(endpoint("user/me").newBuilder()
+            .addQueryParameter("settings", "true").build()).get())
+        val settings = (envelope.data as? JsonValue.Object)?.obj("settings")
+            ?: throw TorBoxInvalidResponseException("TorBox did not return its Drive destination setting.")
+        return when (val value = settings["google_drive_folder_id"]) {
+            JsonValue.Null -> null
+            is JsonValue.StringValue -> value.value.trim().takeIf(String::isNotEmpty)?.also(::requireFolderId)
+            else -> throw TorBoxInvalidResponseException("TorBox did not return its Drive destination setting.")
+        }
+    }
+
+    override suspend fun getAllJobs(): List<TorBoxIntegrationJob> {
+        val envelope = execute(Request.Builder().url(endpoint("integration/jobs")).get())
+        val values = (envelope.data as? JsonValue.Array)?.values
+            ?: throw TorBoxInvalidResponseException("TorBox did not return the active integration jobs.")
+        return values.map { parseJob(it as? JsonValue.Object
+            ?: throw TorBoxInvalidResponseException("Invalid active integration job.")) }
+    }
+
+    private fun requireFolderId(id: String) {
+        require(Regex("[A-Za-z0-9_-]{1,200}").matches(id)) { "Invalid Google Drive folder ID." }
+    }
+
     /** Updates TorBox's documented account-level destination folder for Drive integrations. */
     override suspend fun updateGoogleDriveFolderId(folderId: String?) {
         val normalized = folderId?.trim()?.takeIf(String::isNotEmpty)
+        normalized?.let(::requireFolderId)
         execute(
             Request.Builder()
                 .url(endpoint("user/settings/editsettings"))

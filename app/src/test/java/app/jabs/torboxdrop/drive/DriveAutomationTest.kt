@@ -56,8 +56,11 @@ class DriveAutomationTest {
         source = FakeSource(item, listOf(file)); gateway = FakeGateway()
         google = MockWebServer().apply {
             dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = MockResponse().setBody(
-                    """{"id":"dest","name":"Destination","mimeType":"application/vnd.google-apps.folder","trashed":false,"capabilities":{"canAddChildren":true}}""")
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    val id = request.requestUrl!!.pathSegments.last()
+                    return MockResponse().setBody(
+                        """{"id":"$id","name":"Destination","mimeType":"application/vnd.google-apps.folder","trashed":false,"capabilities":{"canAddChildren":true}}""")
+                }
             }; start()
         }
     }
@@ -195,6 +198,38 @@ class DriveAutomationTest {
         runner().runOnce(); assertEquals(1, gateway.sent.size)
     }
 
+    @Test fun manualCustomFolderThenAutomaticDefaultRunInOrderWithNoCrossAdoption() = runBlocking {
+        store.armManual(scope, item, GoogleDriveFolder("custom", "Movies"), "dest")
+        arm()
+        runner().runOnce()
+        assertEquals(listOf("custom"), gateway.folders)
+        assertEquals(1, gateway.sent.size)
+        assertEquals("custom", gateway.remoteFolder)
+        val custom = store.recentWatches(scope).first { it.destinationFolderId == "custom" }
+        assertEquals(DriveFileState.PENDING, files().single().state)
+        gateway.jobs[0] = gateway.jobs[0].copy(status = "completed")
+        runner().runOnce()
+        assertEquals(2, gateway.sent.size)
+        assertEquals("dest", gateway.remoteFolder)
+        assertEquals(DriveFileState.COMPLETE, store.fileTransfers(custom.watchKey).single().state)
+        assertEquals(DriveFileState.SUBMITTED, files().single().state)
+        assertNotEquals(store.fileTransfers(custom.watchKey).single().jobId, files().single().jobId)
+        gateway.jobs[1] = gateway.jobs[1].copy(status = "completed")
+        runner().runOnce()
+        assertFalse(store.hasRunnableWork(scope)); assertNull(store.destinationLease(scope))
+    }
+    @Test fun unresolvedCustomPostPreventsAnotherDestinationAcrossRestartAndStop() = runBlocking {
+        store.armManual(scope,item,GoogleDriveFolder("custom","Movies"),"dest")
+        gateway.makeJobs = false; gateway.dropResponse = true
+        runner().runOnce(); store.stopUnsubmitted(scope)
+        store.close(); store = DriveStore(RuntimeEnvironment.getApplication())
+        store.armManual(scope,item,GoogleDriveFolder("family","Family"),"dest")
+        clock = clock.plusSeconds(660)
+        repeat(3) { runner().runOnce(includeReview = true) }
+        assertEquals(1,gateway.sent.size); assertEquals("custom",gateway.remoteFolder)
+        assertEquals(listOf("custom"),gateway.folders)
+    }
+
     private inner class FakeSource(var item: DownloadItem?, var files: List<DownloadFile>) : DriveAutomationSource {
         override suspend fun queuedSnapshot() = RepositorySnapshot(listOfNotNull(item), emptyList(), clock, false)
         override suspend fun download(id: String) = item
@@ -204,7 +239,10 @@ class DriveAutomationTest {
         val sent = mutableListOf<Long>(); val folders = mutableListOf<String?>(); val jobs = mutableListOf<TorBoxIntegrationJob>()
         var lookupFails = false; var dropResponse = false; var makeJobs = true
         var rateLimitOnce = false; var badToken = false; var cancelAtPost = false
-        override suspend fun updateGoogleDriveFolderId(folderId: String?) { folders += folderId }
+        var remoteFolder: String? = "dest"
+        override suspend fun getGoogleDriveFolderId() = remoteFolder
+        override suspend fun getAllJobs() = jobs.toList()
+        override suspend fun updateGoogleDriveFolderId(folderId: String?) { folders += folderId; remoteFolder = folderId }
         override suspend fun queueGoogleDrive(torrentId: String, fileId: Long, googleAccessToken: String) {
             if (badToken) throw TorBoxBadTokenException("BAD_TOKEN", 401, "Rejected")
             if (rateLimitOnce) { rateLimitOnce = false; throw TorBoxRateLimitException(120, "Wait") }

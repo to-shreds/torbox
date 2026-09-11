@@ -39,7 +39,9 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                 source_hash TEXT,
                 source_value TEXT,
                 state TEXT NOT NULL,
-                last_error TEXT
+                last_error TEXT,
+                destination_folder_id TEXT,
+                destination_folder_name TEXT
             )""".trimIndent(),
         )
         db.execSQL("CREATE INDEX drive_watches_account_state ON drive_watches(account_scope, state)")
@@ -60,6 +62,7 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
             )""".trimIndent(),
         )
         db.execSQL("CREATE INDEX drive_files_watch_key ON drive_files(watch_key)")
+        createDestinationTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -78,6 +81,86 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
             }
             // Old SUBMITTING/SUBMITTED records stay ambiguous; migration never turns them into retries.
         }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE drive_watches ADD COLUMN destination_folder_id TEXT")
+            db.execSQL("ALTER TABLE drive_watches ADD COLUMN destination_folder_name TEXT")
+            createDestinationTables(db)
+        }
+    }
+
+    private fun createDestinationTables(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE drive_named_folders (
+            account_scope TEXT NOT NULL, name TEXT NOT NULL, folder_id TEXT NOT NULL,
+            PRIMARY KEY(account_scope, name))""")
+        db.execSQL("""CREATE TABLE drive_destination_lease (
+            account_scope TEXT PRIMARY KEY NOT NULL, folder_id TEXT NOT NULL, restore_folder_id TEXT)""")
+    }
+
+    /** Callers hold AccountSensitiveWorkGate across folder selection and submission. */
+    suspend fun reservedManualFolder(scope: String, name: String): String? = io {
+        readableDatabase.rawQuery("SELECT folder_id FROM drive_named_folders WHERE account_scope = ? AND name = ?",
+            arrayOf(scope, name)).use { if (it.moveToFirst()) it.getString(0) else null }
+    }
+
+    suspend fun reserveManualFolder(scope: String, name: String, id: String) = io {
+        writableDatabase.insertOrThrow("drive_named_folders", null, ContentValues().apply {
+            put("account_scope", scope); put("name", name); put("folder_id", id)
+        })
+    }
+
+    /** Repeated confirmation for this torrent and destination reuses the existing journal. */
+    suspend fun armManual(scope: String, item: DownloadItem, folder: GoogleDriveFolder,
+        defaultFolderId: String?): Boolean = io {
+        require(item.type == DownloadType.TORRENT && item.downloadFinished && item.downloadPresent)
+        val hash = item.hash?.lowercase(java.util.Locale.ROOT)
+        require(hash != null && Regex("[a-f0-9]{40}|[a-f0-9]{64}").matches(hash))
+        writableDatabase.transactionResult {
+            val duplicate = watches(scope, DriveWatchState.entries.toSet()).any { watch ->
+                watch.sourceHash.equals(hash, true) &&
+                    (watch.destinationFolderId ?: defaultFolderId?.takeIf {
+                        watch.state in setOf(DriveWatchState.WAITING, DriveWatchState.AUTH_REQUIRED) &&
+                            !hasSubmittedFiles(watch.watchKey)
+                    }) == folder.id
+            }
+            if (duplicate) return@transactionResult false
+            val values = watchValues("$scope:MANUAL:$hash:${folder.id}", scope, item.id, item.type,
+                item.name, true, null, hash, null).apply {
+                put("destination_folder_id", folder.id); put("destination_folder_name", folder.name)
+            }
+            insertOrThrow("drive_watches", null, values)
+            true
+        }
+    }
+
+    suspend fun snapshotDestination(watchKey: String, id: String) = io {
+        writableDatabase.execSQL("UPDATE drive_watches SET destination_folder_id = ? WHERE watch_key = ? AND destination_folder_id IS NULL",
+            arrayOf(id, watchKey))
+    }
+
+    suspend fun destinationLease(scope: String): DriveDestinationLease? = io {
+        readableDatabase.rawQuery("SELECT folder_id, restore_folder_id FROM drive_destination_lease WHERE account_scope = ?",
+            arrayOf(scope)).use {
+            if (it.moveToFirst()) DriveDestinationLease(it.getString(0), it.stringOrNull(1)) else null
+        }
+    }
+
+    suspend fun saveDestinationLease(scope: String, lease: DriveDestinationLease) = io {
+        writableDatabase.insertWithOnConflict("drive_destination_lease", null, ContentValues().apply {
+            put("account_scope", scope); put("folder_id", lease.folderId)
+            put("restore_folder_id", lease.restoreFolderId)
+        }, SQLiteDatabase.CONFLICT_REPLACE).also { check(it != -1L) }
+    }
+
+    suspend fun clearDestinationLease(scope: String) = io {
+        writableDatabase.delete("drive_destination_lease", "account_scope = ?", arrayOf(scope))
+    }
+
+    /** Includes stopped/review-required rows: an unknown remote outcome is still in flight. */
+    suspend fun inFlightWatchKeys(scope: String): Set<String> = io {
+        readableDatabase.rawQuery("""SELECT DISTINCT w.watch_key FROM drive_watches w
+            JOIN drive_files f ON f.watch_key = w.watch_key
+            WHERE w.account_scope = ? AND f.state IN ('SUBMITTING','SUBMITTED','UNCERTAIN')""",
+            arrayOf(scope)).use { cursor -> buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) } }
     }
 
     suspend fun armActive(
@@ -148,7 +231,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
         watches(accountScope, setOf(DriveWatchState.AUTH_REQUIRED))
     }
 
-    suspend fun hasRunnableWork(accountScope: String): Boolean = runnableWatches(accountScope).isNotEmpty()
+    suspend fun hasRunnableWork(accountScope: String): Boolean =
+        runnableWatches(accountScope).isNotEmpty() || destinationLease(accountScope) != null
 
     private fun hasSubmittedFiles(key: String): Boolean = readableDatabase.rawQuery(
         "SELECT 1 FROM drive_files WHERE watch_key = ? AND state IN (?, ?) LIMIT 1",
@@ -535,7 +619,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
         val args = arrayOf(accountScope, *states.map(DriveWatchState::name).toTypedArray())
         return readableDatabase.rawQuery(
             """SELECT watch_key, account_scope, item_id, item_type, name, armed_at, has_been_seen,
-                      consecutive_misses, queue_id, source_hash, source_value, state, last_error
+                      consecutive_misses, queue_id, source_hash, source_value, state, last_error,
+                      destination_folder_id, destination_folder_name
                FROM drive_watches
                WHERE account_scope = ? AND state IN ($placeholders)
                ORDER BY armed_at ASC""".trimIndent(),
@@ -558,6 +643,8 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
                             sourceValue = cursor.stringOrNull(10),
                             state = DriveWatchState.valueOf(cursor.getString(11)),
                             lastError = cursor.stringOrNull(12),
+                            destinationFolderId = cursor.stringOrNull(13),
+                            destinationFolderName = cursor.stringOrNull(14),
                         )
                     }.getOrNull()?.let(::add)
                 }
@@ -629,7 +716,7 @@ class DriveStore(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "torbox_drive_automation.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         private const val MAX_ERROR_LENGTH = 500
 
         fun key(scope: String, type: DownloadType, id: String): String = "$scope:${type.name}:$id"

@@ -15,13 +15,25 @@ class DriveConnectionCoordinator(
     suspend fun connect(expectedAccount: String, folderName: String, accessToken: String): GoogleDriveFolder =
         AccountSensitiveWorkGate.withAccount(expectedAccount, tokenProvider) {
             val name = folderName.trim().take(200).ifBlank { AppPreferences.DEFAULT_DRIVE_FOLDER_NAME }
+            val holdsDestination = store.destinationLease(expectedAccount) != null ||
+                store.inFlightWatchKeys(expectedAccount).isNotEmpty()
+            if (holdsDestination && name != preferences.googleDriveFolderName) {
+                throw GoogleDriveApiException("Wait for current Drive transfers to finish before changing the automatic destination.")
+            }
             preferences.googleDriveConnected = false
             val saved = preferences.googleDriveFolderId?.takeIf { preferences.googleDriveFolderName == name }
             val id = saved ?: google.generateFolderId(accessToken).also {
                 preferences.reserveDriveFolder(it, name)
             }
             val folder = google.ensureDestinationFolder(id, name, accessToken)
-            torBox.updateGoogleDriveFolderId(folder.id)
+            // Re-authorization must not redirect an in-progress custom-folder upload.
+            if (!holdsDestination) {
+                val current = torBox.getGoogleDriveFolderId()
+                if (current != folder.id && torBox.getAllJobs().any { DriveDestinationGate.blocksFolderChange(it) }) {
+                    throw GoogleDriveApiException("Other Drive uploads are still running. Wait for them before changing the destination.")
+                }
+                torBox.updateGoogleDriveFolderId(folder.id)
+            }
             preferences.bindDriveAccount(expectedAccount)
             store.resetAuthorizationRequired(expectedAccount)
             folder

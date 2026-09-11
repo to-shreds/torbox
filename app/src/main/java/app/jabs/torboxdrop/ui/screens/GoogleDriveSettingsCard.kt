@@ -108,7 +108,7 @@ fun GoogleDriveSettingsCard(modifier: Modifier = Modifier) {
                         "PARTIAL_FAILURE" -> "Some files failed"
                         else -> "Stopped / failed"
                     }
-                    "${watch.name}: $state" + (if (files.isEmpty()) "" else " ($completed/${files.size} complete)") +
+                    "${watch.name}" + (watch.destinationFolderName?.let { " → $it" } ?: "") + ": $state" + (if (files.isEmpty()) "" else " ($completed/${files.size} complete)") +
                         (watch.lastError?.let { "\n$it" } ?: "")
                 }
             delay(2_000)
