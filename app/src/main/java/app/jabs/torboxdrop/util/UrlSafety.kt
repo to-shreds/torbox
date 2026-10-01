@@ -80,6 +80,11 @@ object UrlSafety {
         return url
     }
 
+    /** Private device downloads may use the exact TorBox storage URL returned by the API.
+     * This does not permit copying/sharing a master-key URL with another app or person. */
+    fun isSafeForDeviceDownload(url: String?, apiToken: String?): Boolean =
+        isSafeToShare(url, apiToken) || isExpectedTorBoxCredentialDownloadUrl(url, apiToken)
+
     fun containsApiToken(text: String?, apiToken: String?): Boolean {
         val value = text.orEmpty()
         val token = apiToken?.trim().orEmpty()

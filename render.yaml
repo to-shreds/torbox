@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: torbox-drop-api
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    buildCommand: node web/build.mjs
+    startCommand: node relay/server.mjs
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: DROP_ORIGINS
+        value: https://to-shreds.github.io

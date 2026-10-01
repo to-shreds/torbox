@@ -155,8 +155,8 @@ object DownloadLists {
     }
 
     private fun instantComparator(descending: Boolean): Comparator<DownloadItem> = Comparator { left, right ->
-        val leftTime = left.createdAt ?: left.updatedAt
-        val rightTime = right.createdAt ?: right.updatedAt
+        val leftTime = left.createdAt
+        val rightTime = right.createdAt
         when {
             leftTime == null && rightTime == null -> 0
             leftTime == null -> 1

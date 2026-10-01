@@ -77,6 +77,10 @@ data class FileSheetState(
     val error: String? = null,
     val sharingFileId: Long? = null,
     val shareError: String? = null,
+    val fileActionBusy: Boolean = false,
+    val fileActionMessage: String? = null,
+    val fileActionError: String? = null,
+    val androidDownloadId: Long? = null,
 )
 
 data class MainUiState(
@@ -128,6 +132,7 @@ sealed interface MainEvent {
         val fileName: String,
         val mimeType: String?,
         val requestHeaders: Map<String, String> = emptyMap(),
+        val sourceKey: String? = null,
         val requiresTorBoxUrlSafety: Boolean = false,
     ) : MainEvent
     data class OpenUri(
@@ -739,6 +744,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         requestZipUrl(item)
+    }
+
+    fun completeFileAction(sourceKey: String?, message: String? = null, error: String? = null, downloadId: Long? = null) {
+        _uiState.update { state -> state.copy(fileSheet = state.fileSheet?.let { sheet ->
+            if (sheet.download.key != sourceKey) sheet else sheet.copy(fileActionBusy = false,
+                fileActionMessage = message, fileActionError = error, androidDownloadId = downloadId)
+        }) }
+    }
+
+    fun updateDeviceDownload(sourceKey: String, id: Long, message: String, failed: Boolean) {
+        _uiState.update { state -> state.copy(fileSheet = state.fileSheet?.let { sheet ->
+            if (sheet.download.key != sourceKey || sheet.androidDownloadId != id) sheet else sheet.copy(
+                fileActionMessage = if (failed) null else message, fileActionError = if (failed) message else null)
+        }) }
     }
 
     fun toggleWatch(item: DownloadItem) {
@@ -1626,7 +1645,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             emitMessage("TorBox marked this file as infected. Opening and sharing are disabled.")
             return
         }
-        _uiState.update { it.copy(actionInProgress = true) }
+        if (_uiState.value.fileSheet?.fileActionBusy == true) return
+        _uiState.update { state -> state.copy(actionInProgress = true,
+            fileSheet = state.fileSheet?.copy(fileActionBusy = true, fileActionMessage = "Preparing download link…", fileActionError = null, androidDownloadId = null)) }
         launchAccountWork {
             try {
                 val freshItem = repository.getDownload(item.type, item.id, bypassCache = true)
@@ -1638,8 +1659,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { state ->
                     state.copy(
                         loadedFiles = state.loadedFiles + (item.key to freshFiles),
-                        fileSheet = state.fileSheet?.takeIf { it.download.key == item.key }
-                            ?.copy(download = freshItem, files = freshFiles, loading = false),
+                        fileSheet = state.fileSheet?.let { sheet ->
+                            if (sheet.download.key == item.key) sheet.copy(download = freshItem, files = freshFiles, loading = false) else sheet
+                        },
                     )
                 }
                 if (freshFile.infected && action != FileUrlAction.DOWNLOAD) {
@@ -1656,6 +1678,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     appendName = true,
                 )
                 val safeUrl = UrlSafety.requireSafeToShare(url, container.tokenStore.read())
+                if (action != FileUrlAction.DOWNLOAD && !UrlSafety.isSafeToShare(safeUrl, container.tokenStore.read())) {
+                    error("TorBox included your API key in this link. Use Download; opening or copying this link could expose your key.")
+                }
                 val resolvedMimeType = freshFile.inferredMimeType()
                 when (action) {
                     FileUrlAction.SHARE -> eventChannel.send(
@@ -1670,6 +1695,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             freshFile.name,
                             resolvedMimeType,
                             requiresTorBoxUrlSafety = true,
+                            sourceKey = item.key,
                         ),
                     )
                     FileUrlAction.OPEN -> eventChannel.send(
@@ -1681,10 +1707,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         ),
                     )
                 }
+                if (action != FileUrlAction.DOWNLOAD) completeFileAction(item.key, message = "Link prepared.")
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                emitOperationalFailure(error)
+                recordOperationalFailure(error)
+                completeFileAction(item.key, error = safeMessage(error))
             } finally {
                 _uiState.update { it.copy(actionInProgress = false) }
             }
@@ -1692,7 +1720,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun requestZipUrl(item: DownloadItem) {
-        _uiState.update { it.copy(actionInProgress = true) }
+        if (_uiState.value.fileSheet?.fileActionBusy == true) return
+        _uiState.update { state -> state.copy(actionInProgress = true,
+            fileSheet = state.fileSheet?.copy(fileActionBusy = true, fileActionMessage = "Preparing download link…", fileActionError = null, androidDownloadId = null)) }
         launchAccountWork {
             try {
                 val freshItem = repository.getDownload(item.type, item.id, bypassCache = true)
@@ -1717,12 +1747,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         "${freshItem.name}.zip",
                         "application/zip",
                         requiresTorBoxUrlSafety = true,
+                        sourceKey = item.key,
                     ),
                 )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                emitOperationalFailure(error)
+                recordOperationalFailure(error)
+                completeFileAction(item.key, error = safeMessage(error))
             } finally {
                 _uiState.update { it.copy(actionInProgress = false) }
             }

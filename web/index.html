@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="description" content="Browse and manage your TorBox files. Your API key stays in this tab for this session."><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https:; frame-src https:; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="torbox-api" content="https://torbox-drop-api.onrender.com/api/"><title>TorBox Drop</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23126392'/%3E%3Cpath d='M12 11h16v5h-5v13h-6V16h-5z' fill='white'/%3E%3C/svg%3E"><style>:root{color-scheme:light;--ink:#142434;--muted:#536879;--line:#d8e2e8;--paper:#fff;--bg:#f2f6f9;--blue:#126392;--pale:#e6f1f8;--danger:#a32438;--radius:12px;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}button,input,select,textarea{font:inherit}button,a,input,select,textarea{touch-action:manipulation}button,.button{border:1px solid var(--line);border-radius:8px;background:white;color:var(--ink);padding:8px 13px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;justify-content:center;font-weight:550}button:hover,.button:hover{background:var(--pale);border-color:#9dbacb}button:disabled{opacity:.5;cursor:wait}button.primary{background:var(--blue);border-color:var(--blue);color:white}button.danger{color:var(--danger)}button.quiet{background:transparent;border-color:transparent}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #159ecc;outline-offset:2px}input:not([type=checkbox]),select,textarea{border:1px solid #b7c8d4;border-radius:8px;background:var(--paper);padding:10px 12px;min-height:44px;color:var(--ink);max-width:100%}input[type=checkbox]{width:18px;height:18px;accent-color:var(--blue)}a{color:var(--blue)}[hidden]{display:none!important}.login{min-height:100dvh;display:grid;place-items:center;padding:24px}.login-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:36px;max-width:440px;width:100%;box-shadow:0 18px 70px #1424340d}.brand{display:flex;gap:12px;align-items:center}.mark{display:grid;place-items:center;width:40px;height:40px;background:var(--blue);color:white;border-radius:10px;font-weight:750}.brand strong{font-size:20px;letter-spacing:-.5px}.eyebrow{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase}h1{font-size:26px;line-height:1.25;margin:28px 0 8px}h2{font-size:21px;line-height:1.3;margin:0}p{margin:8px 0 16px}.muted,small{color:var(--muted)}small{font-size:13px}.login-card label{display:block;margin:24px 0 7px;font-size:14px;font-weight:600}.login-card input,.login-card .primary{width:100%}.login-card .primary{margin-top:12px}.privacy{font-size:14px;margin:18px 0 0}.topbar{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--line);background:white;gap:20px}.top-actions{display:flex;align-items:center;gap:12px}.layout{display:grid;grid-template-columns:214px minmax(0,1fr);min-height:calc(100dvh - 72px)}aside{padding:26px 16px;background:#f9fbfd;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:5px}aside .eyebrow{padding:0 12px 9px}aside button{justify-content:space-between;text-align:left;background:transparent;border:0;padding:12px}aside button[aria-current=page]{background:#ddeef9;color:#094f78}aside .side-foot{margin-top:auto;padding:28px 12px 4px;font-size:13px}.count{font-size:13px;border-radius:6px;padding:0 7px;background:#dce6ed;color:var(--muted)}main{padding:26px 28px;min-width:0}.heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}.heading p{margin:4px 0 0;color:var(--muted);font-size:14px}.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}.search{flex:1;min-width:180px}.toolbar select{font-size:14px}.panel{background:white;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px;text-align:left}th{background:#f8fafc;font-weight:550;color:var(--muted);border-bottom:1px solid var(--line);padding:11px 14px;white-space:nowrap}th button{font-size:13px;border:0;background:transparent;padding:0;justify-content:start}td{padding:13px 14px;border-bottom:1px solid #e7edf2;vertical-align:middle}tr:last-child td{border:0}tbody tr:hover{background:#f3f9fd}.name-cell{min-width:240px;max-width:620px}.entry{display:flex;align-items:center;gap:12px}.entry-icon{flex:none;width:32px;height:32px;display:grid;place-items:center;background:#eaf2f7;border-radius:7px;color:var(--blue)}.entry-name{min-width:0}.name-button{display:block;max-width:100%;text-align:left;border:0;background:transparent;padding:0;font-weight:600;overflow-wrap:anywhere;justify-content:start}.sub{font-size:12px;color:var(--muted);display:block;margin-top:3px;overflow-wrap:anywhere}.date{white-space:nowrap}.date .sub{font-size:12px}.state{border-radius:5px;background:#edf2f6;padding:3px 7px;font-size:12px;display:inline-block}.state.ready{background:#e6f4ec;color:#246646}.state.problem{background:#fae9ec;color:var(--danger)}.row-actions{display:flex;gap:6px;white-space:nowrap}.row-actions button{font-size:13px;padding:6px 10px}.empty{text-align:center;padding:56px 24px}.empty strong{font-size:18px;display:block;margin-bottom:6px}.notice{font-size:14px;border:1px solid #bad5e4;background:#eff7fc;border-radius:9px;padding:12px 14px;margin:0 0 14px;overflow-wrap:anywhere}.notice.error{border-color:#e7adb7;background:#fff4f5;color:#942339}.notice.success{border-color:#b9d9c7;background:#f0f9f3;color:#286242}.notice a{font-weight:650}.footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}.pager{display:flex;gap:8px;align-items:center}.pager button{padding:4px 10px;font-size:13px}progress{accent-color:var(--blue);width:90px;height:5px;display:block;margin-top:7px}dialog{border:1px solid var(--line);border-radius:16px;padding:0;max-width:min(620px,calc(100vw - 24px));width:620px;max-height:90dvh;box-shadow:0 20px 90px #10233330;color:var(--ink);background:white}dialog::backdrop{background:#0a213255;backdrop-filter:blur(2px)}.dialog-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px}.dialog-body{padding:22px 24px}.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}.field{display:block;margin:0 0 17px;font-size:14px;font-weight:550}.field input:not([type=checkbox]),.field textarea,.field select{width:100%;display:block;margin-top:6px}.field textarea{min-height:90px;resize:vertical}.check{display:flex;gap:10px;align-items:center;margin-bottom:12px;font-size:14px}dl{display:grid;grid-template-columns:110px 1fr;gap:10px;margin:0 0 20px;font-size:14px}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}.breadcrumbs{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin:0 0 16px}.breadcrumbs button{font-size:14px;padding:5px 9px}.crumb-divider{color:#8da4b4}.selection-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0}.check-cell{width:40px;padding-right:0}.download-job{padding:12px 16px;border-bottom:1px solid var(--line)}.download-job:last-child{border:0}.download-job strong{font-size:14px;overflow-wrap:anywhere}.download-job .actions{margin-top:6px}.download-job .status{font-size:13px;color:var(--muted)}.loading{opacity:.65;pointer-events:none}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.mobile-date{display:none}.file-meta{margin:0 0 16px;font-size:14px;color:var(--muted)}.apk{font-size:13px}.busy-dot{display:inline-block;width:12px;height:12px;border:2px solid #b0c7d6;border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.busy-dot{animation:none}}@media(max-width:1050px){.layout{grid-template-columns:174px minmax(0,1fr)}main{padding:22px 18px}td,th{padding:11px 10px}.cached-column{display:none}.topbar{padding:0 18px}}@media(max-width:740px){.topbar{height:auto;min-height:65px;padding:13px 16px}.brand strong{font-size:18px}.account-label{display:none}.layout{display:block;min-height:0}aside{border-right:0;border-bottom:1px solid var(--line);padding:9px 12px;flex-direction:row;overflow-x:auto;gap:5px}aside .eyebrow,aside .side-foot{display:none}aside button{font-size:14px;white-space:nowrap;padding:8px 11px;gap:6px}main{padding:18px 12px}.heading{align-items:start;margin-bottom:16px}.heading h2{font-size:21px}.heading .actions{justify-content:end}.toolbar{gap:8px}.toolbar input{width:100%;flex-basis:100%}.toolbar select{flex:1;min-width:130px}.date-column,.type-column{display:none}.mobile-date{display:block;font-size:12px;color:var(--muted);margin-top:4px}.name-cell{min-width:150px}td,th{padding:12px 9px}.entry{gap:8px}.entry-icon{width:25px;height:28px}.row-actions{flex-direction:column}.row-actions button{padding:5px 8px}.state-column{max-width:100px}.footer{flex-wrap:wrap}.login-card{padding:27px}.dialog-head{padding:16px 18px}.dialog-body{padding:18px}.mark{width:34px;height:34px}.file-meta{font-size:13px}.top-actions{gap:4px}.top-actions .apk{display:none}}
+</style></head><body>
+<section class="login" id="login"><div class="login-card"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><h1>Your files, within reach.</h1><p class="muted">Sign in with your TorBox API key to browse, download, and manage your files.</p><form id="login-form" autocomplete="off"><label for="api-key">TorBox API key</label><input id="api-key" name="torbox-session-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="Paste your API key"><button class="primary" id="connect" type="submit">Unlock my TorBox</button></form><p id="login-error" class="notice error" role="alert" hidden></p><p class="privacy muted">Your key stays in this tab’s memory. It is cleared on sign out or reload. Your key and file list are not saved by this page.</p><p class="privacy"><a href="https://torbox.app/settings" target="_blank" rel="noopener noreferrer">Find your API key</a></p><small>TorBox Drop 2.1.0</small></div></section>
+<div id="app" hidden><header class="topbar"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><div class="top-actions"><span id="account" class="muted account-label"></span><a class="apk" href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.0.apk" rel="noreferrer">Android APK</a><button id="sign-out">Sign out</button></div></header><div class="layout"><aside aria-label="Library navigation"><div class="eyebrow">My TorBox</div><button data-view="all" aria-current="page">All files <span class="count" id="count-all">0</span></button><button data-view="active">Active <span class="count" id="count-active">0</span></button><button data-view="finished">Finished <span class="count" id="count-finished">0</span></button><button data-view="queue">Queue <span class="count" id="count-queue">0</span></button><button data-view="airlock">AirLock <span class="count" id="count-airlock">0</span></button><button data-view="downloads">Device downloads <span class="count" id="count-downloads">0</span></button><div class="side-foot">Session only<br><span>Files download directly from TorBox</span><br><a href="https://github.com/to-shreds/torbox" target="_blank" rel="noopener noreferrer">Version 2.1.0</a></div></aside><main><div class="heading"><div><h2 id="view-title">All files</h2><p id="view-subtitle">Your torrents and web downloads</p></div><div class="actions"><button id="refresh">Refresh</button><button id="add" class="primary">+ Add</button></div></div><div id="notice" class="notice" role="status" hidden></div><div id="breadcrumbs" class="breadcrumbs" aria-label="Folder location" hidden></div><div id="file-meta" class="file-meta" hidden></div><div id="file-actions" class="actions" hidden></div><div class="toolbar" id="toolbar"><input id="search" class="search" type="search" placeholder="Search names and tags" aria-label="Search files"><select id="type" aria-label="Download type"><option value="">All types</option><option value="torrent">Torrents</option><option value="webdl">Web downloads</option></select><select id="extension" aria-label="File extension" hidden><option value="">All file types</option></select><select id="sort" aria-label="Sort files"><option value="added:desc">Added: newest first</option><option value="added:asc">Added: oldest first</option><option value="cachedAt:desc">Cached: newest first</option><option value="name:asc">Name: A to Z</option><option value="name:desc">Name: Z to A</option><option value="size:desc">Size: largest first</option><option value="size:asc">Size: smallest first</option></select></div><div id="selection" class="selection-bar" hidden><span id="selected-count"></span><button id="download-selected">Download selected</button><button id="clear-selection" class="quiet">Clear selection</button></div><div class="panel" id="list-panel"><div class="table-wrap"><table><thead id="table-head"></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden></div><div class="footer"><span id="list-summary"></span><div class="pager"><button id="prev" aria-label="Previous page">Previous</button><span id="page-label"></span><button id="next" aria-label="Next page">Next</button></div></div></div><div class="panel" id="jobs" hidden></div><p id="date-note" class="sub">Dates use your local time. Cached is TorBox’s cache date; it may precede the date you added an item.</p></main></div></div>
+<dialog id="dialog"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="close-dialog" aria-label="Close dialog">Close</button></div><div id="dialog-body" class="dialog-body"></div></dialog>
+<script>/* TorBox Drop 2.1.0. No storage, analytics, backend, or third-party script dependencies. */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.TorBoxCore = api;
+})(typeof globalThis === 'object' ? globalThis : this, function () {
+  'use strict';
+  const configured = typeof document !== 'undefined' ? document.querySelector('meta[name="torbox-api"]')?.content : '';
+  const API = configured ? new URL(configured, location.href).href : 'https://api.torbox.app/v1/api/';
+  const RELAY = !API.startsWith('https://api.torbox.app/');
+  const TYPES = { torrent: { prefix: 'torrents', id: 'torrent_id', editId: 'torrent_id', control: 'controltorrent', edit: 'edittorrent' }, webdl: { prefix: 'webdl', id: 'web_id', editId: 'webdl_id', control: 'controlwebdownload', edit: 'editwebdownload' } };
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const num = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null;
+  const id = v => { if (!/^\d+$/.test(String(v)) || !Number.isSafeInteger(Number(v))) throw new Error('TorBox returned an invalid item ID.'); return Number(v); };
+  function timestamp(v) {
+    if (v == null || v === '') return null;
+    let n;
+    if (typeof v === 'number' || /^\d+(\.\d+)?$/.test(v)) n = Number(v) * (Number(v) < 1e11 ? 1000 : 1);
+    else { const s = String(v); n = Date.parse(/^\d{4}-\d\d-\d\d[T ]\d\d:\d\d/.test(s) && !/(Z|[+-]\d\d:\d\d)$/i.test(s) ? s.replace(' ', 'T') + 'Z' : s); }
+    return Number.isFinite(n) && Math.abs(n) < 8.64e15 ? n : null;
+  }
+  function dateLabel(v, now = Date.now()) {
+    const t = timestamp(v);
+    if (t == null) return { date: 'Not reported', age: '', full: 'TorBox did not report this date.' };
+    const d = new Date(t), seconds = Math.floor((now - t) / 1000);
+    const age = seconds < -60 ? 'Future date' : seconds < 60 ? 'Just now' : seconds < 3600 ? Math.floor(seconds / 60) + 'm ago' : seconds < 86400 ? Math.floor(seconds / 3600) + 'h ago' : Math.floor(seconds / 86400) + 'd ago';
+    return { date: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }), age, full: d.toLocaleString() };
+  }
+  function bytes(v) {
+    const n = num(v); if (n == null) return 'Not reported'; if (n < 1000) return n + ' B';
+    const e = Math.min(5, Math.floor(Math.log(n) / Math.log(1000)));
+    return (n / 1000 ** e).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + ['B', 'KB', 'MB', 'GB', 'TB', 'PB'][e];
+  }
+  function normalize(raw, type, queued = false) {
+    if (!raw || !TYPES[type]) throw new Error('TorBox returned an unreadable item.');
+    const n = id(raw.id), ready = raw.download_finished === true && raw.download_present === true;
+    const size = num(raw.size), done = num(raw.total_downloaded);
+    const progress = ready ? 1 : size > 0 && done != null && done <= size ? done / size : num(raw.progress);
+    const state = queued ? 'Queued' : ready ? 'Ready' : String(raw.download_state || raw.state || 'Unknown').replace(/_/g, ' ');
+    return { ...raw, id: n, type, key: `${queued ? 'queue:' : ''}${type}:${n}`, name: String(raw.name || raw.hash || 'Unnamed download'), ready, queued,
+      size, progress: progress == null ? null : Math.max(0, Math.min(1, progress)), state,
+      added: timestamp(raw.created_at), cachedAt: timestamp(raw.cached_at), updated: timestamp(raw.updated_at),
+      tags: Array.isArray(raw.tags) ? raw.tags.filter(t => typeof t === 'string') : [], airlocked: raw.airlocked === true };
+  }
+  function sortRows(rows, field = 'added', direction = 'desc') {
+    return [...rows].sort((a, b) => {
+      const x = a[field], y = b[field];
+      // Missing values stay last in either direction.
+      if (x == null && y != null) return 1; if (y == null && x != null) return -1;
+      const c = x == null && y == null ? 0 : typeof x === 'number' && typeof y === 'number' ? x - y : collator.compare(String(x), String(y));
+      return c * (direction === 'desc' ? -1 : 1) || collator.compare(a.name, b.name) || String(a.key).localeCompare(String(b.key));
+    });
+  }
+  function cleanPath(s) { return String(s || '').replace(/\\/g, '/').split('/').filter(p => p && p !== '.' && p !== '..').join('/'); }
+  function files(raw) {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    return raw.map(f => {
+      const n = id(f.id); if (seen.has(n)) throw new Error('TorBox returned duplicate file IDs. Refresh before downloading.'); seen.add(n);
+      const path = cleanPath(f.name || f.short_name || `File ${n}`);
+      const name = path.split('/').pop();
+      return { id: n, key: `file:${n}`, name, path, size: num(f.size), infected: f.infected === true, mime: typeof f.mimetype === 'string' ? f.mimetype : '', extension: name.includes('.') ? name.split('.').pop().toLowerCase() : '' };
+    });
+  }
+  function browse(all, folder = '', query = '', extension = '', sort = 'name', direction = 'asc') {
+    const q = query.toLocaleLowerCase().trim(), prefix = folder ? folder + '/' : '';
+    const matching = all.filter(f => f.path.startsWith(prefix) && (!q || f.path.toLocaleLowerCase().includes(q)) && (!extension || f.extension === extension));
+    const found = [], folders = new Map();
+    for (const f of matching) {
+      const relative = f.path.slice(prefix.length), slash = relative.indexOf('/');
+      if (!q && !extension && slash >= 0) {
+        const name = relative.slice(0, slash), path = prefix + name;
+        const d = folders.get(path) || { key: 'folder:' + path, name, path, folder: true, count: 0, size: 0 };
+        d.count++; if (f.size == null) d.size = null; else if (d.size != null) d.size += f.size; folders.set(path, d);
+      } else found.push(f);
+    }
+    return [...sortRows([...folders.values()], sort, direction), ...sortRows(found, sort, direction)];
+  }
+  function containsKey(value, key) {
+    if (!key) return false;
+    let s = String(value);
+    for (let i = 0; i < 3; i++) { if (s.includes(key) || s.toLowerCase().includes(encodeURIComponent(key).toLowerCase())) return true; try { s = decodeURIComponent(s); } catch { break; } }
+    return false;
+  }
+  function safeDownload(url, key) {
+    let u; try { u = new URL(url); } catch { throw new Error('TorBox returned an invalid download link.'); }
+    const h = u.hostname.toLowerCase();
+    if (u.protocol !== 'https:' || u.username || u.password || h === 'api.torbox.app' || (u.port && u.port !== '443')) throw new Error('Unsafe download destination was blocked.');
+    const credentialBearing = containsKey(url, key);
+    if (credentialBearing) {
+      const trusted = h === 'storage.torbox.app' || /^storage-[a-z0-9-]+\.torbox\.app$/.test(h) || h === 'cdn.torbox.app' || h.endsWith('.cdn.torbox.app');
+      const tokens = [...u.searchParams].filter(([n]) => n.toLowerCase() === 'token');
+      if (!trusted || tokens.length !== 1 || tokens[0][1] !== key) throw new Error('An unexpected credential-bearing download link was blocked.');
+    }
+    return { url: u.href, credentialBearing };
+  }
+  function redact(value, key) {
+    let s = String(value || 'TorBox could not complete this request.');
+    if (containsKey(s, key)) return 'TorBox could not complete this request. Sensitive response details were hidden.';
+    return s.replace(/https?:\/\/\S+/g, '[link]').replace(/(?:bearer\s+|(?:api[_-]?key|token|authorization)["'\s:=]+)\S+/gi, '[redacted]').slice(0, 350);
+  }
+  class Client {
+    #key; #fetch; #controllers = new Set(); #epoch = 0;
+    retryAt = 0;
+    constructor(key, fetcher = globalThis.fetch.bind(globalThis)) { this.#key = String(key).trim(); this.#fetch = fetcher; if (!this.#key || /[\r\n]/.test(this.#key)) throw new Error('Enter a valid TorBox API key.'); }
+    clear() { this.#key = ''; this.#epoch++; for (const c of this.#controllers) c.abort(); this.#controllers.clear(); }
+    async request(path, { query = {}, method = 'GET', body, download = false, emptyNotFound = false } = {}) {
+      if (!this.#key) throw new Error('Sign in again.');
+      if (Date.now() < this.retryAt) throw new Error(`TorBox asked us to wait. Try again in ${Math.ceil((this.retryAt - Date.now()) / 1000)} seconds.`);
+      if (!/^[a-z0-9/]+$/.test(path)) throw new Error('Invalid API operation.');
+      const url = new URL(path, API), epoch = this.#epoch, controller = new AbortController();
+      for (const [k, v] of Object.entries(query)) if (v != null) url.searchParams.set(k, String(v));
+      const headers = { Accept: 'application/json' };
+      if (download && !RELAY) url.searchParams.set('token', this.#key); else headers.Authorization = 'Bearer ' + this.#key;
+      if (body && !(body instanceof FormData) && !(body instanceof URLSearchParams)) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
+      this.#controllers.add(controller); const timer = setTimeout(() => controller.abort(), path === 'user/me' ? 70000 : 35000);
+      try {
+        const response = await this.#fetch(url.href, { method, headers, body, signal: controller.signal, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', redirect: 'error' });
+        if (epoch !== this.#epoch) throw new Error('Session ended.');
+        let data; try { data = await response.json(); } catch { throw new Error('TorBox returned an unreadable response. Please try again.'); }
+        if (response.status === 401 || ['BAD_TOKEN', 'NO_AUTH'].includes(data.error)) { const e = new Error('TorBox rejected this API key. Sign in with a valid key.'); e.auth = true; throw e; }
+        if (response.status === 429) {
+          const value = response.headers.get('Retry-After'); const seconds = /^\d+$/.test(value || '') ? Number(value) : Math.ceil((Date.parse(value) - Date.now()) / 1000);
+          this.retryAt = Date.now() + Math.max(1, Number.isFinite(seconds) ? seconds : 60) * 1000;
+          throw new Error(`TorBox is rate limiting requests. Try again in ${Math.ceil((this.retryAt - Date.now()) / 1000)} seconds.`);
+        }
+        if (emptyNotFound && data.error === 'ITEM_NOT_FOUND' && ![401, 403].includes(response.status)) return [];
+        if (!response.ok || data.success !== true || data.error) throw new Error(redact(data.detail || data.message || `TorBox rejected the request (HTTP ${response.status}).`, this.#key));
+        return data.data;
+      } catch (error) {
+        if (epoch !== this.#epoch) throw new Error('Session ended.');
+        if (error.name === 'AbortError') throw new Error(method === 'GET' ? 'TorBox took too long to respond. Try again.' : 'No confirmation received. Refresh to check whether TorBox accepted the action before retrying.');
+        if (error instanceof TypeError) throw new Error(method === 'GET' ? 'Could not reach TorBox. Check your connection and try again.' : 'Connection lost before confirmation. Refresh to check whether TorBox accepted the action before retrying.');
+        throw error;
+      } finally { clearTimeout(timer); this.#controllers.delete(controller); }
+    }
+    me() { return this.request('user/me', { query: { settings: true } }); }
+    async list(type, queued = false, fresh = false) {
+      const rows = new Map(), limit = 1000;
+      for (let offset = 0; offset < 500000; offset += limit) {
+        const data = await this.request(queued ? 'queued/getqueued' : TYPES[type].prefix + '/mylist', { query: { ...(queued ? { type } : {}), offset, limit, bypass_cache: fresh }, emptyNotFound: true });
+        if (!Array.isArray(data)) throw new Error('TorBox returned an unreadable file list.');
+        const before = rows.size;
+        for (const raw of data) { const row = normalize(raw, type, queued); rows.set(row.key, row); }
+        if (data.length < limit) return [...rows.values()];
+        if (rows.size === before) throw new Error('TorBox repeated a page of results. Refresh to load the full list.');
+      }
+      throw new Error('TorBox list exceeded the supported page limit. Results were not truncated silently.');
+    }
+    async detail(item) {
+      const d = await this.request(TYPES[item.type].prefix + '/mylist', { query: { id: id(item.id), bypass_cache: true } });
+      const raw = (Array.isArray(d) ? d : d ? [d] : []).find(r => Number(r.id) === item.id);
+      if (!raw) throw new Error('This item is no longer available on TorBox.');
+      return { item: normalize(raw, item.type), files: files(raw.files) };
+    }
+    async link(item, file = null, zip = false) {
+      if (!item.ready) throw new Error('This content is not complete and present on TorBox yet.');
+      if (zip && (item.type !== 'torrent' || item.allow_zipped !== true)) throw new Error('TorBox does not offer a ZIP for this item.');
+      const d = await this.request(TYPES[item.type].prefix + '/requestdl', { download: true, query: { [TYPES[item.type].id]: id(item.id), ...(file ? { file_id: id(file.id) } : {}), zip_link: zip, redirect: false, append_name: true } });
+      return safeDownload(typeof d === 'string' ? d : d?.url || d?.download_url || d?.link, this.#key);
+    }
+    control(item, operation) {
+      if (item.queued) return this.request('queued/controlqueued', { method: 'POST', body: { queued_id: id(item.id), operation, all: false } });
+      if (!['delete', 'pause', 'resume', 'reannounce'].includes(operation) || item.type === 'webdl' && operation !== 'delete') throw new Error('This operation is not supported for that item.');
+      const t = TYPES[item.type]; return this.request(t.prefix + '/' + t.control, { method: 'POST', body: { [t.editId]: id(item.id), operation, all: false } });
+    }
+    async edit(item, changes) {
+      const current = (await this.detail(item)).item, t = TYPES[item.type];
+      if (!current.ready) throw new Error('TorBox allows editing only when the item is ready.');
+      const { name, tags, airlocked } = { ...current, ...changes };
+      await this.request(t.prefix + '/' + t.edit, { method: 'PUT', body: { [t.editId]: id(item.id), name, tags, airlocked, alternative_hashes: Array.isArray(current.alternative_hashes) ? current.alternative_hashes : [] } });
+      return { ...current, name, tags, airlocked };
+    }
+    add({ value, file, name, queued = false, cached = false, seed = 1 }) {
+      const torrent = !!file || /^magnet:\?/i.test(value);
+      if (!torrent) { let u; try { u = new URL(value); } catch { throw new Error('Enter a magnet, an HTTP(S) link, or choose a .torrent file.'); } if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw new Error('Enter a valid HTTP(S) download link.'); }
+      const body = torrent ? new FormData() : new URLSearchParams();
+      if (file) { if (!file.name.toLowerCase().endsWith('.torrent') || file.size === 0 || file.size > 20 * 1024 * 1024) throw new Error('Choose a nonempty .torrent file smaller than 20 MB.'); body.set('file', file, file.name); }
+      else body.set(torrent ? 'magnet' : 'link', value.trim());
+      body.set('as_queued', String(queued)); body.set('add_only_if_cached', String(cached));
+      if (name.trim()) body.set('name', name.trim()); if (torrent) { body.set('seed', String(seed)); body.set('allow_zip', 'true'); }
+      return this.request(torrent ? 'torrents/createtorrent' : 'webdl/createwebdownload', { method: 'POST', body });
+    }
+  }
+  return { API, TYPES, Client, timestamp, dateLabel, bytes, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
+});
+</script><script>(function () {
+  'use strict';
+  const C = TorBoxCore, $ = id => document.getElementById(id), PAGE_SIZE = 100;
+  const inFlightDownloads = new Set();
+  const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null };
+  const views = { all: 'All files', active: 'Active', finished: 'Finished', queue: 'Queue', airlock: 'AirLock', downloads: 'Device downloads' };
+  function el(tag, attrs = {}, text = '') {
+    const n = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (key.startsWith('on')) n.addEventListener(key.slice(2), value);
+      else if (key === 'class') n.className = value;
+      else if (value !== false && value != null) n.setAttribute(key, value === true ? '' : String(value));
+    }
+    if (text !== '') n.textContent = String(text); return n;
+  }
+  function button(text, action, cls = '') { return el('button', { type: 'button', class: cls, onclick: action }, text); }
+  function notice(text, kind = '') { $('notice').textContent = text; $('notice').className = 'notice ' + kind; $('notice').hidden = !text; }
+  function live(session, client) { return session === S.session && client === S.client; }
+  function clearSession(message = '') {
+    S.client?.clear(); S.client = null; S.session++; S.nav++; S.refresh++; S.refreshing = false;
+    for (const job of S.jobs) { job.controller?.abort(); if (job.url?.startsWith('blob:')) URL.revokeObjectURL(job.url); }
+    inFlightDownloads.clear();
+    S.rows = []; S.queue = []; S.files = []; S.jobs = []; S.item = null; S.folder = ''; S.selected.clear(); S.deleted.clear(); S.updated = null;
+    $('api-key').value = ''; $('rows').replaceChildren(); $('jobs').replaceChildren(); $('dialog-body').replaceChildren(); $('dialog').close(); $('account').textContent = ''; $('file-meta').textContent = '';
+    $('app').hidden = true; $('login').hidden = false; $('login-error').textContent = message; $('login-error').hidden = !message; $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox';
+    $('api-key').focus();
+  }
+  async function guarded(work, { node, errorNode } = {}) {
+    const session = S.session, client = S.client;
+    if (!client || node?.disabled) return;
+    if (node) node.disabled = true;
+    try { return await work(client, () => live(session, client)); }
+    catch (e) { if (live(session, client)) { if (e.auth) clearSession(e.message); else if (errorNode) { errorNode.textContent = e.message; errorNode.hidden = false; } else notice(e.message, 'error'); } }
+    finally { if (node?.isConnected) node.disabled = false; }
+  }
+  $('login-form').addEventListener('submit', async e => {
+    e.preventDefault(); if ($('connect').disabled) return;
+    let client; try { client = new C.Client($('api-key').value); } catch (error) { $('login-error').textContent = error.message; $('login-error').hidden = false; return; }
+    $('api-key').value = ''; S.client?.clear(); S.client = client; const session = ++S.session;
+    $('connect').disabled = true; $('connect').textContent = 'Connecting (may take a minute)…'; $('login-error').hidden = true;
+    try {
+      const account = await client.me(); if (!live(session, client)) return;
+      if (!account || typeof account !== 'object' || Array.isArray(account)) throw new Error('TorBox returned unreadable account information.');
+      $('account').textContent = account.email || account.base_email || 'Connected to TorBox';
+      $('login').hidden = true; $('app').hidden = false; S.view = 'all'; S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; $('type').value = ''; render(); await refresh();
+    } catch (error) { if (live(session, client)) clearSession(error.message); }
+    finally { $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox'; }
+  });
+  $('sign-out').onclick = () => clearSession();
+  window.addEventListener('pagehide', () => clearSession());
+  window.addEventListener('pageshow', event => { if (event.persisted) clearSession(); });
+  function rootRows() {
+    return (S.view === 'queue' ? S.queue : S.rows).filter(r => !S.deleted.has(r.key)).filter(r => S.view === 'active' ? !r.ready : S.view === 'finished' ? r.ready : S.view === 'airlock' ? r.airlocked : true);
+  }
+  async function refresh(manual = false) {
+    if (!S.client || S.refreshing) return;
+    const session = S.session, client = S.client, serial = ++S.refresh, revision = S.revision;
+    S.refreshing = true; $('refresh').disabled = true; $('refresh').textContent = 'Refreshing…';
+    try {
+      if (S.item) {
+        const key = S.item.key, nav = S.nav, result = await client.detail(S.item);
+        if (!live(session, client) || S.item?.key !== key || nav !== S.nav) return;
+        S.item = result.item; S.files = result.files; pruneSelection(); updateFileFilters();
+      } else {
+        const pairs = [['torrent', false], ['webdl', false], ['torrent', true], ['webdl', true]];
+        const results = await Promise.allSettled(pairs.map(([type, queued]) => client.list(type, queued, manual)));
+        if (!live(session, client) || serial !== S.refresh || revision !== S.revision) return;
+        const failed = [];
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') { if (r.reason.auth) throw r.reason; failed.push((pairs[i][0] === 'torrent' ? 'Torrents' : 'Web downloads') + (pairs[i][1] ? ' queue' : '') + ': ' + r.reason.message); return; }
+          const field = pairs[i][1] ? 'queue' : 'rows';
+          S[field] = S[field].filter(row => row.type !== pairs[i][0]).concat(r.value.filter(row => !S.deleted.has(row.key)));
+        });
+        notice(failed.length ? 'Some lists could not be refreshed. ' + failed.join(' ') : '', failed.length ? 'error' : '');
+      }
+      if (live(session, client)) { S.updated = Date.now(); render(); }
+    } catch (error) { if (live(session, client)) { if (error.auth) clearSession(error.message); else notice(error.message, 'error'); } }
+    finally { if (live(session, client) && serial === S.refresh) { S.refreshing = false; $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; } }
+  }
+  $('refresh').onclick = () => refresh(true);
+  setInterval(() => { if (S.client && document.visibilityState === 'visible' && !S.item && !$('dialog').open && S.view !== 'downloads') refresh(); }, 60000);
+  for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => {
+    S.nav++; S.item = null; S.files = []; S.folder = ''; S.view = b.dataset.view; S.selected.clear(); S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; notice(''); render();
+  };
+  for (const id of ['search', 'type', 'sort', 'extension']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => { S.page = 0; render(); });
+  $('prev').onclick = () => { S.page = Math.max(0, S.page - 1); render(); };
+  $('next').onclick = () => { S.page++; render(); };
+  $('clear-selection').onclick = () => { S.selected.clear(); render(); };
+  function counts() {
+    for (const [view, count] of Object.entries({ all: S.rows.length, active: S.rows.filter(r => !r.ready).length, finished: S.rows.filter(r => r.ready).length, queue: S.queue.length, airlock: S.rows.filter(r => r.airlocked).length, downloads: S.jobs.length })) $('count-' + view).textContent = count.toLocaleString();
+  }
+  function dateCell(value) { const d = C.dateLabel(value), td = el('td', { class: 'date date-column', title: d.full }); td.append(el('span', {}, d.date), el('span', { class: 'sub' }, d.age)); return td; }
+  function header(label, field, cls = '') { const th = el('th', { scope: 'col', class: cls }); if (field) { const [sort, dir] = $('sort').value.split(':'); th.setAttribute('aria-sort', sort === field ? dir === 'asc' ? 'ascending' : 'descending' : 'none'); th.append(button(label + (sort === field ? dir === 'asc' ? ' ↑' : ' ↓' : ''), () => { $('sort').value = `${field}:${sort === field && dir === 'asc' ? 'desc' : 'asc'}`; S.page = 0; render(); })); } else th.textContent = label; return th; }
+  function render() {
+    if (!S.client) return;
+    counts(); for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-current', b.dataset.view === S.view ? 'page' : 'false');
+    $('view-title').textContent = S.item ? S.item.name : views[S.view];
+    $('view-subtitle').textContent = S.item ? 'Browse folders and choose files' : S.view === 'downloads' ? 'Downloads started during this session' : 'Your torrents and web downloads';
+    const jobs = S.view === 'downloads' && !S.item;
+    $('jobs').hidden = !jobs; $('list-panel').hidden = jobs; $('toolbar').hidden = jobs; $('date-note').hidden = jobs;
+    $('type').hidden = !!S.item; $('extension').hidden = !S.item; $('breadcrumbs').hidden = !S.item; $('file-meta').hidden = !S.item; $('file-actions').hidden = !S.item; $('search').placeholder = S.item ? 'Search this folder and subfolders' : 'Search names and tags';
+    $('selection').hidden = !S.item || S.selected.size === 0; $('selected-count').textContent = S.selected.size + ' selected';
+    if (jobs) { renderJobs(); return; }
+    if (S.item) renderBreadcrumbs();
+    const [field, direction] = $('sort').value.split(':'), q = $('search').value.trim().toLocaleLowerCase();
+    let rows = S.item ? C.browse(S.files, S.folder, q, $('extension').value, field, direction) : C.sortRows(rootRows().filter(r => (!$('type').value || r.type === $('type').value) && (!q || (r.name + ' ' + r.tags.join(' ')).toLocaleLowerCase().includes(q))), field, direction);
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE)); S.page = Math.min(S.page, pages - 1);
+    const head = el('tr');
+    if (S.item) { const th = header('', null, 'check-cell'), check = el('input', { type: 'checkbox', 'aria-label': 'Select visible files' }); const visible = rows.slice(S.page * PAGE_SIZE, (S.page + 1) * PAGE_SIZE).filter(r => !r.folder && !r.infected); check.checked = visible.length > 0 && visible.every(f => S.selected.has(f.id)); check.disabled = !visible.length; check.onchange = () => { visible.forEach(f => check.checked ? S.selected.add(f.id) : S.selected.delete(f.id)); render(); }; th.append(check); head.append(th); }
+    head.append(header('Name', 'name'), header('Size', 'size'), header(S.item ? 'Type' : 'Status', null, 'state-column'));
+    if (!S.item) { head.append(header('Added', 'added', 'date-column')); const cached = header('Cached', 'cachedAt', 'date-column cached-column'); head.append(cached); }
+    head.append(header('Actions')); $('table-head').replaceChildren(head);
+    const fragment = document.createDocumentFragment();
+    for (const row of rows.slice(S.page * PAGE_SIZE, (S.page + 1) * PAGE_SIZE)) fragment.append(S.item ? fileRow(row) : itemRow(row));
+    $('rows').replaceChildren(fragment); $('empty').hidden = rows.length > 0;
+    $('empty').replaceChildren(el('strong', {}, q || $('type').value || (S.item && $('extension').value) ? 'No matches' : S.item ? 'This folder has no files' : S.refreshing ? 'Loading your files…' : 'Nothing here yet'), el('span', { class: 'muted' }, q ? 'Try a different search or clear your filters.' : 'Refresh to check TorBox for updates.'));
+    $('list-summary').textContent = rows.length.toLocaleString() + (S.item ? ' entries' : ' items') + (S.updated ? ' · Updated ' + new Date(S.updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '');
+    $('page-label').textContent = `${S.page + 1} / ${pages}`; $('prev').disabled = S.page === 0; $('next').disabled = S.page >= pages - 1;
+  }
+  function itemRow(item) {
+    const tr = el('tr'), name = el('td', { class: 'name-cell' }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
+    text.append(button(item.name, () => item.queued ? details(item) : openFiles(item), 'name-button'), el('span', { class: 'sub' }, (item.type === 'torrent' ? 'Torrent' : 'Web download') + (item.tags.length ? ' · ' + item.tags.join(', ') : '') + (item.airlocked ? ' · AirLocked' : '')));
+    const d = C.dateLabel(item.added); text.append(el('span', { class: 'mobile-date', title: d.full }, `Added ${d.date}${d.age ? ' · ' + d.age : ''}`));
+    if (item.cachedAt) { const c = C.dateLabel(item.cachedAt); text.append(el('span', { class: 'mobile-date', title: c.full }, `Cached ${c.date} · ${c.age}`)); }
+    entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, '▤'), text); name.append(entry);
+    const state = el('td', { class: 'state-column' }); state.append(el('span', { class: 'state' + (item.ready ? ' ready' : /fail|error|missing|expired/i.test(item.state) ? ' problem' : '') }, item.state));
+    if (!item.ready && !item.queued && item.progress != null) { state.append(el('progress', { max: 1, value: item.progress, 'aria-label': 'Download progress' }), el('span', { class: 'sub' }, Math.round(item.progress * 100) + '%' + (item.download_speed > 0 ? ' · ' + C.bytes(item.download_speed) + '/s' : ''))); }
+    tr.append(name, el('td', {}, C.bytes(item.size)), state, dateCell(item.added)); const cached = dateCell(item.cachedAt); cached.classList.add('cached-column'); tr.append(cached);
+    const actions = el('td'), wrap = el('div', { class: 'row-actions' });
+    wrap.append(button(item.queued ? 'Start' : 'Files', e => item.queued ? control(item, 'start', e.currentTarget) : openFiles(item)), button('Details', () => details(item)));
+    actions.append(wrap); tr.append(actions); return tr;
+  }
+  function fileRow(file) {
+    const tr = el('tr'), select = el('td', { class: 'check-cell' });
+    if (!file.folder) { const check = el('input', { type: 'checkbox', 'aria-label': 'Select ' + file.name }); check.checked = S.selected.has(file.id); check.disabled = file.infected; check.onchange = () => { check.checked ? S.selected.add(file.id) : S.selected.delete(file.id); render(); }; select.append(check); }
+    const name = el('td', { class: 'name-cell' }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
+    text.append(file.folder ? button(file.name, () => { S.folder = file.path; S.page = 0; $('search').value = ''; render(); }, 'name-button') : el('span', { class: 'name-button' }, file.name));
+    if ($('search').value || $('extension').value) text.append(el('span', { class: 'sub' }, file.path));
+    if (file.folder) text.append(el('span', { class: 'sub' }, file.count + ' files'));
+    if (file.infected) text.append(el('span', { class: 'state problem' }, 'TorBox flagged this file as infected'));
+    entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, file.folder ? '▰' : '▤'), text); name.append(entry);
+    tr.append(select, name, el('td', {}, C.bytes(file.size)), el('td', { class: 'state-column' }, file.folder ? 'Folder' : file.extension.toUpperCase() || 'File'));
+    const actions = el('td'), wrap = el('div', { class: 'row-actions' });
+    if (file.folder) wrap.append(button('Open', () => { S.folder = file.path; S.page = 0; render(); }));
+    else {
+      const dl = button('Download', e => startDownload(S.item, file, false, e.currentTarget)); dl.disabled = !S.item.ready; wrap.append(dl);
+      const more = button('More', () => fileDetails(file)); more.disabled = !S.item.ready; wrap.append(more);
+    }
+    actions.append(wrap); tr.append(actions); return tr;
+  }
+  function pruneSelection() { const available = new Set(S.files.filter(f => !f.infected).map(f => f.id)); S.selected = new Set([...S.selected].filter(id => available.has(id))); }
+  async function openFiles(item) {
+    const session = S.session, nav = ++S.nav; notice('Loading files…');
+    await guarded(async (client, active) => {
+      const result = await client.detail(item); if (!active() || nav !== S.nav || session !== S.session) return;
+      S.item = result.item; S.files = result.files; S.folder = ''; S.page = 0; S.selected.clear(); $('search').value = ''; $('sort').value = 'name:asc'; updateFileFilters(); notice(''); render();
+    });
+  }
+  function updateFileFilters() {
+    const old = $('extension').value; $('extension').replaceChildren(el('option', { value: '' }, 'All file types'));
+    for (const ext of [...new Set(S.files.map(f => f.extension).filter(Boolean))].sort()) $('extension').append(el('option', { value: ext }, ext.toUpperCase()));
+    $('extension').value = [...$('extension').options].some(o => o.value === old) ? old : '';
+  }
+  function renderBreadcrumbs() {
+    const box = $('breadcrumbs'); box.replaceChildren(button('All files', () => { S.nav++; S.item = null; S.view = 'all'; S.files = []; S.selected.clear(); S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; notice(''); render(); }));
+    box.append(el('span', { class: 'crumb-divider', 'aria-hidden': 'true' }, '/'), button('Files', () => { S.folder = ''; S.page = 0; $('search').value = ''; render(); }));
+    const parts = S.folder.split('/').filter(Boolean);
+    parts.forEach((p, i) => box.append(el('span', { class: 'crumb-divider', 'aria-hidden': 'true' }, '/'), button(p, () => { S.folder = parts.slice(0, i + 1).join('/'); S.page = 0; $('search').value = ''; render(); })));
+    const a = C.dateLabel(S.item.added), c = C.dateLabel(S.item.cachedAt);
+    $('file-meta').textContent = `Added: ${a.full}${a.age ? ' (' + a.age + ')' : ''} · Cached: ${c.full}${c.age ? ' (' + c.age + ')' : ''}`;
+    $('file-actions').replaceChildren();
+    if (S.item.allow_zipped === true && S.item.type === 'torrent') { const b = button('Download whole ZIP', e => startDownload(S.item, null, true, e.currentTarget)); b.disabled = !S.item.ready || S.files.some(f => f.infected); $('file-actions').append(b); }
+    $('file-actions').append(button('Item details', () => details(S.item)));
+    $('file-actions').style.marginBottom = '14px';
+  }
+  function modal(title) { $('dialog-title').textContent = title; $('dialog-body').replaceChildren(); if (!$('dialog').open) $('dialog').showModal(); return $('dialog-body'); }
+  $('close-dialog').onclick = () => $('dialog').close();
+  $('dialog').addEventListener('close', () => { $('dialog-body').replaceChildren(); });
+  function modalError(body) { const n = el('p', { class: 'notice error', role: 'alert', hidden: true }); body.append(n); return n; }
+  function details(item) {
+    const body = modal(item.name), dl = el('dl');
+    for (const [k, v] of [['Status', item.state], ['Type', item.type === 'torrent' ? 'Torrent' : 'Web download'], ['Size', C.bytes(item.size)], ['Added', C.dateLabel(item.added).full], ['Cached', C.dateLabel(item.cachedAt).full], ['Updated', C.dateLabel(item.updated).full], ['Tags', item.tags.join(', ') || 'None'], ['AirLock', item.airlocked ? 'Protected' : 'Not protected']]) dl.append(el('dt', {}, k), el('dd', {}, v));
+    body.append(dl); const error = modalError(body), actions = el('div', { class: 'actions' });
+    if (item.queued) actions.append(button('Start', e => control(item, 'start', e.currentTarget, error)));
+    else {
+      actions.append(button('Browse files', () => { $('dialog').close(); openFiles(item); }));
+      if (item.type === 'torrent') for (const op of ['pause', 'resume', 'reannounce']) actions.append(button(op[0].toUpperCase() + op.slice(1), e => control(item, op, e.currentTarget, error)));
+      if (item.ready) { actions.append(button('Rename / tags', () => editDialog(item)), button(item.airlocked ? 'Remove AirLock' : 'Add AirLock', e => editItem(item, { airlocked: !item.airlocked }, e.currentTarget, error))); }
+    }
+    actions.append(button('Delete', () => deleteDialog(item), 'danger')); body.append(actions);
+  }
+  async function control(item, operation, node, errorNode) {
+    await guarded(async (client, active) => {
+      await client.control(item, operation); if (!active()) return; S.revision++;
+      if (operation === 'delete' || item.queued && operation === 'start') { S.deleted.add(item.key); S.rows = S.rows.filter(r => r.key !== item.key); S.queue = S.queue.filter(r => r.key !== item.key); if (S.item?.key === item.key) { S.item = null; S.files = []; S.selected.clear(); } }
+      $('dialog').close(); notice(operation === 'delete' ? 'Deleted from TorBox.' : operation === 'start' ? 'TorBox accepted the start request. The item may take a moment to appear.' : 'TorBox accepted the ' + operation + ' request.', 'success'); render();
+    }, { node, errorNode });
+  }
+  function deleteDialog(item) {
+    const body = modal('Delete from TorBox?'); body.append(el('p', {}, `Delete “${item.name}”? This removes it from your TorBox account. Files already saved to your device are unaffected.`)); const error = modalError(body), actions = el('div', { class: 'dialog-actions' }); actions.append(button('Cancel', () => $('dialog').close()), button('Delete', e => control(item, 'delete', e.currentTarget, error), 'danger')); body.append(actions);
+  }
+  function labeled(body, label, input) { const wrap = el('label', { class: 'field' }, label); wrap.append(input); body.append(wrap); return input; }
+  function editDialog(item) {
+    const body = modal('Rename / tags'), name = labeled(body, 'Name', el('input', { value: item.name, maxlength: 500 })), tags = labeled(body, 'Tags (separate with commas)', el('input', { value: item.tags.join(', '), maxlength: 2000 }));
+    const error = modalError(body); body.append(button('Save', e => { if (!name.value.trim()) { error.textContent = 'Enter a name.'; error.hidden = false; return; } editItem(item, { name: name.value.trim(), tags: [...new Set(tags.value.split(',').map(x => x.trim()).filter(Boolean))] }, e.currentTarget, error); }, 'primary'));
+  }
+  async function editItem(item, changes, node, errorNode) {
+    await guarded(async (client, active) => { const updated = await client.edit(item, changes); if (!active()) return; S.revision++; S.rows = S.rows.map(r => r.key === item.key ? updated : r); if (S.item?.key === item.key) S.item = updated; $('dialog').close(); notice('Saved on TorBox.', 'success'); render(); }, { node, errorNode });
+  }
+  $('add').onclick = () => {
+    const body = modal('Add to TorBox'), form = el('form'); body.append(form);
+    const value = labeled(form, 'Magnet or download link', el('textarea', { placeholder: 'magnet:?… or https://…', spellcheck: false }));
+    const file = labeled(form, 'Or choose a .torrent file', el('input', { type: 'file', accept: '.torrent,application/x-bittorrent' }));
+    const name = labeled(form, 'Custom name (optional)', el('input', { maxlength: 500 }));
+    const seed = el('select'); for (const [v, t] of [[1, 'Automatic seeding'], [0, 'Do not seed'], [2, 'Seed until stopped']]) seed.append(el('option', { value: v }, t)); labeled(form, 'Torrent seeding', seed);
+    const queued = el('input', { type: 'checkbox' }), cached = el('input', { type: 'checkbox' });
+    for (const [input, text] of [[queued, 'Add to queue'], [cached, 'Only add if cached']]) { const l = el('label', { class: 'check' }); l.append(input, document.createTextNode(text)); form.append(l); }
+    const error = modalError(form), submit = el('button', { type: 'submit', class: 'primary' }, 'Add to TorBox'); form.append(submit);
+    form.onsubmit = e => { e.preventDefault(); if (file.files.length && value.value.trim()) { error.textContent = 'Choose either a link or a .torrent file.'; error.hidden = false; return; }
+      guarded(async (client, active) => { const result = await client.add({ value: value.value.trim(), file: file.files[0], name: name.value, queued: queued.checked, cached: cached.checked, seed: Number(seed.value) }); if (!active()) return; S.revision++;
+        const n = result?.torrent_id ?? result?.webdownload_id ?? result?.web_id ?? result?.id; if (n != null) { S.deleted.delete('torrent:' + n); S.deleted.delete('webdl:' + n); }
+        $('dialog').close(); notice('TorBox accepted the addition. Refresh if it does not appear immediately.', 'success'); refresh(true);
+      }, { node: submit, errorNode: error }); };
+  };
+  function fileDetails(file) {
+    const item = S.item, body = modal(file.name); body.append(el('p', { class: 'muted' }, file.path), el('p', {}, C.bytes(file.size))); const error = modalError(body);
+    if (file.infected) { body.append(el('p', { class: 'notice error' }, 'TorBox flagged this file as infected. Open, copy, and share are disabled.')); return; }
+    const actions = el('div', { class: 'actions' });
+    for (const action of ['Open', 'Copy link', 'Share']) actions.append(button(action, e => guarded(async (client, active) => {
+      const link = await client.link(item, file); if (!active()) return;
+      if (link.credentialBearing) { error.textContent = 'TorBox included your API key in this link. Copying, sharing, or opening it in another app could expose your key. Use Download instead.'; error.hidden = false; return; }
+      if (action === 'Copy link') { await navigator.clipboard.writeText(link.url); if (active()) { error.className = 'notice success'; error.textContent = 'Temporary link copied.'; error.hidden = false; } }
+      else if (action === 'Share' && navigator.share) { try { await navigator.share({ title: file.name, url: link.url }); } catch (e) { if (e.name !== 'AbortError') throw new Error('Your browser could not share this link. Try Copy link.'); } }
+      else { const a = el('a', { class: 'button', href: link.url, target: '_blank', rel: 'noopener noreferrer' }, action === 'Share' ? 'Open temporary link' : 'Open file'); body.append(a); }
+    }, { node: e.currentTarget, errorNode: error })));
+    body.append(actions);
+  }
+  function addJob(name) {
+    const job = { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(), name, status: 'Preparing a fresh download link…', busy: true, controller: new AbortController() }; S.jobs.unshift(job); counts(); return job;
+  }
+  async function startDownload(item, file, zip, node, forceBrowser = false) {
+    if (!item || node?.disabled) return;
+    if (file?.infected && !window.confirm('TorBox flagged this file as infected. Download it anyway?')) return;
+    if (zip && S.files.some(f => f.infected)) { notice('ZIP download is blocked because a file was flagged as infected.', 'error'); return; }
+    const downloadKey = item.key + ':' + (zip ? 'zip' : file.id);
+    if (inFlightDownloads.has(downloadKey)) { notice('This file already has a download being prepared.'); return; }
+    inFlightDownloads.add(downloadKey);
+    const session = S.session, client = S.client;
+    const name = zip ? item.name + '.zip' : file.name;
+    // Invoke the picker immediately while the original click still has user activation.
+    let handlePromise = null;
+    if (!forceBrowser && window.showSaveFilePicker) handlePromise = window.showSaveFilePicker({ suggestedName: name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').slice(0, 180) });
+    if (node) node.disabled = true;
+    const job = addJob(name); notice('Preparing “' + name + '”…');
+    try {
+      let handle;
+      if (handlePromise) { try { handle = await handlePromise; } catch (e) { if (e.name === 'AbortError') { job.status = 'Cancelled.'; return; } throw new Error('Could not open the save dialog. Try the browser download option in Device downloads.'); } }
+      if (!live(session, client)) return;
+      const fresh = await client.detail(item); if (!live(session, client)) return;
+      const freshFile = file && fresh.files.find(f => f.id === file.id);
+      if (file && !freshFile) throw new Error('This file is no longer available. Refresh its folder.');
+      if (freshFile?.infected && !file.infected) throw new Error('TorBox now flags this file as infected. Refresh and review the warning before downloading.');
+      if (zip && fresh.files.some(f => f.infected)) throw new Error('ZIP download is blocked because a file was flagged as infected.');
+      const link = await client.link(fresh.item, freshFile, zip); if (!live(session, client)) return;
+      if (job.controller.signal.aborted) { job.status = 'Cancelled.'; return; }
+      job.link = link; job.retry = () => startDownload(item, file, zip, null, true);
+      if (handle) {
+        let writer;
+        try {
+          writer = await handle.createWritable();
+          const response = await fetch(link.url, { credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: job.controller.signal, redirect: 'error' });
+          if (!response.ok || !response.body) throw new Error('The file server rejected this download.');
+          const reader = response.body.getReader(), total = Number(response.headers.get('Content-Length')) || freshFile?.size || 0; let done = 0, last = 0;
+          while (true) {
+            const chunk = await reader.read(); if (chunk.done) break;
+            if (!live(session, client)) { await reader.cancel(); throw new Error('Session ended.'); }
+            await writer.write(chunk.value); done += chunk.value.byteLength;
+            if (Date.now() - last > 300) { job.status = 'Saving ' + C.bytes(done) + (total ? ' / ' + C.bytes(total) : ''); last = Date.now(); if (S.view === 'downloads') renderJobs(); }
+          }
+          if (total > 0 && done !== total) throw new Error('The transfer ended before the complete file arrived. Please retry.');
+          await writer.close(); writer = null; job.status = 'Saved to your device.'; job.done = true; job.link = null;
+        } catch (error) {
+          if (writer) await writer.abort().catch(() => {});
+          if (!live(session, client)) return;
+          if (job.controller.signal.aborted) { job.status = 'Cancelled.'; job.link = null; return; }
+          throw new Error('Direct save could not finish. The file server may block browser streaming. Use “Browser download” in Device downloads, or retry.');
+        }
+      } else {
+        // No in-memory Blob: large files go straight from TorBox to the browser download manager.
+        if (link.credentialBearing) {
+          job.status = 'Ready. TorBox included your API key in the file link. Your browser may retain that link in its download history.';
+          job.needsConsent = true;
+        } else { browserSave(job); }
+      }
+      if (live(session, client)) { notice(job.done ? 'Saved “' + name + '”.' : 'Download ready. Open Device downloads to save the file and view its status.', 'success'); S.view = 'downloads'; S.item = null; S.files = []; S.selected.clear(); render(); }
+    } catch (error) { if (live(session, client)) { job.status = error.message; job.failed = true; job.retry ||= () => startDownload(item, file, zip, null, true); if (error.auth) clearSession(error.message); else { notice(error.message, 'error'); S.view = 'downloads'; S.item = null; render(); } } }
+    finally { inFlightDownloads.delete(downloadKey); job.busy = false; if (node?.isConnected) node.disabled = false; if (live(session, client)) { counts(); if (S.view === 'downloads') renderJobs(); } }
+  }
+  function browserSave(job) {
+    const a = el('a', { href: job.link.url, download: job.name, target: '_blank', rel: 'noopener noreferrer' }); document.body.append(a); a.click(); a.remove();
+    job.needsConsent = false; job.status = 'Sent to your browser. Check its download list for progress. If it did not start, use Save file below.';
+  }
+  function renderJobs() {
+    $('jobs').replaceChildren();
+    if (!S.jobs.length) { const empty = el('div', { class: 'empty' }); empty.append(el('strong', {}, 'No device downloads yet'), el('span', { class: 'muted' }, 'Choose a file, then Download.')); $('jobs').append(empty); return; }
+    for (const job of S.jobs) {
+      const row = el('div', { class: 'download-job' }), actions = el('div', { class: 'actions' }); row.append(el('strong', {}, job.name), el('p', { class: 'status', role: 'status' }, job.status));
+      if (job.busy) actions.append(button('Cancel', () => { job.controller.abort(); job.status = 'Cancelling…'; renderJobs(); }));
+      else if (job.needsConsent) actions.append(button('Continue with browser download', () => { browserSave(job); renderJobs(); }));
+      else if (job.link && !job.failed) actions.append(el('a', { class: 'button', href: job.link.url, download: job.name, target: '_blank', rel: 'noopener noreferrer' }, 'Save file'));
+      if (!job.busy && !job.done && job.retry) actions.append(button(job.failed ? 'Browser download' : 'Get a fresh link', job.retry));
+      row.append(actions); $('jobs').append(row);
+    }
+  }
+  $('download-selected').onclick = async e => {
+    const item = S.item, files = S.files.filter(f => S.selected.has(f.id) && !f.infected);
+    if (!item || !files.length) return;
+    // Individual save links avoid browser multi-download blocking and huge ZIPs.
+    const node = e.currentTarget; node.disabled = true; const session = S.session, client = S.client;
+    try {
+      const fresh = await client.detail(item);
+      for (const f of files) {
+        if (!live(session, client)) break;
+        const actual = fresh.files.find(x => x.id === f.id); if (!actual || actual.infected) throw new Error('A selected file changed or was flagged as infected. Refresh and review it.');
+        const job = addJob(actual.name);
+        try { job.link = await client.link(fresh.item, actual); if (!live(session, client)) break; job.needsConsent = job.link.credentialBearing; job.status = job.needsConsent ? 'TorBox included your API key in this link. Browser download history may retain it.' : 'Ready to save. Use Save file.'; job.retry = () => startDownload(item, actual, false, null, true); }
+        catch (error) { job.status = error.message; job.failed = true; throw error; }
+        finally { inFlightDownloads.delete(downloadKey); job.busy = false; }
+      }
+      if (live(session, client)) { S.view = 'downloads'; S.item = null; S.selected.clear(); notice('Save each selected file from the list below.', 'success'); render(); }
+    } catch (error) { if (live(session, client)) { if (error.auth) clearSession(error.message); else { S.view = 'downloads'; S.item = null; notice(error.message, 'error'); render(); } } }
+    finally { node.disabled = false; }
+  };
+  document.addEventListener('keydown', event => { if (event.key === 'Backspace' && S.item && !$('dialog').open && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); S.folder = S.folder.split('/').slice(0, -1).join('/'); S.page = 0; render(); } });
+})();
+</script></body></html>
