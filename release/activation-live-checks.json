@@ -1,0 +1,51 @@
+[
+  {
+    "name": "health",
+    "status": 200,
+    "allowOrigin": null,
+    "cache": "no-store, private",
+    "body": "{\"ok\":true,\"version\":\"2.1.0\",\"storage\":\"none\",\"mediaProxy\":false}"
+  },
+  {
+    "name": "preflight",
+    "status": 204,
+    "allowOrigin": "https://to-shreds.github.io",
+    "cache": "no-store, private",
+    "body": ""
+  },
+  {
+    "name": "file-origin",
+    "status": 204,
+    "allowOrigin": "null",
+    "cache": "no-store, private",
+    "body": ""
+  },
+  {
+    "name": "no-key",
+    "status": 401,
+    "allowOrigin": "https://to-shreds.github.io",
+    "cache": "no-store, private",
+    "body": "{\"success\":false,\"error\":\"NO_AUTH\",\"detail\":\"Enter your TorBox API key.\"}"
+  },
+  {
+    "name": "invalid-key",
+    "status": 403,
+    "allowOrigin": "https://to-shreds.github.io",
+    "cache": "no-store, private",
+    "body": "{\"success\":false,\"error\":\"BAD_TOKEN\",\"detail\":\"TorBox rejected the API key.\"}"
+  },
+  {
+    "name": "hostile-origin",
+    "status": 403,
+    "allowOrigin": null,
+    "cache": "no-store, private",
+    "body": "{\"success\":false,\"error\":\"DROP_REQUEST_FAILED\",\"detail\":\"This website is not allowed to use the TorBox Drop API.\"}"
+  },
+  {
+    "name": "unknown-route",
+    "status": 404,
+    "allowOrigin": null,
+    "cache": "no-store, private",
+    "body": "{\"success\":false,\"error\":\"DROP_REQUEST_FAILED\",\"detail\":\"Unknown operation.\"}"
+  }
+]

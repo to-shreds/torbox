@@ -1,6 +1,6 @@
 # TorBox Drop 2.1.0 verification
 
-Verified 2026-10-01. Android artifact is ready for a private in-place update. The web frontend and relay implementation pass automated verification, but live web access is BLOCKED until the Render connector's mandatory workspace confirmation and relay deployment. The page deliberately disables key entry while unconfigured.
+Verified 2026-10-01. Android artifact is ready for a private in-place update. The web frontend and free stateless relay are activated and verified. Jon confirmed the workspace, the relay deployed successfully, and the published page now enables API-key sign-in. See ACTIVATION-2.1.0.md for the live checks.
 
 ## Changes
 
@@ -38,7 +38,7 @@ The evidence ZIP contains the actual Android XML results, lint report, web/core 
 - APK: `TorBox-Drop-v2.1.0.apk`, 2,535,916 bytes.
 - APK SHA-256: `6a6a8101eec1979105896e4c9ee9904698a6140f34dede85186df19923309b3d`.
 - Unsigned APK SHA-256: `bf0a74d6b84a4753ecd7bfdd48968502a02e817524a16eaf2727c5af7817939f`.
-- Standalone HTML SHA-256: `149a1653295eb90c77796c7d0cc814717ea71fbe7584f22fcd12c54d41176ee2`.
+- Standalone HTML SHA-256: `1b308d632fc680aee964c023fda83376dacce1c84cf3b321e126df899564dacb`.
 - Signer SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
 
 This matches the retained private 2.0.6/2.0.7 certificate, so install over the matching private app without uninstalling or changing Google OAuth. No signing keys or passwords are published.
@@ -47,4 +47,4 @@ This matches the retained private 2.0.6/2.0.7 certificate, so install over the m
 
 No live TorBox API key or physical Android device was supplied. Account-specific download permissions, real TorBox storage-link expiry/CORS, Android DownloadManager/device storage settings and Google Drive delivery still need live acceptance. Automated success is not described as a live-account or physical-device test.
 
-TorBox's live CORS preflight rejects GitHub Pages origins. The deployment is therefore a free stateless Node API relay, with direct TorBox file downloads and no credential database. Render requires Jon to confirm **My Workspace** before creation. Once confirmed, create the service from render.yaml, use its returned URL, verify health/preflight/auth boundary, regenerate HTML, synchronize Misc/TorboxDrop, and repeat a real account download. Do not ask Jon to post his TorBox key in chat.
+TorBox's live CORS preflight rejects GitHub Pages origins. The deployment is therefore a free stateless Node API relay, with direct TorBox file downloads and no credential database. Jon confirmed **My Workspace**, and the free relay is live at https://torbox-drop-api.onrender.com. Health, CORS and authentication rejection were checked against the deployed service, and both GitHub Pages HTML files match the activated build. The original evidence ZIP records the pre-activation verification; ACTIVATION-2.1.0.md and activation-live-checks.json record the completed rollout. A successful real-account download remains a live acceptance check. Do not ask Jon to post his TorBox key in chat.
