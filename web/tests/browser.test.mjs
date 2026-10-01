@@ -74,7 +74,7 @@ test('mobile and tablet retain aligned date columns with contained horizontal sc
  await browse(f.page);assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  const box=await f.page.getByRole('button',{name:'Download',exact:true}).first().boundingBox();assert.ok(box.x+box.width<=378);
  await f.page.screenshot({path:'web/verification/mobile.png',fullPage:true});
- await f.page.getByRole('button',{name:/All files/}).click();
+ await f.page.locator('[data-view=all]').click();
  for(const width of [320,740,1024]){
   await f.page.setViewportSize({width,height:900});
   assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
