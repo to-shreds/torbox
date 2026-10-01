@@ -665,6 +665,7 @@ private fun WideDownloadRow(
                 maxLines = if (density == DownloadDensity.DETAILED) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (active) {
                 Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -773,6 +774,7 @@ private fun CompactDownloadRow(
                     Text(percentLabel(item), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
             }
+            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (active) {
                 Spacer(Modifier.height(5.dp))
                 DownloadProgressIndicator(
@@ -853,6 +855,7 @@ private fun CozyDownloadRow(
                 color = if (item.isProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
+            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (active) {
                 Spacer(Modifier.height(7.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -929,6 +932,7 @@ private fun DetailedDownloadRow(
                 }
                 IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) { Icon(Icons.Outlined.MoreVert, "More actions") }
             }
+            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (active) {
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1281,8 +1285,8 @@ private fun DownloadTab.label(): String = when (this) {
 }
 
 private fun DownloadSort.label(): String = when (this) {
-    DownloadSort.NEWEST -> "Newest first"
-    DownloadSort.OLDEST -> "Oldest first"
+    DownloadSort.NEWEST -> "Added: newest first"
+    DownloadSort.OLDEST -> "Added: oldest first"
     DownloadSort.LARGEST -> "Largest first"
     DownloadSort.NAME -> "Name"
 }

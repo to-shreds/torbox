@@ -10,7 +10,6 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.OpenableColumns
 import android.webkit.CookieManager
 import android.webkit.URLUtil
@@ -85,7 +84,12 @@ import app.jabs.torboxdrop.ui.theme.TorBoxDropTheme
 import app.jabs.torboxdrop.util.UrlSafety
 import java.util.Locale
 import kotlin.coroutines.resume
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import app.jabs.torboxdrop.util.DeviceDownloads
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 class MainActivity : ComponentActivity() {
@@ -269,9 +273,9 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
     ) { uri -> uri?.let { viewModel.receiveTorrentUri(it, "file-picker") } }
 
     LaunchedEffect(viewModel) {
-        viewModel.events.collectLatest { event ->
+        viewModel.events.collect { event ->
             when (event) {
-                is MainEvent.Message -> snackbarHostState.showSnackbar(event.text)
+                is MainEvent.Message -> launch { snackbarHostState.showSnackbar(event.text) }
                 is MainEvent.ShareText -> {
                     val token = configuredApiToken()
                     when {
@@ -297,12 +301,19 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
                     }
                 }
                 is MainEvent.DownloadToDevice -> {
-                    if (!allowsExternalUrl(event.url, event.requiresTorBoxUrlSafety)) {
-                        snackbarHostState.showSnackbar("Unsafe credential-bearing link was blocked.")
+                    if (event.requiresTorBoxUrlSafety && !UrlSafety.isSafeForDeviceDownload(event.url, configuredApiToken())) {
+                        viewModel.completeFileAction(event.sourceKey, error = "This download link was blocked because its destination could not be verified.")
+                        launch { snackbarHostState.showSnackbar("Unsafe download link was blocked.") }
                     } else {
                         runCatching { enqueueDownload(context, event) }
-                            .onSuccess { snackbarHostState.showSnackbar("Download queued in Android Downloads") }
-                            .onFailure { snackbarHostState.showSnackbar("Android could not queue that download.") }
+                            .onSuccess { id ->
+                                viewModel.completeFileAction(event.sourceKey, message = "Queued in Android Downloads.", downloadId = id)
+                                launch { snackbarHostState.showSnackbar("Download queued in Android Downloads") }
+                            }
+                            .onFailure {
+                                viewModel.completeFileAction(event.sourceKey, error = "Android could not queue the download. Check that Android Download Manager is enabled, then retry.")
+                                launch { snackbarHostState.showSnackbar("Android could not queue that download.") }
+                            }
                     }
                 }
                 is MainEvent.OpenUri -> {
@@ -402,7 +413,7 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
                         onSearchChanged = viewModel::setSearch,
                         onSortChanged = viewModel::setSort,
                         onFilterChanged = viewModel::setFilter,
-                        onDownloadClick = viewModel::openDetail,
+                        onDownloadClick = { item -> if (item.isReady) viewModel.openFiles(item) else viewModel.openDetail(item) },
                         onToggleNotification = { item ->
                             if ("${item.type.name}:${item.id}" in state.watchedKeys) {
                                 viewModel.toggleWatch(item)
@@ -538,6 +549,13 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             error = sheet.error,
             sharingFileId = sheet.sharingFileId,
             shareError = sheet.shareError,
+            actionBusy = sheet.fileActionBusy,
+            actionMessage = sheet.fileActionMessage,
+            actionError = sheet.fileActionError,
+            onViewDeviceDownloads = {
+                runCatching { context.startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
+                    .onFailure { viewModel.completeFileAction("${sheet.download.type.name}:${sheet.download.id}", error = "Open your device’s Files app, then Downloads.") }
+            },
             onRetry = viewModel::retryFiles,
             onOpenFile = viewModel::openFile,
             onDownloadFile = { viewModel.downloadFile(it, infectedConfirmed = it.infected) },
@@ -547,6 +565,19 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
                 { viewModel.downloadZip(sheet.download) }
             } else null,
         )
+    }
+
+    val deviceId = state.fileSheet?.androidDownloadId
+    val deviceSourceKey = state.fileSheet?.download?.let { "${it.type.name}:${it.id}" }
+    LaunchedEffect(deviceId, deviceSourceKey) {
+        if (deviceId != null && deviceSourceKey != null) {
+            while (true) {
+                val status = runCatching { withContext(Dispatchers.IO) { DeviceDownloads.status(context, deviceId) } }.getOrNull() ?: break
+                viewModel.updateDeviceDownload(deviceSourceKey, deviceId, status.message, status.failed)
+                if (!status.running) break
+                delay(1500)
+            }
+        }
     }
 
     if (state.showBookmarks) {
@@ -709,33 +740,8 @@ private fun loadedFileMatches(state: MainUiState): Set<String> {
         .toSet()
 }
 
-private fun enqueueDownload(context: Context, event: MainEvent.DownloadToDevice): Long {
-    val uri = Uri.parse(event.url)
-    require(uri.scheme == "https" && !uri.host.isNullOrBlank())
-    val cleanName = event.fileName
-        .replace(Regex("[\\\\/:*?\"<>|\\p{Cc}]"), "_")
-        .trim()
-        .take(180)
-        .ifBlank { "torbox-download" }
-    val destinationName = uniqueDownloadName(cleanName)
-    val request = DownloadManager.Request(uri)
-        .setTitle(cleanName)
-        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        .setAllowedOverMetered(true)
-        .setAllowedOverRoaming(false)
-    event.mimeType?.takeIf { it.contains('/') }?.let(request::setMimeType)
-    event.requestHeaders.forEach { (name, value) ->
-        require(name.matches(Regex("[A-Za-z0-9-]{1,64}")))
-        require(value.length <= 8_192 && '\r' !in value && '\n' !in value)
-        request.addRequestHeader(name, value)
-    }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, destinationName)
-    } else {
-        request.setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, destinationName)
-    }
-    return context.getSystemService(DownloadManager::class.java).enqueue(request)
-}
+internal fun enqueueDownload(context: Context, event: MainEvent.DownloadToDevice): Long =
+    DeviceDownloads.enqueue(context, event.url, event.fileName, event.mimeType, event.requestHeaders)
 
 private fun openUri(context: Context, event: MainEvent.OpenUri) {
     val uri = Uri.parse(event.url)
@@ -749,14 +755,6 @@ private fun openUri(context: Context, event: MainEvent.OpenUri) {
     )
 }
 
-private fun uniqueDownloadName(fileName: String): String {
-    val lastDot = fileName.lastIndexOf('.')
-    val hasExtension = lastDot in 1 until fileName.lastIndex
-    val base = if (hasExtension) fileName.substring(0, lastDot) else fileName
-    val extension = if (hasExtension) fileName.substring(lastDot) else ""
-    val suffix = "-${System.currentTimeMillis()}"
-    return base.take((180 - extension.length - suffix.length).coerceAtLeast(1)) + suffix + extension
-}
 
 private suspend fun clearBrowserData(context: Context) {
     suspendCancellableCoroutine { continuation ->

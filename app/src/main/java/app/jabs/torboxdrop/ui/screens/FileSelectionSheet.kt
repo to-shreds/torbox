@@ -104,6 +104,10 @@ fun FileSelectionSheet(
     error: String? = null,
     sharingFileId: Long? = null,
     shareError: String? = null,
+    actionBusy: Boolean = false,
+    actionMessage: String? = null,
+    actionError: String? = null,
+    onViewDeviceDownloads: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null,
     onOpenFile: ((DownloadFile) -> Unit)? = null,
     onDownloadFile: ((DownloadFile) -> Unit)? = null,
@@ -188,6 +192,21 @@ fun FileSelectionSheet(
                 onDismiss = onDismissRequest,
             )
 
+            Text(
+                text = app.jabs.torboxdrop.ui.downloadDates(download),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (actionBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            actionMessage?.let {
+                Text(it, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp), style = MaterialTheme.typography.bodyMedium)
+            }
+            actionError?.let { InlineError(message = it, onRetry = null) }
+            if (onViewDeviceDownloads != null && (actionMessage != null || actionError != null)) {
+                TextButton(onClick = onViewDeviceDownloads, modifier = Modifier.padding(horizontal = 12.dp)) { Text("Open Android Downloads") }
+            }
+
             if (containsInfectedFiles) {
                 InfectedFilesBanner(count = files.count(DownloadFile::infected))
             }
@@ -252,7 +271,7 @@ fun FileSelectionSheet(
                     error = error,
                     selectionMode = selectionMode,
                     selectedIds = selectedIds,
-                    contentReady = contentReady,
+                    contentReady = contentReady && !actionBusy,
                     shareInProgress = sharingFileId != null,
                     onRetry = onRetry,
                     onToggleSelected = { file ->
@@ -298,7 +317,7 @@ fun FileSelectionSheet(
                         selectedIds = emptySet()
                     }
                 },
-                onDownloadZip = { if (zipAvailable) onDownloadZip?.invoke() },
+                onDownloadZip = { if (zipAvailable && !actionBusy) onDownloadZip?.invoke() },
             )
         }
     }
