@@ -104,6 +104,7 @@
     $('jobs').hidden = !jobs; $('list-panel').hidden = jobs; $('toolbar').hidden = jobs; $('date-note').hidden = jobs;
     $('type').hidden = !!S.item; $('extension').hidden = !S.item; $('breadcrumbs').hidden = !S.item; $('file-meta').hidden = !S.item; $('file-actions').hidden = !S.item; $('search').placeholder = S.item ? 'Search this folder and subfolders' : 'Search names and tags';
     $('selection').hidden = !S.item || S.selected.size === 0; $('selected-count').textContent = S.selected.size + ' selected';
+    for (const option of $('sort').options) option.disabled = !!S.item && /^(added|cachedAt):/.test(option.value);
     if (jobs) { renderJobs(); return; }
     if (S.item) renderBreadcrumbs();
     const [field, direction] = $('sort').value.split(':'), q = $('search').value.trim().toLocaleLowerCase();
@@ -329,7 +330,7 @@
         const job = addJob(actual.name);
         try { job.link = await client.link(fresh.item, actual); if (!live(session, client)) break; job.needsConsent = job.link.credentialBearing; job.status = job.needsConsent ? 'TorBox included your API key in this link. Browser download history may retain it.' : 'Ready to save. Use Save file.'; job.retry = () => startDownload(item, actual, false, null, true); }
         catch (error) { job.status = error.message; job.failed = true; throw error; }
-        finally { inFlightDownloads.delete(downloadKey); job.busy = false; }
+        finally { job.busy = false; }
       }
       if (live(session, client)) { S.view = 'downloads'; S.item = null; S.selected.clear(); notice('Save each selected file from the list below.', 'success'); render(); }
     } catch (error) { if (live(session, client)) { if (error.auth) clearSession(error.message); else { S.view = 'downloads'; S.item = null; notice(error.message, 'error'); render(); } } }
