@@ -4,7 +4,7 @@
 
 [Download the Android APK](release/TorBox-Drop-v2.1.0.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
 
-The web page is published with sign-in disabled until its stateless API relay is activated. It must not collect keys using an unverified service URL. See [web/README.md](web/README.md) for activation and privacy details.
+The web page uses the verified free stateless relay at `https://torbox-drop-api.onrender.com`. Sign in with your TorBox API key; it is kept only for the current session. Files download directly from TorBox. See [web/README.md](web/README.md) for use and privacy details.
 
 Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density shows the actual added date and age; cache dates are shown separately. Ready rows open the folder browser. This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.
 

@@ -4,7 +4,7 @@ Version 2.1.0. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `
 
 ## Use
 
-After activation, enter your TorBox API key in the password field. The current-user API validates it before any account lists populate. Sign out or reload to clear the session. Your key is not saved. The Android APK is linked from the login page and desktop header.
+Enter your TorBox API key in the password field. The current-user API validates it before any account lists populate. Sign out or reload to clear the session. Your key is not saved. The Android APK is linked from the login page and desktop header.
 
 Open a collection, then folders. Use breadcrumbs or Backspace to go up; search includes subfolders, and extension filters match exact extensions. The table supports natural names, size, added and cache dates. Missing dates are explicitly unknown. Individual files do not have fabricated timestamps; their collection's dates remain above the file table. A cache timestamp may predate adding a cached item, so it is never labeled Completed.
 
@@ -25,11 +25,13 @@ Download uses the browser's streaming file picker when supported. The stream is 
 
 No live TorBox API key is included in fixtures or source. Tests use deterministic TorBox responses and synthetic file bytes. Real account permissions, quota, cache availability and device download settings still affect live actions.
 
-## Activation
+## Hosting and maintenance
 
 Live TorBox CORS checks on 2026-10-01 rejected GitHub Pages origins. A static page alone cannot authenticate. `relay/server.mjs` is a dependency-free Node 22 relay with a fixed upstream, route/method allowlists, per-request bearer authentication, bounded request/response sizes, timeout, strict origins, and no storage or media proxy. `render.yaml` specifies a free Render service.
 
-The Render connector requires explicit confirmation of **My Workspace** before creation. No service has been created or selected. Keep `<meta name="torbox-api" content="">` empty and login disabled until a deployment URL has been returned and its health/preflight/auth boundary verified. Then set the returned URL plus `/api/`, run `node web/build.mjs`, and synchronize `web/index.html` to `Misc/TorboxDrop/index.html` and `Misc/TorboxDrop/TorBox-Drop.html`. Never guess an unclaimed relay hostname.
+Jon confirmed **My Workspace** on 2026-10-01. The free service `srv-davdjv0u01pc73ec1phg` is live at `https://torbox-drop-api.onrender.com`, deployed from this repository's main branch. Health, GitHub Pages/file-origin preflight, missing-key and real upstream invalid-key rejection, hostile-origin rejection, and unknown-route rejection were verified. No TorBox key is configured on the server.
+
+The verified `/api/` address is in the template's torbox-api meta value. After edits, run `node web/build.mjs` and synchronize `web/index.html` to `Misc/TorboxDrop/index.html` and `Misc/TorboxDrop/TorBox-Drop.html`. If this service is ever removed/replaced, empty that meta value to disable key entry until the new deployment URL is verified. Never guess an unclaimed relay hostname.
 
 No TorBox key belongs in Render environment variables. The relay accepts the key only on the current user's request and forwards it to TorBox. Default allowed origin is `https://to-shreds.github.io`; file-origin HTML is supported with `Origin: null` and still requires authentication. A free service may need a minute to wake up.
 
