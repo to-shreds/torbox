@@ -26,8 +26,8 @@ async function fixture(t,options={}) {
   throw new Error('Unhandled fixture route '+path);
  }});
  server.listen(0,'127.0.0.1');await once(server,'listening');
- const context=await browser.newContext({viewport:options.viewport||{width:1440,height:960},acceptDownloads:true});
- const page=await context.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const context=await browser.newContext({locale:'en-US',timezoneId:'UTC',viewport:options.viewport||{width:1440,height:960},acceptDownloads:true});
+ const page=await context.newPage(), errors=[];page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{window.showSaveFilePicker=undefined;});
  await page.route('https://cdn.example.test/**',route=>route.fulfill({status:200,contentType:'application/octet-stream',headers:{'Content-Disposition':'attachment; filename=test-file.txt','Access-Control-Allow-Origin':'*'},body:'fixture-download'}));
  const url=`http://127.0.0.1:${server.address().port}`;await page.goto(url);
@@ -51,3 +51,5 @@ test('HTML-like filenames render as text rather than executing',async t=>{const 
 test('partial service failures retain successful lists with a visible explanation',async t=>{const f=await fixture(t,{override:async u=>u.pathname.includes('/webdl/mylist')?new Response(JSON.stringify({success:false}),{status:503}):null});await f.login();assert.equal(await f.page.locator('#rows tr').count(),3);assert.match(await f.page.locator('#notice').innerText(),/Some lists could not be refreshed/);});
 test('sign out during late detail response cannot repopulate private data',async t=>{let release;const f=await fixture(t,{override:async u=>u.pathname.endsWith('/mylist')&&u.searchParams.has('id')?await new Promise(r=>release=()=>r(new Response(JSON.stringify({success:true,data:[base(1)]})))):null});await f.login();await f.page.getByRole('button',{name:'Collection 1',exact:true}).click();await f.page.getByRole('button',{name:'Sign out',exact:true}).click();release?.();await new Promise(r=>setTimeout(r,100));assert.equal(await f.page.locator('#app').isVisible(),false);assert.equal(await f.page.locator('#rows tr').count(),0);});
 test('expired API key returns to sign-in and clears rows',async t=>{const f=await fixture(t);await f.login();f.state.override=async()=>new Response(JSON.stringify({success:false,error:'BAD_TOKEN'}),{status:401});await f.page.locator('#refresh').click();await f.page.locator('#login').waitFor({state:'visible'});assert.equal(await f.page.locator('#rows tr').count(),0);assert.match(await f.page.locator('#login-error').innerText(),/rejected/);});
+
+test('unconfigured publication blocks API-key entry until the relay is activated',async t=>{const f=await fixture(t);const html=await readFile('web/index.html','utf8');await f.page.route(f.url+'/',route=>route.fulfill({contentType:'text/html',body:html}));await f.page.reload();assert.equal(await f.page.locator('#api-key').isDisabled(),true);assert.equal(await f.page.locator('#connect').isDisabled(),true);assert.match(await f.page.locator('#login-error').innerText(),/activation/);assert.equal(f.requests.length,0);});

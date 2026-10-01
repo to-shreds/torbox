@@ -1,4 +1,4 @@
-/* TorBox Drop 2.1.0. No storage, analytics, backend, or third-party script dependencies. */
+/* TorBox Drop 2.1.0. No browser storage, analytics, or third-party script dependencies. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;

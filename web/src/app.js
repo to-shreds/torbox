@@ -2,6 +2,10 @@
   'use strict';
   const C = TorBoxCore, $ = id => document.getElementById(id), PAGE_SIZE = 100;
   const inFlightDownloads = new Set();
+  if (!document.querySelector('meta[name="torbox-api"]')?.content) {
+    $('api-key').disabled = true; $('connect').disabled = true; $('connect').textContent = 'Web activation pending';
+    $('login-error').textContent = 'The web client is built, but its API relay still needs activation. Use the Android APK below in the meantime.'; $('login-error').hidden = false;
+  }
   const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null };
   const views = { all: 'All files', active: 'Active', finished: 'Finished', queue: 'Queue', airlock: 'AirLock', downloads: 'Device downloads' };
   function el(tag, attrs = {}, text = '') {
