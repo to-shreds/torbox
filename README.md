@@ -1,6 +1,16 @@
 # TorBox Drop
 
-## 2.0.6 manual Google Drive delivery
+## 2.1.0 downloads and explorer
+
+[Download the Android APK](release/TorBox-Drop-v2.1.0.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
+
+The web page is published with sign-in disabled until its stateless API relay is activated. It must not collect keys using an unverified service URL. See [web/README.md](web/README.md) for activation and privacy details.
+
+Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density shows the actual added date and age; cache dates are shown separately. Ready rows open the folder browser. This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.
+
+The responsive web client adds session-only API-key login, an explorer with folders/breadcrumbs, natural sorting, dates, search, type filters, multi-file selection, ZIP and individual downloads, queue controls, rename/tags, AirLock, and add/delete/pause/resume/reannounce where TorBox supports them. Native Drive automation and background notifications remain available in the APK.
+
+## Preserved manual Google Drive delivery
 
 Ready torrent rows now include a Drive button. It opens a folder-name confirmation prompt, then queues a copy to that folder without changing the automatic-upload default or deleting the TorBox original. See [MANUAL_DRIVE.md](MANUAL_DRIVE.md) for the per-folder queue and the limitation on concurrent uploads from other TorBox clients.
 
@@ -72,7 +82,7 @@ The implementation follows the current official TorBox Main API rather than infe
 - Before a live torrent refresh, the app can make the credential-free Relay request listed in TorBox's current official Postman workspace to ask the service to refresh that torrent's server-side statistics. Relay requests are best-effort and coalesced per account and torrent for 10 seconds across foreground and background callers. The route is not part of the Main API OpenAPI document, so the following authenticated `mylist?bypass_cache=true` response remains the only displayed truth.
 - Foreground Active refresh runs approximately every five seconds. Values are never interpolated between Main API responses.
 - Stable finished data uses normal cached list requests. Manual refresh and active monitoring ask TorBox for fresh data only where it helps.
-- Download-link requests use `redirect=false`. The API credential is used only in the private native request. Only a returned HTTPS temporary URL that does not contain the raw or encoded token may leave the API layer.
+- Download-link requests use `redirect=false`. The API credential is used only in the private native request. Credential-free returned HTTPS URLs are allowed for normal copy/open actions. A narrow allowlist also permits TorBox-owned credential-bearing storage links for private Android DownloadManager delivery. External sharing retains its separate explicit API-key disclosure and confirmation. No generated link is cached as file metadata.
 - AirLock, rename, and tag edits first fetch current editable state and submit the complete name, tags, alternative hashes, and AirLock tuple so unrelated values are preserved.
 
 Useful source material: [TorBox API documentation](https://api-docs.torbox.app/), [TorBox OpenAPI document](https://api.torbox.app/openapi.json), [official TorBox Postman workspace](https://www.postman.com/torbox/torbox-api/overview), [TorBox API rate limits](https://support.torbox.app/en/articles/13726368-api-rate-limits), and [TorBox AirLock](https://support.torbox.app/en/articles/15417147-torbox-airlock).
@@ -91,9 +101,9 @@ From the repository root in a networked build environment:
 ./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The verified distribution artifact for the historical v2.0.3 line is `release/TorBox-Drop-v2.0.3.apk`; it is minified, resource-shrunk, zip-aligned, and signed with that line's release key. Private signing keys are deliberately not committed.
+The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The 2.1.0 distribution artifact is `release/TorBox-Drop-v2.1.0.apk`, minified, resource-shrunk, zip-aligned, and signed with the retained private-use certificate. Private signing keys and passwords are never committed. CI publishes unsigned release builds; signing takes place outside CI.
 
-The Google Drive source is versioned as 2.0.4. CI produces a debug APK and an unsigned minified release candidate. For current personal/private use, a verified candidate may be signed with a retained private-use key. If the previous private key is unavailable, generate a new key and require uninstall/reinstall rather than blocking the build. Google Drive authorization must be registered for the certificate of the APK actually installed. Public distribution remains a separate release decision.
+Package: `app.jabs.torboxdrop`; versionCode: `20100`; minimum Android SDK: 23; target SDK: 36. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 
@@ -119,4 +129,4 @@ Android references: [foreground-service types](https://developer.android.com/dev
 
 ## Privacy
 
-TorBox Drop has no analytics or tracking SDK. It does not log API tokens, place them in browser pages, send them in Android share intents, or retain generated CDN links as file metadata.
+TorBox Drop has no analytics or tracking SDK. The native app encrypts its saved token with Android Keystore. The web client retains its token only in tab memory, clears it on sign-out/reload, and uses no localStorage, sessionStorage, cookies, analytics, or database. Its relay keeps credentials only while forwarding the current TorBox API request and never proxies file bytes. Direct TorBox links can include your key; Android/browser download history can retain those URLs. External sharing requires the existing native confirmation; the web client refuses credential-bearing copy/open/share actions.

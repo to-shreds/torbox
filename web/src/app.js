@@ -127,6 +127,7 @@
     text.append(button(item.name, () => item.queued ? details(item) : openFiles(item), 'name-button'), el('span', { class: 'sub' }, (item.type === 'torrent' ? 'Torrent' : 'Web download') + (item.tags.length ? ' · ' + item.tags.join(', ') : '') + (item.airlocked ? ' · AirLocked' : '')));
     const d = C.dateLabel(item.added); text.append(el('span', { class: 'mobile-date', title: d.full }, `Added ${d.date}${d.age ? ' · ' + d.age : ''}`));
     if (item.cachedAt) { const c = C.dateLabel(item.cachedAt); text.append(el('span', { class: 'mobile-date', title: c.full }, `Cached ${c.date} · ${c.age}`)); }
+    text.append(el('span', { class: 'mobile-date' }, item.state + (!item.ready && item.progress != null ? ' · ' + Math.round(item.progress * 100) + '%' : '')));
     entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, '▤'), text); name.append(entry);
     const state = el('td', { class: 'state-column' }); state.append(el('span', { class: 'state' + (item.ready ? ' ready' : /fail|error|missing|expired/i.test(item.state) ? ' problem' : '') }, item.state));
     if (!item.ready && !item.queued && item.progress != null) { state.append(el('progress', { max: 1, value: item.progress, 'aria-label': 'Download progress' }), el('span', { class: 'sub' }, Math.round(item.progress * 100) + '%' + (item.download_speed > 0 ? ' · ' + C.bytes(item.download_speed) + '/s' : ''))); }
