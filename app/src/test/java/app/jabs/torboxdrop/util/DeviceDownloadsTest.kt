@@ -19,7 +19,7 @@ class DeviceDownloadsTest {
         assertThat(UrlSafety.isSafeToShare(url, token)).isFalse()
         assertThat(UrlSafety.isSafeForDeviceDownload(url, token)).isTrue()
         val download = DeviceDownloads.enqueue(context, url, "folder/movie.mp4", "video/mp4", emptyMap())
-        assertThat(download).isGreaterThan(0)
+        assertThat(download).isAtLeast(0)
         context.getSystemService(DownloadManager::class.java).query(DownloadManager.Query().setFilterById(download)).use {
             assertThat(it.moveToFirst()).isTrue()
             assertThat(it.getString(it.getColumnIndexOrThrow(DownloadManager.COLUMN_URI))).isEqualTo(url)

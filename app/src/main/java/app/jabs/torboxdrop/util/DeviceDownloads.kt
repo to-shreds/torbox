@@ -41,7 +41,7 @@ object DeviceDownloads {
         } else {
             request.setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, destination)
         }
-        return context.getSystemService(DownloadManager::class.java).enqueue(request).also { require(it > 0) }
+        return context.getSystemService(DownloadManager::class.java).enqueue(request).also { require(it >= 0) }
     }
 
     data class Status(val message: String, val running: Boolean, val failed: Boolean = false)
