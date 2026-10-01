@@ -1,12 +1,12 @@
 # TorBox Drop web client
 
-Version 2.1.0. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
+Version 2.1.1. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
 
 ## Use
 
 Enter your TorBox API key in the password field. The current-user API validates it before any account lists populate. Sign out or reload to clear the session. Your key is not saved. The Android APK is linked from the login page and desktop header.
 
-Open a collection, then folders. Use breadcrumbs or Backspace to go up; search includes subfolders, and extension filters match exact extensions. The table supports natural names, size, added and cache dates. Missing dates are explicitly unknown. Individual files do not have fabricated timestamps; their collection's dates remain above the file table. A cache timestamp may predate adding a cached item, so it is never labeled Completed.
+Open a collection, then folders. Use breadcrumbs or Backspace to go up; search includes subfolders, and extension filters match exact extensions. The table supports natural names, size, added and cache dates. Added and Cached always occupy separate, sortable columns, including on phones and tablets. Swipe the table sideways to see more columns; Name stays pinned so dates remain associated with the correct item. Missing dates are explicitly unknown. Individual files do not have fabricated timestamps; their collection's dates remain above the file table. A cache timestamp may predate adding a cached item, so it is never labeled Completed.
 
 Download uses the browser's streaming file picker when supported. The stream is written in chunks without loading the whole file into memory, and a failed partial write is aborted. Otherwise the browser receives a direct TorBox link and retains a visible Save file fallback. Some TorBox storage URLs include your key, so browser-history disclosure must be confirmed first. Multi-file selection prepares one save link per file instead of triggering blocked download storms. Device downloads only tracks this tab's actions; the browser owns progress after a normal download handoff.
 

@@ -1,12 +1,14 @@
 package app.jabs.torboxdrop.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,8 +31,6 @@ import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.AddToDrive
 import app.jabs.torboxdrop.drive.ManualDriveCoordinator
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -52,8 +52,6 @@ import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TableRows
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.ViewAgenda
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Checkbox
@@ -102,7 +100,7 @@ import app.jabs.torboxdrop.util.DownloadLists
 import app.jabs.torboxdrop.ui.theme.TorBoxColors
 import java.time.Instant
 
-internal const val WIDE_LAYOUT_MIN_WIDTH_DP = 840
+private const val DATE_COLUMN_WIDTH_DP = 148
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -236,8 +234,7 @@ fun DownloadsScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                val wide = maxWidth >= WIDE_LAYOUT_MIN_WIDTH_DP.dp
+            Box(Modifier.fillMaxSize()) {
                 when {
                     state.initialLoading && state.downloads.isEmpty() && state.queue.isEmpty() -> LoadingRows(state.density)
                     state.error != null && state.downloads.isEmpty() && state.queue.isEmpty() -> ErrorState(
@@ -247,7 +244,6 @@ fun DownloadsScreen(
                     state.selectedTab == DownloadTab.QUEUE -> QueueList(
                         queue = visibleQueue,
                         density = state.density,
-                        wide = wide,
                         listState = selectedListState,
                         searchOrFilterActive = state.search.isNotBlank() || state.filter.isActiveFor(DownloadTab.QUEUE),
                         onStart = onStartQueued,
@@ -257,7 +253,6 @@ fun DownloadsScreen(
                         downloads = visibleDownloads,
                         tab = state.selectedTab,
                         density = state.density,
-                        wide = wide,
                         listState = selectedListState,
                         watchedDownloadIds = watchedDownloadIds,
                         watchedDownloadKeys = watchedDownloadKeys,
@@ -553,7 +548,6 @@ private fun DownloadList(
     downloads: List<DownloadItem>,
     tab: DownloadTab,
     density: DownloadDensity,
-    wide: Boolean,
     listState: LazyListState,
     watchedDownloadIds: Set<String>,
     watchedDownloadKeys: Set<Pair<DownloadType, String>>,
@@ -570,32 +564,15 @@ private fun DownloadList(
         EmptyDownloadsState(tab, searchOrFilterActive)
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState) {
-        if (wide) {
-            item(key = "column-headings", contentType = "column-headings") {
-                WideColumnHeadings(tab)
-            }
-        }
-        items(
-            items = downloads,
-            key = { "${it.type}-${it.id}" },
-            contentType = { "${tab.name}-${density.name}" },
-        ) { item ->
-            if (wide) {
-                WideDownloadRow(
-                    item = item,
-                    tab = tab,
-                    density = density,
-                    watched = item.id in watchedDownloadIds || (item.type to item.id) in watchedDownloadKeys,
-                    onClick = { onClick(item) },
-                    onToggleNotification = { onToggleNotification(item) },
-                    onShare = { onShare(item) },
-                    onDrive = { onDrive(item) },
-                    onToggleAirLock = { onToggleAirLock(item) },
-                    onMenu = { onMenu(item) },
-                )
-            } else {
-                DownloadRow(
+    ExplorerTable(minWidthDp = 920 + downloadActionsWidth(tab)) {
+        ExplorerColumnHeadings(tab)
+        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), state = listState) {
+            items(
+                items = downloads,
+                key = { "${it.type}-${it.id}" },
+                contentType = { "${tab.name}-${density.name}" },
+            ) { item ->
+                ExplorerDownloadRow(
                     item = item,
                     tab = tab,
                     density = density,
@@ -608,32 +585,68 @@ private fun DownloadList(
                     onToggleAirLock = { onToggleAirLock(item) },
                     onMenu = { onMenu(item) },
                 )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .42f))
             }
-            if (density != DownloadDensity.DETAILED) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .42f))
+            item { Spacer(Modifier.height(12.dp)) }
         }
-        item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+/** One scroll container keeps every row and its fixed header aligned. */
+@Composable
+private fun ExplorerTable(minWidthDp: Int, content: @Composable ColumnScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val availableWidth = maxWidth
+        val tableWidth = maxOf(availableWidth, minWidthDp.dp)
+        val horizontalState = rememberScrollState()
+        Column(Modifier.fillMaxSize()) {
+            if (availableWidth < tableWidth) {
+                Text(
+                    "Swipe sideways for more columns",
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Box(Modifier.weight(1f).horizontalScroll(horizontalState)) {
+                Column(Modifier.width(tableWidth).fillMaxHeight(), content = content)
+            }
+        }
+    }
+}
+
+private fun downloadActionsWidth(tab: DownloadTab): Int = if (tab == DownloadTab.ACTIVE) 88 else 224
+
+@Composable
+private fun ExplorerDateCell(value: Instant?) {
+    val parts = dateAndAge(value).split(" · ", limit = 2)
+    Column(Modifier.width(DATE_COLUMN_WIDTH_DP.dp).padding(end = 12.dp, top = 6.dp, bottom = 6.dp)) {
+        Text(parts[0], style = MaterialTheme.typography.labelMedium)
+        if (parts.size > 1) Text(parts[1], style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun WideColumnHeadings(tab: DownloadTab) {
+private fun ExplorerColumnHeadings(tab: DownloadTab) {
     Row(
         modifier = Modifier.fillMaxWidth().height(34.dp).padding(start = 14.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(Modifier.width(38.dp))
         Text("NAME", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("STATUS", Modifier.width(126.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("ADDED", Modifier.width(DATE_COLUMN_WIDTH_DP.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("CACHED", Modifier.width(DATE_COLUMN_WIDTH_DP.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("SIZE", Modifier.width(92.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("STATUS", Modifier.width(126.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(if (tab == DownloadTab.ACTIVE) "SPEED" else "RETENTION", Modifier.width(106.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(if (tab == DownloadTab.ACTIVE) "ETA" else "FILES", Modifier.width(76.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(if (tab == DownloadTab.ACTIVE) 88.dp else 132.dp))
+        Text("ACTIONS", Modifier.width(downloadActionsWidth(tab).dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 @Composable
-private fun WideDownloadRow(
+private fun ExplorerDownloadRow(
     item: DownloadItem,
     tab: DownloadTab,
     density: DownloadDensity,
@@ -642,6 +655,7 @@ private fun WideDownloadRow(
     onToggleNotification: () -> Unit,
     onShare: () -> Unit,
     onDrive: () -> Unit,
+    onFiles: () -> Unit,
     onToggleAirLock: () -> Unit,
     onMenu: () -> Unit,
 ) {
@@ -665,7 +679,6 @@ private fun WideDownloadRow(
                 maxLines = if (density == DownloadDensity.DETAILED) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (active) {
                 Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -676,12 +689,15 @@ private fun WideDownloadRow(
                     Spacer(Modifier.width(8.dp))
                     Text(percentLabel(item), style = MaterialTheme.typography.labelSmall)
                 }
-            } else if (density == DownloadDensity.DETAILED && item.tags.isNotEmpty()) {
-                Text(item.tags.joinToString(", "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+            if (density == DownloadDensity.DETAILED) {
+                Text(if (active) detailedActiveMetadata(item) else detailedFinishedMetadata(item, tab), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
-        Text(item.friendlyState, Modifier.width(126.dp).padding(start = 12.dp), style = MaterialTheme.typography.labelMedium, color = if (item.isProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        ExplorerDateCell(item.createdAt)
+        ExplorerDateCell(item.cachedAt)
         Text(formatBytes(item.totalSize) ?: "–", Modifier.width(92.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(item.friendlyState, Modifier.width(126.dp).padding(end = 12.dp), style = MaterialTheme.typography.labelMedium, color = if (item.isProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(
             if (active) formatRate(item.downloadSpeed) ?: "–" else if (item.airLocked) "AirLocked" else formatExpiry(item.expiresAt) ?: "–",
             Modifier.width(106.dp),
@@ -695,287 +711,22 @@ private fun WideDownloadRow(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (active) {
-            IconButton(onClick = onToggleNotification, modifier = Modifier.size(44.dp)) {
-                Icon(if (watched) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsNone, if (watched) "Stop completion notification" else "Notify when complete", Modifier.size(20.dp))
-            }
-        } else {
-            IconButton(onClick = onShare, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.Share, "Share", Modifier.size(20.dp)) }
-            ManualDriveButton(item, onDrive)
-            if (tab == DownloadTab.AIRLOCK) {
-                IconButton(onClick = onToggleAirLock, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.LockOpen, "Remove from AirLock", Modifier.size(20.dp)) }
-            }
-        }
-        IconButton(onClick = onMenu, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.MoreVert, "More actions", Modifier.size(20.dp)) }
-    }
-}
-
-@Composable
-private fun DownloadRow(
-    item: DownloadItem,
-    tab: DownloadTab,
-    density: DownloadDensity,
-    watched: Boolean,
-    onClick: () -> Unit,
-    onToggleNotification: () -> Unit,
-    onShare: () -> Unit,
-    onDrive: () -> Unit,
-    onFiles: () -> Unit,
-    onToggleAirLock: () -> Unit,
-    onMenu: () -> Unit,
-) {
-    when (density) {
-        DownloadDensity.COMPACT -> CompactDownloadRow(
-            item, tab, watched, onClick, onToggleNotification, onShare, onDrive, onToggleAirLock, onMenu,
-        )
-        DownloadDensity.COZY -> CozyDownloadRow(
-            item, tab, watched, onClick, onToggleNotification, onShare, onDrive, onFiles, onToggleAirLock, onMenu,
-        )
-        DownloadDensity.DETAILED -> DetailedDownloadRow(
-            item, tab, watched, onClick, onToggleNotification, onShare, onDrive, onFiles, onToggleAirLock, onMenu,
-        )
-    }
-}
-
-@Composable
-private fun CompactDownloadRow(
-    item: DownloadItem,
-    tab: DownloadTab,
-    watched: Boolean,
-    onClick: () -> Unit,
-    onToggleNotification: () -> Unit,
-    onShare: () -> Unit,
-    onDrive: () -> Unit,
-    onToggleAirLock: () -> Unit,
-    onMenu: () -> Unit,
-) {
-    val active = tab == DownloadTab.ACTIVE
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = if (active) 90.dp else 68.dp)
-            .clickable(onClick = onClick)
-            .padding(start = 12.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TypeMarker(item.type, item.isProblem)
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    compactDisplayName(item.name),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (active) {
-                    Text(percentLabel(item), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                }
-            }
-            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.width(downloadActionsWidth(tab).dp), verticalAlignment = Alignment.CenterVertically) {
             if (active) {
-                Spacer(Modifier.height(5.dp))
-                DownloadProgressIndicator(
-                    item = item,
-                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(50)),
-                )
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    activeMetadata(item),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (item.isProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                IconButton(onClick = onToggleNotification, modifier = Modifier.size(44.dp)) {
+                    Icon(if (watched) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsNone, if (watched) "Stop completion notification" else "Notify when complete", Modifier.size(20.dp))
+                }
             } else {
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    finishedMetadata(item, tab),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (active) {
-            IconButton(onClick = onToggleNotification, modifier = Modifier.size(44.dp)) {
-                Icon(
-                    if (watched) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsNone,
-                    contentDescription = if (watched) "Stop completion notification" else "Notify when complete",
-                    modifier = Modifier.size(20.dp),
-                    tint = if (watched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            IconButton(onClick = onShare, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Outlined.Share, contentDescription = "Share file", modifier = Modifier.size(20.dp))
-            }
-            ManualDriveButton(item, onDrive)
-            if (tab == DownloadTab.AIRLOCK) {
+                IconButton(onClick = onFiles, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.FolderOpen, "Files", Modifier.size(20.dp)) }
+                IconButton(onClick = onShare, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.Share, "Share", Modifier.size(20.dp)) }
+                ManualDriveButton(item, onDrive)
                 IconButton(onClick = onToggleAirLock, modifier = Modifier.size(44.dp)) {
-                    Icon(Icons.Outlined.LockOpen, contentDescription = "Remove from AirLock", modifier = Modifier.size(20.dp))
+                    Icon(if (item.airLocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock, if (item.airLocked) "Remove from AirLock" else "Add to AirLock", Modifier.size(20.dp))
                 }
             }
-        }
-        IconButton(onClick = onMenu, modifier = Modifier.size(44.dp)) {
-            Icon(Icons.Outlined.MoreVert, contentDescription = "More actions", modifier = Modifier.size(20.dp))
+            IconButton(onClick = onMenu, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.MoreVert, "More actions", Modifier.size(20.dp)) }
         }
     }
-}
-
-@Composable
-private fun CozyDownloadRow(
-    item: DownloadItem,
-    tab: DownloadTab,
-    watched: Boolean,
-    onClick: () -> Unit,
-    onToggleNotification: () -> Unit,
-    onShare: () -> Unit,
-    onDrive: () -> Unit,
-    onFiles: () -> Unit,
-    onToggleAirLock: () -> Unit,
-    onMenu: () -> Unit,
-) {
-    val active = tab == DownloadTab.ACTIVE
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = if (active) 116.dp else 94.dp).clickable(onClick = onClick).padding(12.dp, 8.dp, 3.dp, 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TypeMarker(item.type, item.isProblem, 31)
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text(item.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            Text(
-                listOfNotNull(item.type.label(), formatBytes(item.totalSize), item.friendlyState).joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (item.isProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (active) {
-                Spacer(Modifier.height(7.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    DownloadProgressIndicator(
-                        item = item,
-                        modifier = Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(50)),
-                    )
-                    Spacer(Modifier.width(9.dp))
-                    Text(percentLabel(item), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(activeMetadata(item), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            } else {
-                Spacer(Modifier.height(4.dp))
-                Text(finishedMetadata(item, tab), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            }
-        }
-        Column {
-            if (active) {
-                IconButton(onClick = onToggleNotification, modifier = Modifier.size(42.dp)) {
-                    Icon(if (watched) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsNone, if (watched) "Stop completion notification" else "Notify when complete", modifier = Modifier.size(21.dp))
-                }
-            } else {
-                Row {
-                    IconButton(onClick = onFiles, modifier = Modifier.size(42.dp)) { Icon(Icons.Outlined.FolderOpen, "Files", Modifier.size(20.dp)) }
-                    IconButton(onClick = onShare, modifier = Modifier.size(42.dp)) { Icon(Icons.Outlined.Share, "Share", Modifier.size(20.dp)) }
-                    ManualDriveButton(item, onDrive)
-                }
-            }
-            Row {
-                if (!active) {
-                    IconButton(onClick = onToggleAirLock, modifier = Modifier.size(42.dp)) {
-                        Icon(if (item.airLocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock, if (item.airLocked) "Remove from AirLock" else "Add to AirLock", Modifier.size(20.dp))
-                    }
-                }
-                IconButton(onClick = onMenu, modifier = Modifier.size(42.dp)) { Icon(Icons.Outlined.MoreVert, "More actions", Modifier.size(20.dp)) }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun DetailedDownloadRow(
-    item: DownloadItem,
-    tab: DownloadTab,
-    watched: Boolean,
-    onClick: () -> Unit,
-    onToggleNotification: () -> Unit,
-    onShare: () -> Unit,
-    onDrive: () -> Unit,
-    onFiles: () -> Unit,
-    onToggleAirLock: () -> Unit,
-    onMenu: () -> Unit,
-) {
-    val active = tab == DownloadTab.ACTIVE
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f)),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                TypeMarker(item.type, item.isProblem, 34)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(item.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        listOfNotNull(item.type.label(), formatBytes(item.totalSize), item.friendlyState).joinToString(" · "),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (item.isProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) { Icon(Icons.Outlined.MoreVert, "More actions") }
-            }
-            Text(downloadDates(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (active) {
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    DownloadProgressIndicator(
-                        item = item,
-                        modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(50)),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(percentLabel(item), fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(detailedActiveMetadata(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                Spacer(Modifier.height(10.dp))
-                Text(detailedFinishedMetadata(item, tab), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.height(9.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (active) {
-                    AssistChip(
-                        onClick = onToggleNotification,
-                        label = { Text(if (watched) "Watching" else "Notify") },
-                        leadingIcon = { Icon(if (watched) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsNone, null, Modifier.size(17.dp)) },
-                        colors = if (watched) AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else AssistChipDefaults.assistChipColors(),
-                    )
-                } else {
-                    SmallAction(Icons.Outlined.FolderOpen, "Files", onFiles)
-                    SmallAction(Icons.Outlined.Share, "Share", onShare)
-                    if (ManualDriveCoordinator.isEligible(item)) SmallAction(Icons.Outlined.AddToDrive, "Drive", onDrive)
-                    SmallAction(if (item.airLocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock, if (item.airLocked) "Unprotect" else "AirLock", onToggleAirLock)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SmallAction(icon: ImageVector, label: String, onClick: () -> Unit) {
-    AssistChip(
-        onClick = onClick,
-        label = { Text(label) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp)) },
-    )
 }
 
 @Composable
@@ -1001,7 +752,6 @@ private fun TypeMarker(type: DownloadType, problem: Boolean, size: Int = 27) {
 private fun QueueList(
     queue: List<QueuedDownload>,
     density: DownloadDensity,
-    wide: Boolean,
     listState: LazyListState,
     searchOrFilterActive: Boolean,
     onStart: (QueuedDownload) -> Unit,
@@ -1013,77 +763,64 @@ private fun QueueList(
         EmptyDownloadsState(DownloadTab.QUEUE, searchOrFilterActive)
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState) {
-        if (wide) {
-            item(key = "queue-heading", contentType = "column-headings") {
-                Row(Modifier.fillMaxWidth().height(34.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(38.dp))
-                    Text("NAME", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("QUEUED", Modifier.width(190.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(88.dp))
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            }
+    ExplorerTable(minWidthDp = 458) {
+        Row(Modifier.fillMaxWidth().height(34.dp).padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.width(38.dp))
+            Text("NAME", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("QUEUED", Modifier.width(DATE_COLUMN_WIDTH_DP.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("ACTIONS", Modifier.width(88.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        items(queue, key = { "queue-${it.type}-${it.id}" }, contentType = { "queue-${density.name}" }) { item ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(
-                        min = when (density) {
-                            DownloadDensity.COMPACT -> 70.dp
-                            DownloadDensity.COZY -> 88.dp
-                            DownloadDensity.DETAILED -> 112.dp
-                        },
-                    )
-                    .clickable { detailsItem = item }
-                    .padding(start = 12.dp, end = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TypeMarker(item.type, false)
-                Spacer(Modifier.width(9.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (density == DownloadDensity.COMPACT) compactDisplayName(item.name) else item.name,
-                        style = if (density == DownloadDensity.DETAILED) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = if (density == DownloadDensity.DETAILED) 2 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        listOfNotNull(
-                            item.type.label(),
-                            if (wide) null else formatInstant(item.queuedAt)?.let { "Queued $it" },
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                    if (density == DownloadDensity.DETAILED && !item.source.isNullOrBlank()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), state = listState) {
+            items(queue, key = { "queue-${it.type}-${it.id}" }, contentType = { "queue-${density.name}" }) { item ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(
+                            min = when (density) {
+                                DownloadDensity.COMPACT -> 70.dp
+                                DownloadDensity.COZY -> 88.dp
+                                DownloadDensity.DETAILED -> 112.dp
+                            },
+                        )
+                        .clickable { detailsItem = item }
+                        .padding(start = 14.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TypeMarker(item.type, false)
+                    Spacer(Modifier.width(11.dp))
+                    Column(Modifier.weight(1f)) {
                         Text(
-                            item.source,
+                            if (density == DownloadDensity.COMPACT) compactDisplayName(item.name) else item.name,
+                            style = if (density == DownloadDensity.DETAILED) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = if (density == DownloadDensity.DETAILED) 2 else 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            item.type.label(),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                         )
+                        if (density == DownloadDensity.DETAILED && !item.source.isNullOrBlank()) {
+                            Text(
+                                item.source,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    ExplorerDateCell(item.queuedAt)
+                    IconButton(onClick = { onStart(item) }, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.PlayArrow, "Start now") }
+                    IconButton(onClick = { detailsItem = item }, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Outlined.MoreVert, "Queued download details and actions")
                     }
                 }
-                if (wide) {
-                    Text(
-                        formatInstant(item.queuedAt) ?: "–",
-                        modifier = Modifier.width(190.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
-                IconButton(onClick = { onStart(item) }, modifier = Modifier.size(44.dp)) { Icon(Icons.Outlined.PlayArrow, "Start now") }
-                IconButton(onClick = { detailsItem = item }, modifier = Modifier.size(44.dp)) {
-                    Icon(Icons.Outlined.MoreVert, "Queued download details and actions")
-                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .42f))
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .42f))
         }
     }
     detailsItem?.let { item ->
@@ -1257,13 +994,6 @@ private fun detailedActiveMetadata(item: DownloadItem): String = buildList {
     if (item.seeds != null) add("${item.seeds} seeds")
     if (item.peers != null) add("${item.peers} peers")
     item.ratio?.let { add("Ratio %.2f".format(it)) }
-}.joinToString(" · ")
-
-private fun finishedMetadata(item: DownloadItem, tab: DownloadTab): String = buildList {
-    formatBytes(item.totalSize)?.let(::add)
-    item.fileCount?.let { add(if (it == 1) "1 file" else "$it files") }
-    if (item.cached) add("Cached")
-    if (tab == DownloadTab.AIRLOCK || item.airLocked) add("AirLocked") else formatExpiry(item.expiresAt)?.let(::add)
 }.joinToString(" · ")
 
 private fun detailedFinishedMetadata(item: DownloadItem, tab: DownloadTab): String = buildList {
