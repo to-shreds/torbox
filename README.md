@@ -1,12 +1,12 @@
 # TorBox Drop
 
-## 2.1.0 downloads and explorer
+## 2.1.1 downloads and explorer
 
-[Download the Android APK](release/TorBox-Drop-v2.1.0.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
+[Download the Android APK](release/TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
 
 The web page uses the verified free stateless relay at `https://torbox-drop-api.onrender.com`. Sign in with your TorBox API key; it is kept only for the current session. Files download directly from TorBox. See [web/README.md](web/README.md) for use and privacy details.
 
-Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density shows the actual added date and age; cache dates are shown separately. Ready rows open the folder browser. This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.
+Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density now uses an explorer table with aligned Name, Added, Cached, Size, Status and action columns. Dates include the year and age. On phones, swipe sideways for more columns; Android keeps the headings above the scrolling rows. Ready rows open the folder browser. This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.
 
 The responsive web client adds session-only API-key login, an explorer with folders/breadcrumbs, natural sorting, dates, search, type filters, multi-file selection, ZIP and individual downloads, queue controls, rename/tags, AirLock, and add/delete/pause/resume/reannounce where TorBox supports them. Native Drive automation and background notifications remain available in the APK.
 
@@ -101,9 +101,9 @@ From the repository root in a networked build environment:
 ./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The 2.1.0 distribution artifact is `release/TorBox-Drop-v2.1.0.apk`, minified, resource-shrunk, zip-aligned, and signed with the retained private-use certificate. Private signing keys and passwords are never committed. CI publishes unsigned release builds; signing takes place outside CI.
+The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The 2.1.1 distribution artifact is `release/TorBox-Drop-v2.1.1.apk`, minified, resource-shrunk, zip-aligned, and signed with the retained private-use certificate. Private signing keys and passwords are never committed. CI publishes unsigned release builds; signing takes place outside CI.
 
-Package: `app.jabs.torboxdrop`; versionCode: `20100`; minimum Android SDK: 23; target SDK: 36. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
+Package: `app.jabs.torboxdrop`; versionCode: `20101`; minimum Android SDK: 23; target SDK: 36. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 

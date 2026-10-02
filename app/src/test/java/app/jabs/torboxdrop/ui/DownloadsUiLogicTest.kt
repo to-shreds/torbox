@@ -36,8 +36,4 @@ class DownloadsUiLogicTest {
         assertThat(queueFilters.clearedFor(DownloadTab.ACTIVE)).isEqualTo(DownloadFilter())
     }
 
-    @Test
-    fun responsiveTableLayoutStartsAtEightHundredFortyDp() {
-        assertThat(WIDE_LAYOUT_MIN_WIDTH_DP).isEqualTo(840)
-    }
 }

@@ -11,8 +11,7 @@ class ManualDriveUiSourceTest {
     private fun source(path: String) = root.resolve("app/src/main/java/app/jabs/torboxdrop/$path").toFile().readText()
     @Test fun everyReadyListLayoutHasDriveActionAndRowClickOnlyOpensPrompt() {
         val screen = source("ui/DownloadsScreen.kt")
-        assertEquals(3, Regex("ManualDriveButton\\(item, onDrive\\)").findAll(screen).count())
-        assertTrue(screen.contains("SmallAction(Icons.Outlined.AddToDrive, \"Drive\", onDrive)"))
+        assertEquals(1, Regex("ManualDriveButton\\(item, onDrive\\)").findAll(screen).count())
         assertTrue(screen.contains("ManualDriveCoordinator.isEligible(item)"))
         assertTrue(screen.contains("Modifier.size(48.dp)"))
         assertTrue(source("MainActivity.kt").contains("onDrive = viewModel::requestManualDrive"))

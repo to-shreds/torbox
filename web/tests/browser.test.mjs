@@ -46,7 +46,43 @@ function nextDownload(context) {
 async function browse(page){await page.getByRole('button',{name:'Collection 1',exact:true}).click();await page.getByRole('button',{name:'Pack',exact:true}).click();await page.getByRole('button',{name:'Season 1',exact:true}).click();}
 test('login gates all data; password not persisted; sign out and reload erase account',async t=>{const f=await fixture(t);assert.equal(f.requests.length,0);await f.login();assert.equal(await f.page.locator('#api-key').inputValue(),'');assert.equal(await f.page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.ok(!await f.page.content().then(h=>h.includes(key)));await f.page.getByRole('button',{name:'Sign out',exact:true}).click();assert.equal(await f.page.locator('#rows tr').count(),0);await f.page.reload();assert.equal(await f.page.locator('#login').isVisible(),true);});
 test('desktop explorer shows actual added/cache dates, natural sorting, folders and search',async t=>{const f=await fixture(t);await f.login();assert.ok((await f.page.locator('#rows').innerText()).includes('Sep 1, 2026'));await mkdir('web/verification',{recursive:true});await f.page.screenshot({path:'web/verification/desktop-library.png',fullPage:true});await f.page.getByRole('button',{name:'Cached',exact:true}).click();assert.equal(await f.page.locator('#sort').inputValue(),'cachedAt:asc');await f.page.getByRole('button',{name:'Cached ↑',exact:true}).click();assert.equal(await f.page.locator('#sort').inputValue(),'cachedAt:desc');await f.page.locator('#sort').selectOption('added:asc');assert.match(await f.page.locator('#rows tr').first().innerText(),/Older item/);await browse(f.page);assert.equal(await f.page.locator('#rows .name-button').first().innerText(),'Episode 2.mp4');await f.page.locator('#search').fill('Episode 10');assert.equal(await f.page.locator('#rows tr').count(),1);await f.page.locator('#search').fill('');await f.page.keyboard.press('Tab');await f.page.locator('#view-title').click();await f.page.keyboard.press('Backspace');assert.equal(await f.page.getByRole('button',{name:'Season 1',exact:true}).count(),1);await mkdir('web/verification',{recursive:true});await f.page.screenshot({path:'web/verification/desktop.png',fullPage:true});});
-test('mobile explorer has no page overflow and dates remain visible',async t=>{const f=await fixture(t,{viewport:{width:390,height:844}});await f.login();assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.match(await f.page.locator('.mobile-date').first().innerText(),/Added Sep 1, 2026/);await f.page.screenshot({path:'web/verification/mobile-library.png',fullPage:true});await browse(f.page);assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);const box=await f.page.getByRole('button',{name:'Download',exact:true}).first().boundingBox();assert.ok(box.x+box.width<=378);await f.page.screenshot({path:'web/verification/mobile.png',fullPage:true});});
+test('mobile and tablet retain aligned date columns with contained horizontal scrolling',async t=>{
+ const f=await fixture(t,{viewport:{width:390,height:844}});await f.login();
+ assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ assert.deepEqual(await f.page.locator('#table-head th').allTextContents(),['Name','Added ↓','Cached','Size','Status','Actions']);
+ const first=f.page.locator('#rows tr').first();
+ assert.doesNotMatch(await first.locator('.name-cell').innerText(),/Sep 1|Aug 25|ago/);
+ assert.match(await first.locator('.date-column').first().innerText(),/Sep 1, 2026/);
+ const name=await first.locator('.name-cell').boundingBox();
+ const added=await first.locator('.date-column').first().boundingBox();
+ assert.ok(added.x>=name.x+name.width-1 && added.x+added.width<=378);
+ const checkAlignment=async()=>{
+  for(let n=0;n<2;n++){
+   const head=await f.page.locator('#table-head .date-column').nth(n).boundingBox();
+   const cell=await first.locator('.date-column').nth(n).boundingBox();
+   assert.ok(Math.abs(head.x-cell.x)<1 && Math.abs(head.width-cell.width)<1);
+  }
+ };
+ await checkAlignment();await f.page.screenshot({path:'web/verification/mobile-library.png',fullPage:true});
+ await f.page.locator('.table-wrap').evaluate(e=>e.scrollLeft=144);
+ const pinned=await first.locator('.name-cell').boundingBox();
+ const cached=await first.locator('.date-column').nth(1).boundingBox();
+ assert.equal(pinned.x,name.x);assert.ok(cached.x>=pinned.x+pinned.width-1 && cached.x+cached.width<=378);
+ await checkAlignment();await f.page.screenshot({path:'web/verification/mobile-dates-scrolled.png',fullPage:true});
+ await f.page.getByRole('button',{name:'Cached',exact:true}).click();assert.equal(await f.page.locator('#sort').inputValue(),'cachedAt:asc');
+ await f.page.locator('.table-wrap').evaluate(e=>e.scrollLeft=0);
+ await browse(f.page);assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ const box=await f.page.getByRole('button',{name:'Download',exact:true}).first().boundingBox();assert.ok(box.x+box.width<=378);
+ await f.page.screenshot({path:'web/verification/mobile.png',fullPage:true});
+ await f.page.locator('[data-view=all]').click();
+ for(const width of [320,740,1024]){
+  await f.page.setViewportSize({width,height:900});
+  assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  for(const cell of await f.page.locator('#table-head .date-column').all())assert.equal(await cell.isVisible(),true);
+  await checkAlignment();
+ }
+ await f.page.screenshot({path:'web/verification/tablet-library.png',fullPage:true});
+});
 test('Download produces an actual browser download with exact bytes',async t=>{const f=await fixture(t);await f.login();await browse(f.page);const downloadPromise=nextDownload(f.context);await f.page.getByRole('button',{name:'Download',exact:true}).first().click();const d=await downloadPromise;assert.equal((await readFile(await d.path())).toString(),'fixture-download');assert.match(await f.page.locator('#jobs').innerText(),/Sent to your browser/);const request=f.requests.find(x=>x.url.includes('/requestdl'));assert.ok(request.url.includes('file_id=1'));assert.equal(new URL(request.url).searchParams.get('redirect'),'false');});
 test('direct save streams bytes without blob buffering and records completion',async t=>{const f=await fixture(t);await f.page.evaluate(()=>{window.__saved=[];window.showSaveFilePicker=async()=>({createWritable:async()=>({write:async chunk=>window.__saved.push(...chunk),close:async()=>{window.__closed=true;},abort:async()=>{window.__aborted=true;}})});});await f.login();await browse(f.page);await f.page.getByRole('button',{name:'Download',exact:true}).first().click();await f.page.waitForFunction(()=>window.__closed===true);assert.equal(await f.page.evaluate(()=>new TextDecoder().decode(new Uint8Array(window.__saved))),'fixture-download');assert.match(await f.page.locator('#jobs').innerText(),/Saved to your device/);});
 test('failed direct save aborts partial writer and exposes working browser fallback',async t=>{const f=await fixture(t);await f.page.evaluate(()=>{window.showSaveFilePicker=async()=>({createWritable:async()=>({write:async()=>{throw Error('disk full');},close:async()=>{},abort:async()=>{window.__aborted=true;}})});});await f.login();await browse(f.page);await f.page.getByRole('button',{name:'Download',exact:true}).first().click();await f.page.getByRole('button',{name:'Browser download',exact:true}).waitFor();assert.equal(await f.page.evaluate(()=>window.__aborted),true);const d=nextDownload(f.context);await f.page.getByRole('button',{name:'Browser download',exact:true}).click();await d;});

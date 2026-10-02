@@ -102,6 +102,8 @@
     $('view-subtitle').textContent = S.item ? 'Browse folders and choose files' : S.view === 'downloads' ? 'Downloads started during this session' : 'Your torrents and web downloads';
     const jobs = S.view === 'downloads' && !S.item;
     $('jobs').hidden = !jobs; $('list-panel').hidden = jobs; $('toolbar').hidden = jobs; $('date-note').hidden = jobs;
+    $('file-table').classList.toggle('library-table', !S.item);
+    $('column-hint').hidden = !!S.item;
     $('type').hidden = !!S.item; $('extension').hidden = !S.item; $('breadcrumbs').hidden = !S.item; $('file-meta').hidden = !S.item; $('file-actions').hidden = !S.item; $('search').placeholder = S.item ? 'Search this folder and subfolders' : 'Search names and tags';
     $('selection').hidden = !S.item || S.selected.size === 0; $('selected-count').textContent = S.selected.size + ' selected';
     for (const option of $('sort').options) option.disabled = !!S.item && /^(added|cachedAt):/.test(option.value);
@@ -112,9 +114,9 @@
     const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE)); S.page = Math.min(S.page, pages - 1);
     const head = el('tr');
     if (S.item) { const th = header('', null, 'check-cell'), check = el('input', { type: 'checkbox', 'aria-label': 'Select visible files' }); const visible = rows.slice(S.page * PAGE_SIZE, (S.page + 1) * PAGE_SIZE).filter(r => !r.folder && !r.infected); check.checked = visible.length > 0 && visible.every(f => S.selected.has(f.id)); check.disabled = !visible.length; check.onchange = () => { visible.forEach(f => check.checked ? S.selected.add(f.id) : S.selected.delete(f.id)); render(); }; th.append(check); head.append(th); }
-    head.append(header('Name', 'name'), header('Size', 'size'), header(S.item ? 'Type' : 'Status', null, 'state-column'));
-    if (!S.item) { head.append(header('Added', 'added', 'date-column')); const cached = header('Cached', 'cachedAt', 'date-column cached-column'); head.append(cached); }
-    head.append(header('Actions')); $('table-head').replaceChildren(head);
+    head.append(header('Name', 'name', 'name-column'));
+    if (!S.item) head.append(header('Added', 'added', 'date-column'), header('Cached', 'cachedAt', 'date-column'));
+    head.append(header('Size', 'size', 'size-column'), header(S.item ? 'Type' : 'Status', null, 'state-column'), header('Actions', null, 'actions-column')); $('table-head').replaceChildren(head);
     const fragment = document.createDocumentFragment();
     for (const row of rows.slice(S.page * PAGE_SIZE, (S.page + 1) * PAGE_SIZE)) fragment.append(S.item ? fileRow(row) : itemRow(row));
     $('rows').replaceChildren(fragment); $('empty').hidden = rows.length > 0;
@@ -125,13 +127,10 @@
   function itemRow(item) {
     const tr = el('tr'), name = el('td', { class: 'name-cell' }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
     text.append(button(item.name, () => item.queued ? details(item) : openFiles(item), 'name-button'), el('span', { class: 'sub' }, (item.type === 'torrent' ? 'Torrent' : 'Web download') + (item.tags.length ? ' · ' + item.tags.join(', ') : '') + (item.airlocked ? ' · AirLocked' : '')));
-    const d = C.dateLabel(item.added); text.append(el('span', { class: 'mobile-date', title: d.full }, `Added ${d.date}${d.age ? ' · ' + d.age : ''}`));
-    if (item.cachedAt) { const c = C.dateLabel(item.cachedAt); text.append(el('span', { class: 'mobile-date', title: c.full }, `Cached ${c.date} · ${c.age}`)); }
-    text.append(el('span', { class: 'mobile-date' }, item.state + (!item.ready && item.progress != null ? ' · ' + Math.round(item.progress * 100) + '%' : '')));
     entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, '▤'), text); name.append(entry);
     const state = el('td', { class: 'state-column' }); state.append(el('span', { class: 'state' + (item.ready ? ' ready' : /fail|error|missing|expired/i.test(item.state) ? ' problem' : '') }, item.state));
     if (!item.ready && !item.queued && item.progress != null) { state.append(el('progress', { max: 1, value: item.progress, 'aria-label': 'Download progress' }), el('span', { class: 'sub' }, Math.round(item.progress * 100) + '%' + (item.download_speed > 0 ? ' · ' + C.bytes(item.download_speed) + '/s' : ''))); }
-    tr.append(name, el('td', {}, C.bytes(item.size)), state, dateCell(item.added)); const cached = dateCell(item.cachedAt); cached.classList.add('cached-column'); tr.append(cached);
+    tr.append(name, dateCell(item.added), dateCell(item.cachedAt), el('td', { class: 'size-column' }, C.bytes(item.size)), state);
     const actions = el('td'), wrap = el('div', { class: 'row-actions' });
     wrap.append(button(item.queued ? 'Start' : 'Files', e => item.queued ? control(item, 'start', e.currentTarget) : openFiles(item)), button('Details', () => details(item)));
     actions.append(wrap); tr.append(actions); return tr;
