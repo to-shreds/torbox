@@ -1,16 +1,11 @@
-# TorBox Drop 2.0.3 release
+# TorBox Drop 2.1.1
 
-`TorBox-Drop-v2.0.3.apk` is the current minified, resource-shrunk, zip-aligned distribution build.
+[Android APK](TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Verification](VERIFICATION-2.1.1.md)
 
-- Application ID: `app.jabs.torboxdrop`
-- Version: `2.0.3` (`versionCode 20003`)
-- Minimum Android: API 23
-- Target Android: API 36
-- APK SHA-256: `0073b3a6b43d87d012a65c3a93c5a55141c9ac4a575d9b975367e7a7adec1d77`
-- Signing certificate SHA-256: `AA:AE:1A:1A:53:DE:80:CA:FE:F3:FF:98:B9:30:BF:83:A6:34:F8:6C:8B:F9:5F:D1:88:92:3B:4F:1A:C2:07:F7`
+Added and Cached now have their own explorer columns on phones, tablets and desktops. Swipe sideways for more columns. The native Queue also has a Queued date column.
 
-The public signing certificate is included for verification. The private key is deliberately not in this repository.
+This is the current minified, resource-shrunk and zip-aligned release: package `app.jabs.torboxdrop`, versionCode `20101`, minimum Android API 23, target API 36. It uses the retained private signing certificate and installs over the matching 2.0.7 or 2.1.0 build without uninstalling.
 
-The supplied v1.0 APK used a different certificate. Uninstall v1.0 before installing the v2 line, then re-enter the TorBox token and preferences. Any installed v2 build can be updated directly to v2.0.3 because all v2 APKs use the same certificate.
+APK SHA-256: `bcac40b3e556bff2c4da25a172e3d85aa9c1c8c0e2d8f270169d49dca83f687f`. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
 
-v2.0.3 is a targeted per-file Share repair. Share now requests a new temporary CDN URL directly for the selected file, displays progress and failures inside the file sheet, closes that sheet on success, and then opens Android's normal share chooser. Existing token-leak protections remain in force.
+Historical APKs remain available. They may use a different signing identity; the current release must be compared with the installed app's signer. Private keys and passwords are never published.
