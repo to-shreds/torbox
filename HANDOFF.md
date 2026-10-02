@@ -38,6 +38,12 @@ The live frontend is Misc/TorboxDrop/index.html, because Misc's existing GitHub 
 - Live relay checks passed: health 200, GitHub Pages and file-origin preflight 204, missing key 401, actual TorBox invalid-key response 403/BAD_TOKEN, hostile origin 403, unknown route 404. Sensitive request details were not echoed; responses are no-store. Error logs were empty at the deployment check.
 - Source activation: fbae3a6d9b3f9e6ab49e8e83f9c8c3f263b602f7; Misc activation: 3ef3c64d66bbad9f2c7468c8a4c71545b2280d71. Pages deployment 36933652432 passed.
 
+## Date-column publication
+- Version 2.1.1 is published. PR #8 merged as `9ec4dd369a6f7269ed1269c4f8b10f6d59c180be`; signed release/evidence commit `7f9f1d46a3ad152d32cbfb54abcbee45100f986b`.
+- Native CI `36936102287` passed tests, lint and debug/release builds for source checkpoint `f6365116af51d05dbde9cb0f989eebdb375d011f`. Web CI `36935900633` passed all 30 core/relay checks and 17 browser scenarios.
+- Both Misc HTML copies published in `eaf7cc6d58dfe8e0d91c36c21f5a8bce8797ab8a`; Pages deployment `37068462485` passed. A live browser on 2026-10-02 confirmed version 2.1.1, enabled API-key login and the matching 2.1.1 APK link before any authentication.
+- APK SHA-256 `bcac40b3e556bff2c4da25a172e3d85aa9c1c8c0e2d8f270169d49dca83f687f`; generated HTML SHA-256 `4537b72f325d0b2db2f975537c47d57b492dab1b01d6ce53dfb9cb5f7bf06cd9`.
+
 ## Next action
 No deployment blocker remains. Jon can open https://to-shreds.github.io/Misc/TorboxDrop/ and enter his API key directly into the page. A successful real-account download and physical-phone acceptance remain user-side live checks, not claimed automated results. Native Google Drive routing and background monitoring remain native-only and are explicitly documented.
 
