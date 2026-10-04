@@ -14,11 +14,27 @@
 .library-table .actions-column{width:182px}
 .library-table .row-actions{flex-direction:row}
 @media(max-width:1190px){.column-hint{display:block}}
+
+/* Account usage stays above every library and folder view. */
+#app{min-height:100dvh;display:flex;flex-direction:column}.layout{flex:1;min-height:0}
+.account-summary{padding:20px 28px 16px;background:#eaf3f9;border-bottom:1px solid #bfd5e3}
+.quota-heading{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.quota-heading h2{font-size:17px}.quota-heading a{margin-left:auto;font-size:13px}
+.quota-status{font-size:12px;color:var(--muted)}.quota-status.quota-stale{color:var(--danger)}
+.quota-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.quota-card{min-width:0;padding:14px 16px;background:white;border:1px solid #c7dce9;border-radius:10px;display:flex;flex-direction:column;gap:3px}
+.quota-label{font-size:12px;font-weight:600;color:var(--muted)}
+.quota-value{font-size:25px;color:#0a527d;line-height:1.35;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.quota-detail{font-size:12px;color:var(--muted);overflow-wrap:anywhere;line-height:1.4}
+.quota-card progress{width:100%;margin-top:auto;padding-top:8px;height:13px}
+.quota-note{font-size:12px;color:var(--muted);margin:10px 0 0}
+@media(max-width:1050px){.account-summary{padding:16px 18px}.quota-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:740px){.account-summary{padding:14px 12px}.quota-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.quota-card{padding:11px 12px}.quota-value{font-size:21px}.quota-card:last-child{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;column-gap:12px}.quota-card:last-child .quota-value{grid-column:2;grid-row:1/3}.quota-card:last-child .quota-detail{grid-column:1}.quota-heading{gap:4px 10px}.quota-heading h2{font-size:16px}.quota-heading a{font-size:12px}.quota-status{flex-basis:100%;order:3}.quota-note{font-size:11px}}
 </style></head><body>
-<section class="login" id="login"><div class="login-card"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><h1>Your files, within reach.</h1><p class="muted">Sign in with your TorBox API key to browse, download, and manage your files.</p><form id="login-form" autocomplete="off"><label for="api-key">TorBox API key</label><input id="api-key" name="torbox-session-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="Paste your API key"><button class="primary" id="connect" type="submit">Unlock my TorBox</button></form><p id="login-error" class="notice error" role="alert" hidden></p><p class="privacy muted">Your key stays in this tab’s memory. It is cleared on sign out or reload. Your key and file list are not saved by this page. API requests use a stateless TorBox Drop relay; file downloads go directly to TorBox.</p><p class="privacy"><a href="https://torbox.app/settings" target="_blank" rel="noopener noreferrer">Find your API key</a></p><p class="privacy"><a href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk">Download the Android APK</a></p><small>TorBox Drop 2.1.1</small></div></section>
-<div id="app" hidden><header class="topbar"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><div class="top-actions"><span id="account" class="muted account-label"></span><a class="apk" href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk" rel="noreferrer">Android APK</a><button id="sign-out">Sign out</button></div></header><div class="layout"><aside aria-label="Library navigation"><div class="eyebrow">My TorBox</div><button data-view="all" aria-current="page">All files <span class="count" id="count-all">0</span></button><button data-view="active">Active <span class="count" id="count-active">0</span></button><button data-view="finished">Finished <span class="count" id="count-finished">0</span></button><button data-view="queue">Queue <span class="count" id="count-queue">0</span></button><button data-view="airlock">AirLock <span class="count" id="count-airlock">0</span></button><button data-view="downloads">Device downloads <span class="count" id="count-downloads">0</span></button><div class="side-foot">Session only<br><span>Files download directly from TorBox</span><br><a href="https://github.com/to-shreds/torbox" target="_blank" rel="noopener noreferrer">Version 2.1.1</a></div></aside><main><div class="heading"><div><h2 id="view-title">All files</h2><p id="view-subtitle">Your torrents and web downloads</p></div><div class="actions"><button id="refresh">Refresh</button><button id="add" class="primary">+ Add</button></div></div><div id="notice" class="notice" role="status" hidden></div><div id="breadcrumbs" class="breadcrumbs" aria-label="Folder location" hidden></div><div id="file-meta" class="file-meta" hidden></div><div id="file-actions" class="actions" hidden></div><div class="toolbar" id="toolbar"><input id="search" class="search" type="search" placeholder="Search names and tags" aria-label="Search files"><select id="type" aria-label="Download type"><option value="">All types</option><option value="torrent">Torrents</option><option value="webdl">Web downloads</option></select><select id="extension" aria-label="File extension" hidden><option value="">All file types</option></select><select id="sort" aria-label="Sort files"><option value="added:desc">Added: newest first</option><option value="added:asc">Added: oldest first</option><option value="cachedAt:desc">Cached: newest first</option><option value="cachedAt:asc">Cached: oldest first</option><option value="name:asc">Name: A to Z</option><option value="name:desc">Name: Z to A</option><option value="size:desc">Size: largest first</option><option value="size:asc">Size: smallest first</option></select></div><div id="selection" class="selection-bar" hidden><span id="selected-count"></span><button id="download-selected">Download selected</button><button id="clear-selection" class="quiet">Clear selection</button></div><div class="panel" id="list-panel"><div id="column-hint" class="column-hint">Swipe sideways for more columns. Name stays in view.</div><div class="table-wrap" tabindex="0" role="region" aria-label="File list, scroll horizontally for more columns"><table id="file-table"><thead id="table-head"></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden></div><div class="footer"><span id="list-summary"></span><div class="pager"><button id="prev" aria-label="Previous page">Previous</button><span id="page-label"></span><button id="next" aria-label="Next page">Next</button></div></div></div><div class="panel" id="jobs" hidden></div><p id="date-note" class="sub">Dates use your local time. Cached is TorBox’s cache date; it may precede the date you added an item.</p></main></div></div>
+<section class="login" id="login"><div class="login-card"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><h1>Your files, within reach.</h1><p class="muted">Sign in with your TorBox API key to browse, download, and manage your files.</p><form id="login-form" autocomplete="off"><label for="api-key">TorBox API key</label><input id="api-key" name="torbox-session-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="Paste your API key"><button class="primary" id="connect" type="submit">Unlock my TorBox</button></form><p id="login-error" class="notice error" role="alert" hidden></p><p class="privacy muted">Your key stays in this tab’s memory. It is cleared on sign out or reload. Your key and file list are not saved by this page. API requests use a stateless TorBox Drop relay; file downloads go directly to TorBox.</p><p class="privacy"><a href="https://torbox.app/settings" target="_blank" rel="noopener noreferrer">Find your API key</a></p><p class="privacy"><a href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk">Download the Android APK</a></p><small>TorBox Drop web 2.1.2</small></div></section>
+<div id="app" hidden><header class="topbar"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><div class="top-actions"><span id="account" class="muted account-label"></span><a class="apk" href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk" rel="noreferrer">Android APK</a><button id="sign-out">Sign out</button></div></header><section id="account-summary" class="account-summary" aria-label="Account limits and usage"><div class="quota-heading"><h2>Account &amp; quotas</h2><span id="quota-status" class="quota-status" role="status"></span><a href="https://torbox.app/dashboard" target="_blank" rel="noopener noreferrer">TorBox dashboard ↗</a></div><div id="quota-cards" class="quota-cards"></div><p class="quota-note">Allowances follow your reported plan. Bandwidth has dynamic fair use, with no fixed remaining quota. <a href="https://support.torbox.app/en/articles/10336778-the-torbox-abuse-system" target="_blank" rel="noopener noreferrer">Fair-use details</a> · <a href="https://support.torbox.app/en/articles/15417147-torbox-airlock" target="_blank" rel="noopener noreferrer">AirLock limits</a></p></section><div class="layout"><aside aria-label="Library navigation"><div class="eyebrow">My TorBox</div><button data-view="all" aria-current="page">All files <span class="count" id="count-all">0</span></button><button data-view="active">Active <span class="count" id="count-active">0</span></button><button data-view="finished">Finished <span class="count" id="count-finished">0</span></button><button data-view="queue">Queue <span class="count" id="count-queue">0</span></button><button data-view="airlock">AirLock <span class="count" id="count-airlock">0</span></button><button data-view="downloads">Device downloads <span class="count" id="count-downloads">0</span></button><div class="side-foot">Session only<br><span>Files download directly from TorBox</span><br><a href="https://github.com/to-shreds/torbox" target="_blank" rel="noopener noreferrer">Web version 2.1.2</a></div></aside><main><div class="heading"><div><h2 id="view-title">All files</h2><p id="view-subtitle">Your torrents and web downloads</p></div><div class="actions"><button id="refresh">Refresh</button><button id="add" class="primary">+ Add</button></div></div><div id="notice" class="notice" role="status" hidden></div><div id="breadcrumbs" class="breadcrumbs" aria-label="Folder location" hidden></div><div id="file-meta" class="file-meta" hidden></div><div id="file-actions" class="actions" hidden></div><div class="toolbar" id="toolbar"><input id="search" class="search" type="search" placeholder="Search names and tags" aria-label="Search files"><select id="type" aria-label="Download type"><option value="">All types</option><option value="torrent">Torrents</option><option value="webdl">Web downloads</option></select><select id="extension" aria-label="File extension" hidden><option value="">All file types</option></select><select id="sort" aria-label="Sort files"><option value="added:desc">Added: newest first</option><option value="added:asc">Added: oldest first</option><option value="cachedAt:desc">Cached: newest first</option><option value="cachedAt:asc">Cached: oldest first</option><option value="name:asc">Name: A to Z</option><option value="name:desc">Name: Z to A</option><option value="size:desc">Size: largest first</option><option value="size:asc">Size: smallest first</option></select></div><div id="selection" class="selection-bar" hidden><span id="selected-count"></span><button id="download-selected">Download selected</button><button id="clear-selection" class="quiet">Clear selection</button></div><div class="panel" id="list-panel"><div id="column-hint" class="column-hint">Swipe sideways for more columns. Name stays in view.</div><div class="table-wrap" tabindex="0" role="region" aria-label="File list, scroll horizontally for more columns"><table id="file-table"><thead id="table-head"></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden></div><div class="footer"><span id="list-summary"></span><div class="pager"><button id="prev" aria-label="Previous page">Previous</button><span id="page-label"></span><button id="next" aria-label="Next page">Next</button></div></div></div><div class="panel" id="jobs" hidden></div><p id="date-note" class="sub">Dates use your local time. Cached is TorBox’s cache date; it may precede the date you added an item.</p></main></div></div>
 <dialog id="dialog"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="close-dialog" aria-label="Close dialog">Close</button></div><div id="dialog-body" class="dialog-body"></div></dialog>
-<script>/* TorBox Drop 2.1.0. No browser storage, analytics, or third-party script dependencies. */
+<script>/* TorBox Drop web 2.1.2. No browser storage, analytics, or third-party script dependencies. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -51,6 +67,58 @@
     const e = Math.min(5, Math.floor(Math.log(n) / Math.log(1000)));
     return (n / 1000 ** e).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + ['B', 'KB', 'MB', 'GB', 'TB', 'PB'][e];
   }
+  // Published TorBox plan allowances, checked against the official help center on 2026-10-04.
+  // Bandwidth is a fair-use baseline, never a fixed cap or a remaining-byte quota.
+  const PLANS = Object.freeze({
+    0: Object.freeze({ name: 'Free', slots: 1, airlock: 0, bandwidth: 5e12 }),
+    1: Object.freeze({ name: 'Essential', slots: 3, airlock: 300e9, bandwidth: 10e12 }),
+    2: Object.freeze({ name: 'Pro', slots: 10, airlock: 1e12, bandwidth: 30e12 }),
+    3: Object.freeze({ name: 'Standard', slots: 5, airlock: 500e9, bandwidth: 20e12 })
+  });
+  function reportedNumber(v) {
+    if (typeof v !== 'number' && (typeof v !== 'string' || !/^\d+(?:\.\d+)?$/.test(v.trim()))) return null;
+    const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= Number.MAX_SAFE_INTEGER ? n : null;
+  }
+  function accountInfo(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('TorBox returned unreadable account information.');
+    const code = typeof raw.plan === 'string' && !/^\d+$/.test(raw.plan.trim())
+      ? Object.keys(PLANS).find(k => PLANS[k].name.toLowerCase() === raw.plan.trim().toLowerCase())
+      : reportedNumber(raw.plan);
+    const plan = PLANS[code] || null, extra = reportedNumber(raw.additional_concurrent_slots);
+    return { plan: plan?.name || 'Not reported', code: plan ? Number(code) : null,
+      slots: plan ? Math.min(10, plan.slots + (Number.isInteger(extra) ? extra : 0)) : null, extraSlots: Number.isInteger(extra) ? extra : 0,
+      airlockLimit: plan?.airlock ?? null, bandwidthBaseline: plan?.bandwidth ?? null,
+      expires: timestamp(raw.premium_expires_at ?? raw.subscription_expires_at), subscribed: raw.is_subscribed === true,
+      cooldown: timestamp(raw.cooldown_until), email: typeof raw.email === 'string' ? raw.email : typeof raw.base_email === 'string' ? raw.base_email : 'Connected to TorBox' };
+  }
+  function bandwidthTotal(raw) {
+    if (!raw || !Array.isArray(raw.bandwidth)) return null;
+    let total = 0; const seen = new Set();
+    for (const row of raw.bandwidth) {
+      const date = timestamp(row?.date), value = reportedNumber(row?.bytes_downloaded);
+      if (date == null || value == null || seen.has(date)) return null;
+      seen.add(date); total += value;
+      if (!Number.isSafeInteger(total)) return null;
+    }
+    // The endpoint returns the previous 30 days. Do not filter partially overlapping buckets.
+    return total;
+  }
+  function usageTotals(rows) {
+    if (!Array.isArray(rows)) return { active: null, airlock: null };
+    let active = 0, airlock = 0;
+    for (const row of rows) {
+      if (typeof row.active !== 'boolean') active = null;
+      else if (active != null && row.active) active++;
+      const locked = Object.hasOwn(row, 'usageAirlocked') ? row.usageAirlocked : row.airlocked;
+      if (typeof locked !== 'boolean') airlock = null;
+      else if (airlock != null && locked) {
+        const size = reportedNumber(row.size);
+        if (size == null || !Number.isSafeInteger(airlock + size)) airlock = null;
+        else airlock += size;
+      }
+    }
+    return { active, airlock };
+  }
   function normalize(raw, type, queued = false) {
     if (!raw || !TYPES[type]) throw new Error('TorBox returned an unreadable item.');
     const n = id(raw.id), ready = raw.download_finished === true && raw.download_present === true;
@@ -60,7 +128,7 @@
     return { ...raw, id: n, type, key: `${queued ? 'queue:' : ''}${type}:${n}`, name: String(raw.name || raw.hash || 'Unnamed download'), ready, queued,
       size, progress: progress == null ? null : Math.max(0, Math.min(1, progress)), state,
       added: timestamp(raw.created_at), cachedAt: timestamp(raw.cached_at), updated: timestamp(raw.updated_at),
-      tags: Array.isArray(raw.tags) ? raw.tags.filter(t => typeof t === 'string') : [], airlocked: raw.airlocked === true };
+      tags: Array.isArray(raw.tags) ? raw.tags.filter(t => typeof t === 'string') : [], airlocked: raw.airlocked === true, usageAirlocked: raw.airlocked };
   }
   function sortRows(rows, field = 'added', direction = 'desc') {
     return [...rows].sort((a, b) => {
@@ -155,6 +223,19 @@
       } finally { clearTimeout(timer); this.#controllers.delete(controller); }
     }
     me() { return this.request('user/me', { query: { settings: true } }); }
+    stats() { return this.request('user/stats', { query: { general: false, bandwidth: true, bandwidth_grouping: 'day' } }); }
+    async usenetUsage(fresh = false) {
+      const rows = new Map(), limit = 1000;
+      for (let offset = 0; offset < 500000; offset += limit) {
+        const data = await this.request('usenet/mylist', { query: { offset, limit, bypass_cache: fresh }, emptyNotFound: true });
+        if (!Array.isArray(data)) throw new Error('TorBox returned unreadable Usenet usage.');
+        const before = rows.size;
+        for (const raw of data) { const n = id(raw?.id); rows.set(n, { id: n, active: raw.active, airlocked: raw.airlocked, size: reportedNumber(raw.size) }); }
+        if (data.length < limit) return [...rows.values()];
+        if (rows.size === before) throw new Error('TorBox repeated a page of Usenet usage.');
+      }
+      throw new Error('TorBox usage exceeded the supported page limit.');
+    }
     async list(type, queued = false, fresh = false) {
       const rows = new Map(), limit = 1000;
       for (let offset = 0; offset < 500000; offset += limit) {
@@ -202,7 +283,7 @@
       return this.request(torrent ? 'torrents/createtorrent' : 'webdl/createwebdownload', { method: 'POST', body });
     }
   }
-  return { API, TYPES, Client, timestamp, dateLabel, bytes, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
+  return { API, TYPES, Client, timestamp, dateLabel, bytes, accountInfo, bandwidthTotal, usageTotals, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
 });
 </script><script>(function () {
   'use strict';
@@ -212,7 +293,8 @@
     $('api-key').disabled = true; $('connect').disabled = true; $('connect').textContent = 'Web activation pending';
     $('login-error').textContent = 'The web client is built, but its API relay still needs activation. Use the Android APK below in the meantime.'; $('login-error').hidden = false;
   }
-  const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null };
+  const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null,
+    account: null, bandwidth: null, usenet: [], loaded: new Set(), quotaUpdated: null, quotaStale: false };
   const views = { all: 'All files', active: 'Active', finished: 'Finished', queue: 'Queue', airlock: 'AirLock', downloads: 'Device downloads' };
   function el(tag, attrs = {}, text = '') {
     const n = document.createElement(tag);
@@ -231,6 +313,8 @@
     for (const job of S.jobs) { job.controller?.abort(); if (job.url?.startsWith('blob:')) URL.revokeObjectURL(job.url); }
     inFlightDownloads.clear();
     S.rows = []; S.queue = []; S.files = []; S.jobs = []; S.item = null; S.folder = ''; S.selected.clear(); S.deleted.clear(); S.updated = null;
+    S.account = null; S.bandwidth = null; S.usenet = []; S.loaded.clear(); S.quotaUpdated = null; S.quotaStale = false;
+    $('quota-cards').replaceChildren(); $('quota-status').textContent = '';
     $('api-key').value = ''; $('rows').replaceChildren(); $('jobs').replaceChildren(); $('dialog-body').replaceChildren(); $('dialog').close(); $('account').textContent = ''; $('file-meta').textContent = '';
     $('app').hidden = true; $('login').hidden = false; $('login-error').textContent = message; $('login-error').hidden = !message; $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox';
     $('api-key').focus();
@@ -250,9 +334,8 @@
     $('connect').disabled = true; $('connect').textContent = 'Connecting (may take a minute)…'; $('login-error').hidden = true;
     try {
       const account = await client.me(); if (!live(session, client)) return;
-      if (!account || typeof account !== 'object' || Array.isArray(account)) throw new Error('TorBox returned unreadable account information.');
-      $('account').textContent = account.email || account.base_email || 'Connected to TorBox';
-      $('login').hidden = true; $('app').hidden = false; S.view = 'all'; S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; $('type').value = ''; render(); await refresh();
+      S.account = C.accountInfo(account); $('account').textContent = S.account.email;
+      $('login').hidden = true; $('app').hidden = false; S.view = 'all'; S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; $('type').value = ''; render(); await refresh(false, true);
     } catch (error) { if (live(session, client)) clearSession(error.message); }
     finally { $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox'; }
   });
@@ -262,30 +345,41 @@
   function rootRows() {
     return (S.view === 'queue' ? S.queue : S.rows).filter(r => !S.deleted.has(r.key)).filter(r => S.view === 'active' ? !r.ready : S.view === 'finished' ? r.ready : S.view === 'airlock' ? r.airlocked : true);
   }
-  async function refresh(manual = false) {
+  async function refresh(manual = false, initial = false) {
     if (!S.client || S.refreshing) return;
     const session = S.session, client = S.client, serial = ++S.refresh, revision = S.revision;
-    S.refreshing = true; $('refresh').disabled = true; $('refresh').textContent = 'Refreshing…';
+    S.refreshing = true; $('refresh').disabled = true; $('refresh').textContent = 'Refreshing…'; renderQuotas();
     try {
-      if (S.item) {
-        const key = S.item.key, nav = S.nav, result = await client.detail(S.item);
-        if (!live(session, client) || S.item?.key !== key || nav !== S.nav) return;
-        S.item = result.item; S.files = result.files; pruneSelection(); updateFileFilters();
-      } else {
-        const pairs = [['torrent', false], ['webdl', false], ['torrent', true], ['webdl', true]];
-        const results = await Promise.allSettled(pairs.map(([type, queued]) => client.list(type, queued, manual)));
-        if (!live(session, client) || serial !== S.refresh || revision !== S.revision) return;
-        const failed = [];
-        results.forEach((r, i) => {
-          if (r.status === 'rejected') { if (r.reason.auth) throw r.reason; failed.push((pairs[i][0] === 'torrent' ? 'Torrents' : 'Web downloads') + (pairs[i][1] ? ' queue' : '') + ': ' + r.reason.message); return; }
-          const field = pairs[i][1] ? 'queue' : 'rows';
-          S[field] = S[field].filter(row => row.type !== pairs[i][0]).concat(r.value.filter(row => !S.deleted.has(row.key)));
-        });
-        notice(failed.length ? 'Some lists could not be refreshed. ' + failed.join(' ') : '', failed.length ? 'error' : '');
+      const pairs = [['torrent', false], ['webdl', false], ['torrent', true], ['webdl', true]];
+      const item = S.item, nav = S.nav, oldAccount = S.account;
+      const account = initial ? Promise.resolve(S.account) : client.me().then(C.accountInfo);
+      const usenet = account.catch(() => oldAccount).then(info => info?.code === 2 ? client.usenetUsage(manual) : info?.code != null ? [] : Promise.reject(new Error('Usenet usage needs a reported plan.')));
+      const results = await Promise.allSettled([account, client.stats(), usenet, ...pairs.map(([type, queued]) => client.list(type, queued, manual)), item ? client.detail(item) : Promise.resolve(null)]);
+      if (!live(session, client) || serial !== S.refresh || revision !== S.revision) return;
+      // Check every auth failure before applying any of this refresh's private data.
+      for (const r of results) if (r.status === 'rejected' && r.reason.auth) throw r.reason;
+      const failed = [];
+      S.quotaStale = results.slice(0, 7).some(r => r.status === 'rejected');
+      if (results[0].status === 'fulfilled') { S.account = results[0].value; $('account').textContent = S.account.email; }
+      if (results[1].status === 'fulfilled') { S.bandwidth = C.bandwidthTotal(results[1].value); S.loaded.add('bandwidth'); }
+      if (results[2].status === 'fulfilled') { S.usenet = results[2].value; S.loaded.add('usenet'); }
+      pairs.forEach(([type, queued], i) => {
+        const r = results[i + 3];
+        if (r.status === 'rejected') { failed.push((type === 'torrent' ? 'Torrents' : 'Web downloads') + (queued ? ' queue' : '') + ': ' + r.reason.message); return; }
+        const field = queued ? 'queue' : 'rows';
+        S[field] = S[field].filter(row => row.type !== type).concat(r.value.filter(row => !S.deleted.has(row.key)));
+        S.loaded.add(type + (queued ? '-queue' : ''));
+      });
+      const detail = results[7];
+      if (item && S.item?.key === item.key && nav === S.nav) {
+        if (detail.status === 'fulfilled') { S.item = detail.value.item; S.files = detail.value.files; pruneSelection(); updateFileFilters(); }
+        else failed.push(detail.reason.message);
       }
-      if (live(session, client)) { S.updated = Date.now(); render(); }
+      const accountFailed = results.slice(0, 3).some(r => r.status === 'rejected');
+      notice(failed.length ? 'Some lists could not be refreshed. ' + failed.join(' ') : accountFailed ? 'Account usage could not be refreshed. Last known values are shown; try Refresh again.' : '', failed.length || accountFailed ? 'error' : '');
+      S.updated = Date.now(); if (!S.quotaStale) S.quotaUpdated = S.updated; render();
     } catch (error) { if (live(session, client)) { if (error.auth) clearSession(error.message); else notice(error.message, 'error'); } }
-    finally { if (live(session, client) && serial === S.refresh) { S.refreshing = false; $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; } }
+    finally { if (live(session, client) && serial === S.refresh) { S.refreshing = false; $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; renderQuotas(); } }
   }
   $('refresh').onclick = () => refresh(true);
   setInterval(() => { if (S.client && document.visibilityState === 'visible' && !S.item && !$('dialog').open && S.view !== 'downloads') refresh(); }, 60000);
@@ -299,11 +393,32 @@
   function counts() {
     for (const [view, count] of Object.entries({ all: S.rows.length, active: S.rows.filter(r => !r.ready).length, finished: S.rows.filter(r => r.ready).length, queue: S.queue.length, airlock: S.rows.filter(r => r.airlocked).length, downloads: S.jobs.length })) $('count-' + view).textContent = count.toLocaleString();
   }
+  function renderQuotas() {
+    if (!S.client || !S.account) return;
+    const a = S.account, loaded = ['torrent', 'webdl', 'usenet'].every(k => S.loaded.has(k));
+    const usage = C.usageTotals(loaded ? [...S.rows, ...S.usenet] : null), bandwidth = S.bandwidth;
+    const queue = ['torrent-queue', 'webdl-queue'].every(k => S.loaded.has(k)) ? S.queue.length : null;
+    const count = n => n == null ? 'Not reported' : n.toLocaleString();
+    const card = (id, label, value, detail, used = null, limit = null) => {
+      const box = el('div', { class: 'quota-card', id });
+      box.append(el('span', { class: 'quota-label' }, label), el('strong', { class: 'quota-value' }, value), el('span', { class: 'quota-detail' }, detail));
+      if (used != null && limit > 0) box.append(el('progress', { max: limit, value: Math.min(used, limit), 'aria-label': label + ' usage', title: C.bytes(used) + ' / ' + C.bytes(limit) }));
+      return box;
+    };
+    const expiry = a.code === 0 ? 'Free plan · 1 add/day, 10/month' : a.expires == null ? 'Expiry not reported' : (a.expires <= Date.now() ? 'Expired ' : 'Expires ') + new Date(a.expires).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const slots = usage.active == null ? 'Not reported' : count(usage.active) + (a.slots != null ? ' / ' + count(a.slots) : ' active');
+    const slotDetail = a.slots == null ? 'Slot allowance not reported' : 'Plan limit' + (a.extraSlots ? ' + reported extra slots' : '') + ' · Downloading + seeding';
+    const airlock = C.bytes(usage.airlock), airlockDetail = a.airlockLimit == null ? 'Allowance not reported' : 'of ' + C.bytes(a.airlockLimit) + ' plan allowance' + (usage.airlock != null ? ' · ' + C.bytes(Math.max(0, a.airlockLimit - usage.airlock)) + ' free' : '');
+    const bandwidthDetail = a.bandwidthBaseline == null ? 'Dynamic fair use; baseline not reported' : C.bytes(a.bandwidthBaseline) + ' fair-use baseline · Dynamic threshold';
+    $('quota-cards').replaceChildren(card('quota-plan', 'Your plan', a.plan, expiry), card('quota-slots', 'Active slots', slots, slotDetail), card('quota-airlock', 'AirLock storage', airlock, airlockDetail, usage.airlock, a.airlockLimit), card('quota-bandwidth', 'Bandwidth · past 30 days', C.bytes(bandwidth), bandwidthDetail, bandwidth, a.bandwidthBaseline), card('quota-queue', 'Queued items', count(queue), 'Torrent + web download queue'));
+    $('quota-status').textContent = S.refreshing ? 'Refreshing usage…' : S.quotaStale ? 'Some usage could not refresh. Last known values shown.' : S.quotaUpdated ? 'Updated ' + new Date(S.quotaUpdated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Loading usage…';
+    $('quota-status').classList.toggle('quota-stale', S.quotaStale);
+  }
   function dateCell(value) { const d = C.dateLabel(value), td = el('td', { class: 'date date-column', title: d.full }); td.append(el('span', {}, d.date), el('span', { class: 'sub' }, d.age)); return td; }
   function header(label, field, cls = '') { const th = el('th', { scope: 'col', class: cls }); if (field) { const [sort, dir] = $('sort').value.split(':'); th.setAttribute('aria-sort', sort === field ? dir === 'asc' ? 'ascending' : 'descending' : 'none'); th.append(button(label + (sort === field ? dir === 'asc' ? ' ↑' : ' ↓' : ''), () => { $('sort').value = `${field}:${sort === field && dir === 'asc' ? 'desc' : 'asc'}`; S.page = 0; render(); })); } else th.textContent = label; return th; }
   function render() {
     if (!S.client) return;
-    counts(); for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-current', b.dataset.view === S.view ? 'page' : 'false');
+    counts(); renderQuotas(); for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-current', b.dataset.view === S.view ? 'page' : 'false');
     $('view-title').textContent = S.item ? S.item.name : views[S.view];
     $('view-subtitle').textContent = S.item ? 'Browse folders and choose files' : S.view === 'downloads' ? 'Downloads started during this session' : 'Your torrents and web downloads';
     const jobs = S.view === 'downloads' && !S.item;
@@ -404,7 +519,7 @@
     await guarded(async (client, active) => {
       await client.control(item, operation); if (!active()) return; S.revision++;
       if (operation === 'delete' || item.queued && operation === 'start') { S.deleted.add(item.key); S.rows = S.rows.filter(r => r.key !== item.key); S.queue = S.queue.filter(r => r.key !== item.key); if (S.item?.key === item.key) { S.item = null; S.files = []; S.selected.clear(); } }
-      $('dialog').close(); notice(operation === 'delete' ? 'Deleted from TorBox.' : operation === 'start' ? 'TorBox accepted the start request. The item may take a moment to appear.' : 'TorBox accepted the ' + operation + ' request.', 'success'); render();
+      $('dialog').close(); notice(operation === 'delete' ? 'Deleted from TorBox.' : operation === 'start' ? 'TorBox accepted the start request. The item may take a moment to appear.' : 'TorBox accepted the ' + operation + ' request.', 'success'); render(); refresh(true);
     }, { node, errorNode });
   }
   function deleteDialog(item) {
@@ -416,7 +531,7 @@
     const error = modalError(body); body.append(button('Save', e => { if (!name.value.trim()) { error.textContent = 'Enter a name.'; error.hidden = false; return; } editItem(item, { name: name.value.trim(), tags: [...new Set(tags.value.split(',').map(x => x.trim()).filter(Boolean))] }, e.currentTarget, error); }, 'primary'));
   }
   async function editItem(item, changes, node, errorNode) {
-    await guarded(async (client, active) => { const updated = await client.edit(item, changes); if (!active()) return; S.revision++; S.rows = S.rows.map(r => r.key === item.key ? updated : r); if (S.item?.key === item.key) S.item = updated; $('dialog').close(); notice('Saved on TorBox.', 'success'); render(); }, { node, errorNode });
+    await guarded(async (client, active) => { const updated = await client.edit(item, changes); if (!active()) return; S.revision++; S.rows = S.rows.map(r => r.key === item.key ? updated : r); if (S.item?.key === item.key) S.item = updated; $('dialog').close(); notice('Saved on TorBox.', 'success'); render(); refresh(true); }, { node, errorNode });
   }
   $('add').onclick = () => {
     const body = modal('Add to TorBox'), form = el('form'); body.append(form);

@@ -1,10 +1,18 @@
 # TorBox Drop web client
 
-Version 2.1.1. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
+Web version 2.1.2; Android APK version 2.1.1. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
 
 ## Use
 
 Enter your TorBox API key in the password field. The current-user API validates it before any account lists populate. Sign out or reload to clear the session. Your key is not saved. The Android APK is linked from the login page and desktop header.
+
+A prominent Account & quotas panel appears directly under the app header after login. It shows your reported plan and expiry, active slots (including seeding), AirLock storage used and available against the published plan allowance, bandwidth consumed in the past 30 days, and the torrent/web queue. Values cover the full loaded account, independent of filters, pagination and folder navigation. Pro account slot and AirLock totals also include a read-only, paginated Usenet list; Usenet management is not added to the library UI.
+
+Refresh reloads account information, bandwidth and complete account lists even while browsing a folder. Successful additions, controls and edits refresh usage too. Failed reads keep last known values with a stale notice; unreported values and incompletely loaded lists stay “Not reported”, including missing active/AirLock flags. Zero usage remains zero. Sign out, reload, expired authentication and late-response races clear all metrics as well as credentials.
+
+Allowances were checked against TorBox’s official documentation on 2026-10-04. API plan IDs are 0 Free, 1 Essential, 2 Pro, 3 Standard. Slot base allowances are 1/3/10/5 (plus reported extra concurrency, subject to the documented 10-slot maximum); AirLock allowances are 0/300 GB/1 TB/500 GB. These are published plan allowances, not a fabricated account quota endpoint. `user/stats?general=false&bandwidth=true&bandwidth_grouping=day` supplies the rolling bandwidth buckets. Fair-use baselines are 5/10/30/20 TB; they are minimum baselines within TorBox’s dynamic abuse system, not fixed caps. Never subtract usage from a baseline to claim remaining bandwidth. Lifetime transfer totals are not used as rolling usage. Unknown plans receive no invented Free limits. Current docs disagree about the Pro maximum individual-download size, so no unsupported file-size quota is displayed.
+
+Sources: [account restrictions](https://support.torbox.app/en/articles/9836418-account-restrictions), [AirLock allowances](https://support.torbox.app/en/articles/15417147-torbox-airlock), [fair use](https://support.torbox.app/en/articles/10336778-the-torbox-abuse-system), [official bandwidth response](https://www.postman.com/torbox/torbox-api/request/7wd3xgu/get-user-stats), and [official plan IDs](https://www.postman.com/torbox/torbox-api/request/rf7iu10/get-user-data).
 
 Open a collection, then folders. Use breadcrumbs or Backspace to go up; search includes subfolders, and extension filters match exact extensions. The table supports natural names, size, added and cache dates. Added and Cached always occupy separate, sortable columns, including on phones and tablets. Swipe the table sideways to see more columns; Name stays pinned so dates remain associated with the correct item. Missing dates are explicitly unknown. Individual files do not have fabricated timestamps; their collection's dates remain above the file table. A cache timestamp may predate adding a cached item, so it is never labeled Completed.
 

@@ -13,3 +13,19 @@
 .library-table .actions-column{width:182px}
 .library-table .row-actions{flex-direction:row}
 @media(max-width:1190px){.column-hint{display:block}}
+
+/* Account usage stays above every library and folder view. */
+#app{min-height:100dvh;display:flex;flex-direction:column}.layout{flex:1;min-height:0}
+.account-summary{padding:20px 28px 16px;background:#eaf3f9;border-bottom:1px solid #bfd5e3}
+.quota-heading{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.quota-heading h2{font-size:17px}.quota-heading a{margin-left:auto;font-size:13px}
+.quota-status{font-size:12px;color:var(--muted)}.quota-status.quota-stale{color:var(--danger)}
+.quota-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.quota-card{min-width:0;padding:14px 16px;background:white;border:1px solid #c7dce9;border-radius:10px;display:flex;flex-direction:column;gap:3px}
+.quota-label{font-size:12px;font-weight:600;color:var(--muted)}
+.quota-value{font-size:25px;color:#0a527d;line-height:1.35;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.quota-detail{font-size:12px;color:var(--muted);overflow-wrap:anywhere;line-height:1.4}
+.quota-card progress{width:100%;margin-top:auto;padding-top:8px;height:13px}
+.quota-note{font-size:12px;color:var(--muted);margin:10px 0 0}
+@media(max-width:1050px){.account-summary{padding:16px 18px}.quota-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:740px){.account-summary{padding:14px 12px}.quota-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.quota-card{padding:11px 12px}.quota-value{font-size:21px}.quota-card:last-child{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;column-gap:12px}.quota-card:last-child .quota-value{grid-column:2;grid-row:1/3}.quota-card:last-child .quota-detail{grid-column:1}.quota-heading{gap:4px 10px}.quota-heading h2{font-size:16px}.quota-heading a{font-size:12px}.quota-status{flex-basis:100%;order:3}.quota-note{font-size:11px}}

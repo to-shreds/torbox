@@ -8,16 +8,17 @@ let browser;
 const key='fixture-key-only-not-a-real-account';
 before(async()=>{browser=await chromium.launch({headless:true,executablePath:process.env.DROP_CHROME || undefined,args:['--no-sandbox']});});
 after(async()=>{await browser?.close();});
-const base=(id,extra={})=>({id,name:`Collection ${id}`,created_at:'2026-09-01T12:30:00Z',cached_at:'2026-08-25T09:00:00Z',size:4096,download_finished:true,download_present:true,allow_zipped:true,tags:[],files:[{id:1,name:'Pack/Season 1/Episode 2.mp4',size:16,mimetype:'video/mp4'},{id:2,name:'Pack/Season 1/Episode 10.mp4',size:16},{id:3,name:'Pack/readme.txt',size:16}],...extra});
+const base=(id,extra={})=>({id,name:`Collection ${id}`,created_at:'2026-09-01T12:30:00Z',cached_at:'2026-08-25T09:00:00Z',size:4096,active:false,airlocked:false,download_finished:true,download_present:true,allow_zipped:true,tags:[],files:[{id:1,name:'Pack/Season 1/Episode 2.mp4',size:16,mimetype:'video/mp4'},{id:2,name:'Pack/Season 1/Episode 10.mp4',size:16},{id:3,name:'Pack/readme.txt',size:16}],...extra});
 async function fixture(t,options={}) {
- const requests=[], state={items:[base(1),base(2,{name:'Older item',created_at:'2026-07-04T10:00:00Z'}),base(3,{name:'Currently downloading',download_finished:false,download_present:false,progress:.23})],queue:[{id:5,name:'Waiting torrent',created_at:'2026-09-20T12:00:00Z'}],...options};
+ const requests=[], state={account:{id:1,email:'Test account',plan:3,premium_expires_at:'2027-02-01T00:00:00Z'},stats:{bandwidth:[{date:'2026-09-20T00:00:00Z',bytes_downloaded:123e9}]},usenet:[],items:[base(1),base(2,{name:'Older item',created_at:'2026-07-04T10:00:00Z'}),base(3,{name:'Currently downloading',active:true,download_finished:false,download_present:false,progress:.23})],queue:[{id:5,name:'Waiting torrent',created_at:'2026-09-20T12:00:00Z'}],...options};
  const ok=d=>new Response(JSON.stringify({success:true,data:d}),{headers:{'Content-Type':'application/json'}});
  const server=createServer({local:true,fetchFn:async(u,o)=>{
   requests.push({url:u.href,method:o.method,body:o.body?.toString(),headers:{...o.headers}});
   if(state.override){const r=await state.override(u,o);if(r)return r;}
   const path=u.pathname;
-  if(path.endsWith('/user/me'))return ok({id:1,email:'Test account'});
-  if(path.endsWith('/mylist')){if(path.includes('/webdl/'))return ok([]);if(u.searchParams.has('id'))return ok(state.items.filter(r=>r.id===Number(u.searchParams.get('id'))));const offset=Number(u.searchParams.get('offset')||0),limit=Number(u.searchParams.get('limit')||1000);return ok(state.items.slice(offset,offset+limit));}
+  if(path.endsWith('/user/me'))return ok(state.account);
+  if(path.endsWith('/user/stats'))return ok(state.stats);
+  if(path.endsWith('/mylist')){if(path.includes('/webdl/'))return ok([]);if(u.searchParams.has('id'))return ok(state.items.filter(r=>r.id===Number(u.searchParams.get('id'))));const offset=Number(u.searchParams.get('offset')||0),limit=Number(u.searchParams.get('limit')||1000);return ok((path.includes('/usenet/')?state.usenet:state.items).slice(offset,offset+limit));}
   if(path.endsWith('/getqueued'))return ok(u.searchParams.get('type')==='torrent'?state.queue:[]);
   if(path.endsWith('/requestdl'))return ok(state.link || 'https://cdn.example.test/file');
   if(path.includes('/control')){const data=JSON.parse(o.body);if(state.rejectDelete&&data.operation==='delete')return new Response(JSON.stringify({success:false,detail:'Denied'}),{status:400}); if(data.operation==='delete')state.items=state.items.filter(x=>x.id!==data.torrent_id);return ok(null);}
@@ -98,3 +99,44 @@ test('sign out during late detail response cannot repopulate private data',async
 test('expired API key returns to sign-in and clears rows',async t=>{const f=await fixture(t);await f.login();f.state.override=async()=>new Response(JSON.stringify({success:false,error:'BAD_TOKEN'}),{status:401});await f.page.locator('#refresh').click();await f.page.locator('#login').waitFor({state:'visible'});assert.equal(await f.page.locator('#rows tr').count(),0);assert.match(await f.page.locator('#login-error').innerText(),/rejected/);});
 
 test('unconfigured publication blocks API-key entry until the relay is activated',async t=>{const f=await fixture(t);const html=(await readFile('web/index.html','utf8')).replace(/<meta name="torbox-api"[^>]*>/,'<meta name="torbox-api" content="">');await f.page.route(f.url+'/',route=>route.fulfill({contentType:'text/html',body:html}));await f.page.reload();assert.equal(await f.page.locator('#api-key').isDisabled(),true);assert.equal(await f.page.locator('#connect').isDisabled(),true);assert.match(await f.page.locator('#login-error').innerText(),/activation/);assert.equal(f.requests.length,0);});
+
+test('prominent quotas show plan, slots including seeding, AirLock bytes, rolling bandwidth and queue',async t=>{
+ const f=await fixture(t,{items:[base(1,{size:200e9,airlocked:true,active:true,download_state:'uploading'}),base(2,{size:900e9})]});
+ assert.equal(await f.page.locator('#account-summary').isVisible(),false);assert.equal(f.requests.length,0);await f.login();
+ assert.equal(await f.page.locator('#quota-plan .quota-value').innerText(),'Standard');assert.match(await f.page.locator('#quota-plan').innerText(),/Feb 1, 2027/);
+ assert.equal(await f.page.locator('#quota-slots .quota-value').innerText(),'1 / 5');assert.equal(await f.page.locator('#quota-airlock .quota-value').innerText(),'200 GB');
+ assert.match(await f.page.locator('#quota-airlock').innerText(),/500 GB.*300 GB free/s);
+ assert.equal(await f.page.locator('#quota-bandwidth .quota-value').innerText(),'123 GB');assert.match(await f.page.locator('#quota-bandwidth').innerText(),/20 TB fair-use baseline.*Dynamic threshold/s);
+ assert.equal(await f.page.locator('#quota-queue .quota-value').innerText(),'1');
+ const summary=await f.page.locator('#account-summary').boundingBox(),heading=await f.page.locator('.heading').boundingBox();assert.ok(summary.y+summary.height<=heading.y);
+ await f.page.locator('#search').fill('not found');assert.equal(await f.page.locator('#rows tr').count(),0);assert.equal(await f.page.locator('#quota-airlock .quota-value').innerText(),'200 GB');
+ await f.page.locator('#search').fill('');await mkdir('web/verification',{recursive:true});await f.page.screenshot({path:'web/verification/desktop-quotas.png',fullPage:true});
+ for(const width of [320,390,740,1024]){await f.page.setViewportSize({width,height:900});assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);for(const card of await f.page.locator('.quota-card').all()){const b=await card.boundingBox();assert.ok(b.x>=0 && b.x+b.width<=width);}}
+ await f.page.setViewportSize({width:390,height:844});await f.page.screenshot({path:'web/verification/mobile-quotas.png',fullPage:true});
+});
+test('Pro quotas include paginated read-only Usenet usage without adding Usenet library mutations',async t=>{
+ const f=await fixture(t,{account:{plan:2},items:[base(1,{active:true,airlocked:true,size:200e9})],usenet:[{id:8,active:true,airlocked:true,size:100e9}]});await f.login();
+ assert.equal(await f.page.locator('#quota-slots .quota-value').innerText(),'2 / 10');assert.equal(await f.page.locator('#quota-airlock .quota-value').innerText(),'300 GB');assert.match(await f.page.locator('#quota-airlock').innerText(),/1 TB/);
+ assert.ok(f.requests.some(r=>r.url.includes('/usenet/mylist')));assert.equal(await f.page.locator('#rows tr').count(),1);
+});
+test('quota refresh keeps file navigation and picks up account, allowance and usage changes',async t=>{
+ const f=await fixture(t);await f.login();await browse(f.page);f.state.account={plan:1,additional_concurrent_slots:2,premium_expires_at:'2027-04-02T00:00:00Z'};f.state.stats={bandwidth:[{date:'2026-09-20T00:00:00Z',bytes_downloaded:2e12}]};f.state.items[0].airlocked=true;f.state.items[0].size=100e9;
+ await f.page.locator('#refresh').click();await f.page.waitForFunction(()=>!document.querySelector('#refresh').disabled);
+ assert.equal(await f.page.locator('#quota-plan .quota-value').innerText(),'Essential');assert.equal(await f.page.locator('#quota-slots .quota-value').innerText(),'1 / 5');assert.equal(await f.page.locator('#quota-bandwidth .quota-value').innerText(),'2 TB');assert.match(await f.page.locator('#quota-airlock').innerText(),/100 GB.*300 GB/s);assert.equal(await f.page.locator('#view-title').innerText(),'Collection 1');assert.equal(await f.page.locator('#rows .name-button').first().innerText(),'Episode 2.mp4');
+});
+test('failed quota refresh retains last known usage, marks it stale, and recovers',async t=>{
+ const f=await fixture(t);await f.login();f.state.override=async u=>u.pathname.endsWith('/user/stats')?new Response(JSON.stringify({success:false}),{status:503}):null;
+ await f.page.locator('#refresh').click();await f.page.waitForFunction(()=>!document.querySelector('#refresh').disabled);assert.equal(await f.page.locator('#quota-bandwidth .quota-value').innerText(),'123 GB');assert.match(await f.page.locator('#quota-status').innerText(),/could not refresh/);assert.equal(await f.page.locator('#rows tr').count(),3);
+ f.state.override=null;f.state.stats={bandwidth:[]};await f.page.locator('#refresh').click();await f.page.waitForFunction(()=>!document.querySelector('#refresh').disabled);assert.equal(await f.page.locator('#quota-bandwidth .quota-value').innerText(),'0 B');assert.doesNotMatch(await f.page.locator('#quota-status').innerText(),/could not refresh/);
+});
+test('unknown account plan, missing bandwidth and unavailable lists never become zero or Free quotas',async t=>{
+ const f=await fixture(t,{account:{id:1},stats:{general:{total_downloaded:90e12}},override:async u=>u.pathname.includes('/webdl/mylist')?new Response(JSON.stringify({success:false}),{status:503}):null});await f.login();
+ for(const id of ['plan','slots','airlock','bandwidth'])assert.equal(await f.page.locator('#quota-'+id+' .quota-value').innerText(),'Not reported');assert.doesNotMatch(await f.page.locator('#quota-plan').innerText(),/Free/);assert.equal(await f.page.locator('#rows tr').count(),3);
+});
+test('late quota responses after sign out cannot restore account metrics or cross into a new session',async t=>{
+ let release;const f=await fixture(t,{override:async u=>u.pathname.endsWith('/user/stats')?await new Promise(r=>release=()=>r(new Response(JSON.stringify({success:true,data:{bandwidth:[{date:'2026-09-20',bytes_downloaded:9e12}]}})))):null});
+ await f.page.locator('#api-key').fill(key);await f.page.locator('#connect').click();await f.page.locator('#app').waitFor({state:'visible'});await f.page.waitForFunction(()=>document.querySelector('#refresh').disabled);
+ for(let i=0;i<200&&!release;i++)await new Promise(r=>setTimeout(r,10));assert.equal(typeof release,'function');await f.page.locator('#sign-out').click();release();
+ assert.equal(await f.page.locator('#quota-cards').innerText(),'');assert.equal(await f.page.locator('#account').innerText(),'');f.state.override=null;await f.login();assert.equal(await f.page.locator('#quota-bandwidth .quota-value').innerText(),'123 GB');
+ await f.page.reload();assert.equal(await f.page.locator('#quota-cards').innerText(),'');assert.equal(await f.page.locator('#account-summary').isVisible(),false);assert.equal(await f.page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+});

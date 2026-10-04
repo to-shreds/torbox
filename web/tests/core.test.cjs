@@ -98,3 +98,39 @@ test('mutation network failures warn to check before retrying and are not auto-r
  let n=0;const c=new C.Client(key,async()=>{n++;throw new TypeError('fetch failed');});
  await assert.rejects(c.control(C.normalize(raw(1),'torrent'),'delete'),/Refresh to check/);assert.equal(n,1);
 });
+test('account allowances follow TorBox plan IDs, including Pro=2 and Standard=3',()=>{
+ for(const [plan,name,slots,airlock,bandwidth] of [[0,'Free',1,0,5e12],[1,'Essential',3,300e9,10e12],[2,'Pro',10,1e12,30e12],[3,'Standard',5,500e9,20e12]]){
+  const a=C.accountInfo({plan,premium_expires_at:'2027-01-01T00:00:00Z'});
+  assert.equal(a.plan,name);assert.equal(a.slots,slots);assert.equal(a.airlockLimit,airlock);assert.equal(a.bandwidthBaseline,bandwidth);
+ }
+ assert.equal(C.accountInfo({plan:'standard',additional_concurrent_slots:'2'}).slots,7);
+ assert.equal(C.accountInfo({plan:2,additional_concurrent_slots:100}).slots,10);
+ for(const plan of [null,undefined,false,true,'',{},4,-1,'unknown']){
+  const a=C.accountInfo({plan});assert.equal(a.plan,'Not reported');assert.equal(a.slots,null);assert.equal(a.airlockLimit,null);assert.equal(a.bandwidthBaseline,null);
+ }
+ assert.equal(C.accountInfo({plan:1,additional_concurrent_slots:false}).extraSlots,0);
+ assert.throws(()=>C.accountInfo([]));
+});
+test('30-day bandwidth sums only the documented usage buckets, never lifetime totals',()=>{
+ const bucket=(date,bytes_downloaded)=>({date,bytes_downloaded});
+ const data={general:{total_downloaded:999e12},bandwidth:[bucket('2026-09-05T00:00:00Z',123e9),bucket('2026-09-06T00:00:00Z','77') ]};
+ assert.equal(C.bandwidthTotal(data),123e9+77);assert.equal(C.bandwidthTotal({bandwidth:[]}),0);
+ for(const d of [{},null,{bandwidth:null},{bandwidth:[bucket('2026-09-01',false)]},{bandwidth:[bucket('2026-09-01',null)]},{bandwidth:[bucket('invalid',1)]},{bandwidth:[bucket('2026-09-01',1),bucket('2026-09-01',2)]},{bandwidth:[bucket('2026-09-01',Number.MAX_SAFE_INTEGER),bucket('2026-09-02',1)]}])assert.equal(C.bandwidthTotal(d),null);
+});
+test('quota usage includes seeding, excludes cached inactive files, and counts only AirLock bytes',()=>{
+ const rows=[C.normalize(raw(1,{active:true,download_state:'uploading',airlocked:true,size:300}),'torrent'),C.normalize(raw(2,{active:false,airlocked:false,size:900e9}),'torrent'),{id:3,active:true,airlocked:true,size:200}];
+ assert.deepEqual(C.usageTotals(rows),{active:2,airlock:500});
+ assert.deepEqual(C.usageTotals([]),{active:0,airlock:0});assert.deepEqual(C.usageTotals(null),{active:null,airlock:null});
+ assert.deepEqual(C.usageTotals([C.normalize(raw(4),'torrent')]),{active:null,airlock:null});
+ assert.deepEqual(C.usageTotals([{active:false,airlocked:true,size:null}]),{active:0,airlock:null});
+ assert.deepEqual(C.usageTotals([{active:false,airlocked:false,size:null}]),{active:0,airlock:0});
+});
+test('bandwidth API requests rolling usage with bearer authentication and no general lifetime data',async()=>{
+ let seen;const c=new C.Client(key,async(u,o)=>{seen={u:new URL(u),o};return response({bandwidth:[]});});await c.stats();
+ assert.equal(seen.u.pathname,'/v1/api/user/stats');assert.equal(seen.u.searchParams.get('general'),'false');assert.equal(seen.u.searchParams.get('bandwidth'),'true');assert.equal(seen.u.searchParams.get('bandwidth_grouping'),'day');assert.equal(seen.o.headers.Authorization,'Bearer '+key);
+});
+test('read-only Usenet account usage paginates fully and retains unknown flags',async()=>{
+ const offsets=[];const c=new C.Client(key,async u=>{const url=new URL(u),n=+url.searchParams.get('offset');offsets.push(n);assert.equal(url.pathname,'/v1/api/usenet/mylist');return response(Array.from({length:n===0?1000:1},(_,i)=>({id:n+i,active:false,airlocked:i===0,size:20})));});
+ assert.equal((await c.usenetUsage()).length,1001);assert.deepEqual(offsets,[0,1000]);
+ const malformed=new C.Client(key,async()=>response([{id:1,size:0}]));assert.deepEqual(C.usageTotals(await malformed.usenetUsage()),{active:null,airlock:null});
+});
