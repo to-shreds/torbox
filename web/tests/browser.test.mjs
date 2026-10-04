@@ -135,7 +135,8 @@ test('unknown account plan, missing bandwidth and unavailable lists never become
 });
 test('late quota responses after sign out cannot restore account metrics or cross into a new session',async t=>{
  let release;const f=await fixture(t,{override:async u=>u.pathname.endsWith('/user/stats')?await new Promise(r=>release=()=>r(new Response(JSON.stringify({success:true,data:{bandwidth:[{date:'2026-09-20',bytes_downloaded:9e12}]}})))):null});
- await f.page.locator('#api-key').fill(key);await f.page.locator('#connect').click();await f.page.locator('#app').waitFor({state:'visible'});await f.page.waitForFunction(()=>document.querySelector('#refresh').disabled);await f.page.locator('#sign-out').click();release?.();
+ await f.page.locator('#api-key').fill(key);await f.page.locator('#connect').click();await f.page.locator('#app').waitFor({state:'visible'});await f.page.waitForFunction(()=>document.querySelector('#refresh').disabled);
+ for(let i=0;i<200&&!release;i++)await new Promise(r=>setTimeout(r,10));assert.equal(typeof release,'function');await f.page.locator('#sign-out').click();release();
  assert.equal(await f.page.locator('#quota-cards').innerText(),'');assert.equal(await f.page.locator('#account').innerText(),'');f.state.override=null;await f.login();assert.equal(await f.page.locator('#quota-bandwidth .quota-value').innerText(),'123 GB');
  await f.page.reload();assert.equal(await f.page.locator('#quota-cards').innerText(),'');assert.equal(await f.page.locator('#account-summary').isVisible(),false);assert.equal(await f.page.evaluate(()=>localStorage.length+sessionStorage.length),0);
 });
