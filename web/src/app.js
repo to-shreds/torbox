@@ -6,7 +6,8 @@
     $('api-key').disabled = true; $('connect').disabled = true; $('connect').textContent = 'Web activation pending';
     $('login-error').textContent = 'The web client is built, but its API relay still needs activation. Use the Android APK below in the meantime.'; $('login-error').hidden = false;
   }
-  const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null };
+  const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null,
+    account: null, bandwidth: null, usenet: [], loaded: new Set(), quotaUpdated: null, quotaStale: false };
   const views = { all: 'All files', active: 'Active', finished: 'Finished', queue: 'Queue', airlock: 'AirLock', downloads: 'Device downloads' };
   function el(tag, attrs = {}, text = '') {
     const n = document.createElement(tag);
@@ -25,6 +26,8 @@
     for (const job of S.jobs) { job.controller?.abort(); if (job.url?.startsWith('blob:')) URL.revokeObjectURL(job.url); }
     inFlightDownloads.clear();
     S.rows = []; S.queue = []; S.files = []; S.jobs = []; S.item = null; S.folder = ''; S.selected.clear(); S.deleted.clear(); S.updated = null;
+    S.account = null; S.bandwidth = null; S.usenet = []; S.loaded.clear(); S.quotaUpdated = null; S.quotaStale = false;
+    $('quota-cards').replaceChildren(); $('quota-status').textContent = '';
     $('api-key').value = ''; $('rows').replaceChildren(); $('jobs').replaceChildren(); $('dialog-body').replaceChildren(); $('dialog').close(); $('account').textContent = ''; $('file-meta').textContent = '';
     $('app').hidden = true; $('login').hidden = false; $('login-error').textContent = message; $('login-error').hidden = !message; $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox';
     $('api-key').focus();
@@ -44,9 +47,8 @@
     $('connect').disabled = true; $('connect').textContent = 'Connecting (may take a minute)…'; $('login-error').hidden = true;
     try {
       const account = await client.me(); if (!live(session, client)) return;
-      if (!account || typeof account !== 'object' || Array.isArray(account)) throw new Error('TorBox returned unreadable account information.');
-      $('account').textContent = account.email || account.base_email || 'Connected to TorBox';
-      $('login').hidden = true; $('app').hidden = false; S.view = 'all'; S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; $('type').value = ''; render(); await refresh();
+      S.account = C.accountInfo(account); $('account').textContent = S.account.email;
+      $('login').hidden = true; $('app').hidden = false; S.view = 'all'; S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; $('type').value = ''; render(); await refresh(false, true);
     } catch (error) { if (live(session, client)) clearSession(error.message); }
     finally { $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox'; }
   });
@@ -56,30 +58,41 @@
   function rootRows() {
     return (S.view === 'queue' ? S.queue : S.rows).filter(r => !S.deleted.has(r.key)).filter(r => S.view === 'active' ? !r.ready : S.view === 'finished' ? r.ready : S.view === 'airlock' ? r.airlocked : true);
   }
-  async function refresh(manual = false) {
+  async function refresh(manual = false, initial = false) {
     if (!S.client || S.refreshing) return;
     const session = S.session, client = S.client, serial = ++S.refresh, revision = S.revision;
-    S.refreshing = true; $('refresh').disabled = true; $('refresh').textContent = 'Refreshing…';
+    S.refreshing = true; $('refresh').disabled = true; $('refresh').textContent = 'Refreshing…'; renderQuotas();
     try {
-      if (S.item) {
-        const key = S.item.key, nav = S.nav, result = await client.detail(S.item);
-        if (!live(session, client) || S.item?.key !== key || nav !== S.nav) return;
-        S.item = result.item; S.files = result.files; pruneSelection(); updateFileFilters();
-      } else {
-        const pairs = [['torrent', false], ['webdl', false], ['torrent', true], ['webdl', true]];
-        const results = await Promise.allSettled(pairs.map(([type, queued]) => client.list(type, queued, manual)));
-        if (!live(session, client) || serial !== S.refresh || revision !== S.revision) return;
-        const failed = [];
-        results.forEach((r, i) => {
-          if (r.status === 'rejected') { if (r.reason.auth) throw r.reason; failed.push((pairs[i][0] === 'torrent' ? 'Torrents' : 'Web downloads') + (pairs[i][1] ? ' queue' : '') + ': ' + r.reason.message); return; }
-          const field = pairs[i][1] ? 'queue' : 'rows';
-          S[field] = S[field].filter(row => row.type !== pairs[i][0]).concat(r.value.filter(row => !S.deleted.has(row.key)));
-        });
-        notice(failed.length ? 'Some lists could not be refreshed. ' + failed.join(' ') : '', failed.length ? 'error' : '');
+      const pairs = [['torrent', false], ['webdl', false], ['torrent', true], ['webdl', true]];
+      const item = S.item, nav = S.nav, oldAccount = S.account;
+      const account = initial ? Promise.resolve(S.account) : client.me().then(C.accountInfo);
+      const usenet = account.catch(() => oldAccount).then(info => info?.code === 2 ? client.usenetUsage(manual) : info?.code != null ? [] : Promise.reject(new Error('Usenet usage needs a reported plan.')));
+      const results = await Promise.allSettled([account, client.stats(), usenet, ...pairs.map(([type, queued]) => client.list(type, queued, manual)), item ? client.detail(item) : Promise.resolve(null)]);
+      if (!live(session, client) || serial !== S.refresh || revision !== S.revision) return;
+      // Check every auth failure before applying any of this refresh's private data.
+      for (const r of results) if (r.status === 'rejected' && r.reason.auth) throw r.reason;
+      const failed = [];
+      S.quotaStale = results.slice(0, 7).some(r => r.status === 'rejected');
+      if (results[0].status === 'fulfilled') { S.account = results[0].value; $('account').textContent = S.account.email; }
+      if (results[1].status === 'fulfilled') { S.bandwidth = C.bandwidthTotal(results[1].value); S.loaded.add('bandwidth'); }
+      if (results[2].status === 'fulfilled') { S.usenet = results[2].value; S.loaded.add('usenet'); }
+      pairs.forEach(([type, queued], i) => {
+        const r = results[i + 3];
+        if (r.status === 'rejected') { failed.push((type === 'torrent' ? 'Torrents' : 'Web downloads') + (queued ? ' queue' : '') + ': ' + r.reason.message); return; }
+        const field = queued ? 'queue' : 'rows';
+        S[field] = S[field].filter(row => row.type !== type).concat(r.value.filter(row => !S.deleted.has(row.key)));
+        S.loaded.add(type + (queued ? '-queue' : ''));
+      });
+      const detail = results[7];
+      if (item && S.item?.key === item.key && nav === S.nav) {
+        if (detail.status === 'fulfilled') { S.item = detail.value.item; S.files = detail.value.files; pruneSelection(); updateFileFilters(); }
+        else failed.push(detail.reason.message);
       }
-      if (live(session, client)) { S.updated = Date.now(); render(); }
+      const accountFailed = results.slice(0, 3).some(r => r.status === 'rejected');
+      notice(failed.length ? 'Some lists could not be refreshed. ' + failed.join(' ') : accountFailed ? 'Account usage could not be refreshed. Last known values are shown; try Refresh again.' : '', failed.length || accountFailed ? 'error' : '');
+      S.updated = Date.now(); if (!S.quotaStale) S.quotaUpdated = S.updated; render();
     } catch (error) { if (live(session, client)) { if (error.auth) clearSession(error.message); else notice(error.message, 'error'); } }
-    finally { if (live(session, client) && serial === S.refresh) { S.refreshing = false; $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; } }
+    finally { if (live(session, client) && serial === S.refresh) { S.refreshing = false; $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; renderQuotas(); } }
   }
   $('refresh').onclick = () => refresh(true);
   setInterval(() => { if (S.client && document.visibilityState === 'visible' && !S.item && !$('dialog').open && S.view !== 'downloads') refresh(); }, 60000);
@@ -93,11 +106,32 @@
   function counts() {
     for (const [view, count] of Object.entries({ all: S.rows.length, active: S.rows.filter(r => !r.ready).length, finished: S.rows.filter(r => r.ready).length, queue: S.queue.length, airlock: S.rows.filter(r => r.airlocked).length, downloads: S.jobs.length })) $('count-' + view).textContent = count.toLocaleString();
   }
+  function renderQuotas() {
+    if (!S.client || !S.account) return;
+    const a = S.account, loaded = ['torrent', 'webdl', 'usenet'].every(k => S.loaded.has(k));
+    const usage = C.usageTotals(loaded ? [...S.rows, ...S.usenet] : null), bandwidth = S.bandwidth;
+    const queue = ['torrent-queue', 'webdl-queue'].every(k => S.loaded.has(k)) ? S.queue.length : null;
+    const count = n => n == null ? 'Not reported' : n.toLocaleString();
+    const card = (id, label, value, detail, used = null, limit = null) => {
+      const box = el('div', { class: 'quota-card', id });
+      box.append(el('span', { class: 'quota-label' }, label), el('strong', { class: 'quota-value' }, value), el('span', { class: 'quota-detail' }, detail));
+      if (used != null && limit > 0) box.append(el('progress', { max: limit, value: Math.min(used, limit), 'aria-label': label + ' usage', title: C.bytes(used) + ' / ' + C.bytes(limit) }));
+      return box;
+    };
+    const expiry = a.code === 0 ? 'Free plan · 1 add/day, 10/month' : a.expires == null ? 'Expiry not reported' : (a.expires <= Date.now() ? 'Expired ' : 'Expires ') + new Date(a.expires).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const slots = usage.active == null ? 'Not reported' : count(usage.active) + (a.slots != null ? ' / ' + count(a.slots) : ' active');
+    const slotDetail = a.slots == null ? 'Slot allowance not reported' : 'Plan limit' + (a.extraSlots ? ' + reported extra slots' : '') + ' · Downloading + seeding';
+    const airlock = C.bytes(usage.airlock), airlockDetail = a.airlockLimit == null ? 'Allowance not reported' : 'of ' + C.bytes(a.airlockLimit) + ' plan allowance' + (usage.airlock != null ? ' · ' + C.bytes(Math.max(0, a.airlockLimit - usage.airlock)) + ' free' : '');
+    const bandwidthDetail = a.bandwidthBaseline == null ? 'Dynamic fair use; baseline not reported' : C.bytes(a.bandwidthBaseline) + ' fair-use baseline · Dynamic threshold';
+    $('quota-cards').replaceChildren(card('quota-plan', 'Your plan', a.plan, expiry), card('quota-slots', 'Active slots', slots, slotDetail), card('quota-airlock', 'AirLock storage', airlock, airlockDetail, usage.airlock, a.airlockLimit), card('quota-bandwidth', 'Bandwidth · past 30 days', C.bytes(bandwidth), bandwidthDetail, bandwidth, a.bandwidthBaseline), card('quota-queue', 'Queued items', count(queue), 'Torrent + web download queue'));
+    $('quota-status').textContent = S.refreshing ? 'Refreshing usage…' : S.quotaStale ? 'Some usage could not refresh. Last known values shown.' : S.quotaUpdated ? 'Updated ' + new Date(S.quotaUpdated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Loading usage…';
+    $('quota-status').classList.toggle('quota-stale', S.quotaStale);
+  }
   function dateCell(value) { const d = C.dateLabel(value), td = el('td', { class: 'date date-column', title: d.full }); td.append(el('span', {}, d.date), el('span', { class: 'sub' }, d.age)); return td; }
   function header(label, field, cls = '') { const th = el('th', { scope: 'col', class: cls }); if (field) { const [sort, dir] = $('sort').value.split(':'); th.setAttribute('aria-sort', sort === field ? dir === 'asc' ? 'ascending' : 'descending' : 'none'); th.append(button(label + (sort === field ? dir === 'asc' ? ' ↑' : ' ↓' : ''), () => { $('sort').value = `${field}:${sort === field && dir === 'asc' ? 'desc' : 'asc'}`; S.page = 0; render(); })); } else th.textContent = label; return th; }
   function render() {
     if (!S.client) return;
-    counts(); for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-current', b.dataset.view === S.view ? 'page' : 'false');
+    counts(); renderQuotas(); for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-current', b.dataset.view === S.view ? 'page' : 'false');
     $('view-title').textContent = S.item ? S.item.name : views[S.view];
     $('view-subtitle').textContent = S.item ? 'Browse folders and choose files' : S.view === 'downloads' ? 'Downloads started during this session' : 'Your torrents and web downloads';
     const jobs = S.view === 'downloads' && !S.item;
@@ -198,7 +232,7 @@
     await guarded(async (client, active) => {
       await client.control(item, operation); if (!active()) return; S.revision++;
       if (operation === 'delete' || item.queued && operation === 'start') { S.deleted.add(item.key); S.rows = S.rows.filter(r => r.key !== item.key); S.queue = S.queue.filter(r => r.key !== item.key); if (S.item?.key === item.key) { S.item = null; S.files = []; S.selected.clear(); } }
-      $('dialog').close(); notice(operation === 'delete' ? 'Deleted from TorBox.' : operation === 'start' ? 'TorBox accepted the start request. The item may take a moment to appear.' : 'TorBox accepted the ' + operation + ' request.', 'success'); render();
+      $('dialog').close(); notice(operation === 'delete' ? 'Deleted from TorBox.' : operation === 'start' ? 'TorBox accepted the start request. The item may take a moment to appear.' : 'TorBox accepted the ' + operation + ' request.', 'success'); render(); refresh(true);
     }, { node, errorNode });
   }
   function deleteDialog(item) {
@@ -210,7 +244,7 @@
     const error = modalError(body); body.append(button('Save', e => { if (!name.value.trim()) { error.textContent = 'Enter a name.'; error.hidden = false; return; } editItem(item, { name: name.value.trim(), tags: [...new Set(tags.value.split(',').map(x => x.trim()).filter(Boolean))] }, e.currentTarget, error); }, 'primary'));
   }
   async function editItem(item, changes, node, errorNode) {
-    await guarded(async (client, active) => { const updated = await client.edit(item, changes); if (!active()) return; S.revision++; S.rows = S.rows.map(r => r.key === item.key ? updated : r); if (S.item?.key === item.key) S.item = updated; $('dialog').close(); notice('Saved on TorBox.', 'success'); render(); }, { node, errorNode });
+    await guarded(async (client, active) => { const updated = await client.edit(item, changes); if (!active()) return; S.revision++; S.rows = S.rows.map(r => r.key === item.key ? updated : r); if (S.item?.key === item.key) S.item = updated; $('dialog').close(); notice('Saved on TorBox.', 'success'); render(); refresh(true); }, { node, errorNode });
   }
   $('add').onclick = () => {
     const body = modal('Add to TorBox'), form = el('form'); body.append(form);

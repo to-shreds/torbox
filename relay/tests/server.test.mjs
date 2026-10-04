@@ -41,3 +41,12 @@ test('no upstream video or HTML response is returned as API JSON',async()=>{
 test('successful empty mutation is normalized to JSON',async()=>{
  const f=await fixture(async()=>new Response(null,{status:204}));try{const r=await fetch(f.url+'/api/queued/controlqueued',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({queued_id:1,operation:'start',all:false})});assert.equal(r.status,200);assert.deepEqual(await r.json(),{success:true,data:null});}finally{f.close();}
 });
+test('account bandwidth and read-only Usenet usage are allowlisted with strict query options',async()=>{
+ const seen=[];const f=await fixture(async(u,o)=>{seen.push({url:u.href,method:o.method});assert.equal(o.headers.Authorization,'Bearer '+KEY);return ok({bandwidth:[]});});try{
+  const r=await fetch(f.url+'/api/user/stats?general=false&bandwidth=true&bandwidth_grouping=day',{headers});assert.equal(r.status,200);assert.equal(seen.length,1);
+  assert.equal((await fetch(f.url+'/api/usenet/mylist?offset=0&limit=1000',{headers})).status,200);
+  for(const path of ['user/stats?general=yes','user/stats?bandwidth=1','user/stats?bandwidth_grouping=year','user/stats?bandwidth_grouping=day&bandwidth_grouping=week','user/stats?token='+KEY])assert.equal((await fetch(f.url+'/api/'+path,{headers})).status,400);
+  assert.equal((await fetch(f.url+'/api/usenet/mylist',{headers,method:'POST'})).status,405);
+  assert.equal((await fetch(f.url+'/api/usenet/controlusenet',{headers,method:'POST'})).status,404);assert.equal(seen.length,2);
+ }finally{f.close();}
+});

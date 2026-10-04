@@ -1,16 +1,16 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-export const VERSION = '2.1.0';
+export const VERSION = '2.1.2';
 const UPSTREAM = 'https://api.torbox.app/v1/api/';
 const MAX_BODY = 21 * 1024 * 1024, MAX_RESPONSE = 16 * 1024 * 1024;
 const routes = new Map([
- ['user/me', ['GET']], ['torrents/mylist', ['GET']], ['webdl/mylist', ['GET']], ['queued/getqueued', ['GET']],
+ ['user/me', ['GET']], ['user/stats', ['GET']], ['usenet/mylist', ['GET']], ['torrents/mylist', ['GET']], ['webdl/mylist', ['GET']], ['queued/getqueued', ['GET']],
  ['torrents/requestdl', ['GET']], ['webdl/requestdl', ['GET']], ['torrents/createtorrent', ['POST']], ['webdl/createwebdownload', ['POST']],
  ['torrents/controltorrent', ['POST']], ['webdl/controlwebdownload', ['POST']], ['queued/controlqueued', ['POST']],
  ['torrents/edittorrent', ['PUT']], ['webdl/editwebdownload', ['PUT']], ['integration/jobs', ['GET']],
 ]);
-const allowedQuery = new Set(['settings', 'id', 'offset', 'limit', 'bypass_cache', 'type', 'torrent_id', 'web_id', 'file_id', 'zip_link', 'append_name', 'redirect']);
+const allowedQuery = new Set(['settings', 'general', 'bandwidth', 'bandwidth_grouping', 'id', 'offset', 'limit', 'bypass_cache', 'type', 'torrent_id', 'web_id', 'file_id', 'zip_link', 'append_name', 'redirect']);
 export async function readBounded(stream, limit) {
  let count = 0; const chunks = [];
  for await (const chunk of stream) { count += chunk.length; if (count > limit) throw new Error('LIMIT'); chunks.push(Buffer.from(chunk)); }
@@ -49,7 +49,8 @@ export function createServer({ fetchFn = fetch, origins = ['https://to-shreds.gi
    if (!allowedQuery.has(name) || url.searchParams.has(name) || value.length>100) return failure(res,400,'Invalid request parameter.');
    if (['id','offset','limit','torrent_id','web_id','file_id'].includes(name) && (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))) return failure(res,400,'Invalid numeric parameter.');
    if (name === 'limit' && Number(value)>1000) return failure(res,400,'Page size cannot exceed 1000.');
-   if (['settings','bypass_cache','zip_link','append_name','redirect'].includes(name) && !['true','false'].includes(value)) return failure(res,400,'Invalid option.');
+   if (['settings','general','bandwidth','bypass_cache','zip_link','append_name','redirect'].includes(name) && !['true','false'].includes(value)) return failure(res,400,'Invalid option.');
+   if (name === 'bandwidth_grouping' && !['hour','day','week','month'].includes(value)) return failure(res,400,'Invalid bandwidth grouping.');
    if (name === 'type' && !['torrent','webdl'].includes(value)) return failure(res,400,'Unsupported download type.');
    url.searchParams.set(name,value);
   }

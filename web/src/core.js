@@ -1,4 +1,4 @@
-/* TorBox Drop 2.1.0. No browser storage, analytics, or third-party script dependencies. */
+/* TorBox Drop web 2.1.2. No browser storage, analytics, or third-party script dependencies. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -31,6 +31,58 @@
     const e = Math.min(5, Math.floor(Math.log(n) / Math.log(1000)));
     return (n / 1000 ** e).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + ['B', 'KB', 'MB', 'GB', 'TB', 'PB'][e];
   }
+  // Published TorBox plan allowances, checked against the official help center on 2026-10-04.
+  // Bandwidth is a fair-use baseline, never a fixed cap or a remaining-byte quota.
+  const PLANS = Object.freeze({
+    0: Object.freeze({ name: 'Free', slots: 1, airlock: 0, bandwidth: 5e12 }),
+    1: Object.freeze({ name: 'Essential', slots: 3, airlock: 300e9, bandwidth: 10e12 }),
+    2: Object.freeze({ name: 'Pro', slots: 10, airlock: 1e12, bandwidth: 30e12 }),
+    3: Object.freeze({ name: 'Standard', slots: 5, airlock: 500e9, bandwidth: 20e12 })
+  });
+  function reportedNumber(v) {
+    if (typeof v !== 'number' && (typeof v !== 'string' || !/^\d+(?:\.\d+)?$/.test(v.trim()))) return null;
+    const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= Number.MAX_SAFE_INTEGER ? n : null;
+  }
+  function accountInfo(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('TorBox returned unreadable account information.');
+    const code = typeof raw.plan === 'string' && !/^\d+$/.test(raw.plan.trim())
+      ? Object.keys(PLANS).find(k => PLANS[k].name.toLowerCase() === raw.plan.trim().toLowerCase())
+      : reportedNumber(raw.plan);
+    const plan = PLANS[code] || null, extra = reportedNumber(raw.additional_concurrent_slots);
+    return { plan: plan?.name || 'Not reported', code: plan ? Number(code) : null,
+      slots: plan ? Math.min(10, plan.slots + (Number.isInteger(extra) ? extra : 0)) : null, extraSlots: Number.isInteger(extra) ? extra : 0,
+      airlockLimit: plan?.airlock ?? null, bandwidthBaseline: plan?.bandwidth ?? null,
+      expires: timestamp(raw.premium_expires_at ?? raw.subscription_expires_at), subscribed: raw.is_subscribed === true,
+      cooldown: timestamp(raw.cooldown_until), email: typeof raw.email === 'string' ? raw.email : typeof raw.base_email === 'string' ? raw.base_email : 'Connected to TorBox' };
+  }
+  function bandwidthTotal(raw) {
+    if (!raw || !Array.isArray(raw.bandwidth)) return null;
+    let total = 0; const seen = new Set();
+    for (const row of raw.bandwidth) {
+      const date = timestamp(row?.date), value = reportedNumber(row?.bytes_downloaded);
+      if (date == null || value == null || seen.has(date)) return null;
+      seen.add(date); total += value;
+      if (!Number.isSafeInteger(total)) return null;
+    }
+    // The endpoint returns the previous 30 days. Do not filter partially overlapping buckets.
+    return total;
+  }
+  function usageTotals(rows) {
+    if (!Array.isArray(rows)) return { active: null, airlock: null };
+    let active = 0, airlock = 0;
+    for (const row of rows) {
+      if (typeof row.active !== 'boolean') active = null;
+      else if (active != null && row.active) active++;
+      const locked = Object.hasOwn(row, 'usageAirlocked') ? row.usageAirlocked : row.airlocked;
+      if (typeof locked !== 'boolean') airlock = null;
+      else if (airlock != null && locked) {
+        const size = reportedNumber(row.size);
+        if (size == null || !Number.isSafeInteger(airlock + size)) airlock = null;
+        else airlock += size;
+      }
+    }
+    return { active, airlock };
+  }
   function normalize(raw, type, queued = false) {
     if (!raw || !TYPES[type]) throw new Error('TorBox returned an unreadable item.');
     const n = id(raw.id), ready = raw.download_finished === true && raw.download_present === true;
@@ -40,7 +92,7 @@
     return { ...raw, id: n, type, key: `${queued ? 'queue:' : ''}${type}:${n}`, name: String(raw.name || raw.hash || 'Unnamed download'), ready, queued,
       size, progress: progress == null ? null : Math.max(0, Math.min(1, progress)), state,
       added: timestamp(raw.created_at), cachedAt: timestamp(raw.cached_at), updated: timestamp(raw.updated_at),
-      tags: Array.isArray(raw.tags) ? raw.tags.filter(t => typeof t === 'string') : [], airlocked: raw.airlocked === true };
+      tags: Array.isArray(raw.tags) ? raw.tags.filter(t => typeof t === 'string') : [], airlocked: raw.airlocked === true, usageAirlocked: raw.airlocked };
   }
   function sortRows(rows, field = 'added', direction = 'desc') {
     return [...rows].sort((a, b) => {
@@ -135,6 +187,19 @@
       } finally { clearTimeout(timer); this.#controllers.delete(controller); }
     }
     me() { return this.request('user/me', { query: { settings: true } }); }
+    stats() { return this.request('user/stats', { query: { general: false, bandwidth: true, bandwidth_grouping: 'day' } }); }
+    async usenetUsage(fresh = false) {
+      const rows = new Map(), limit = 1000;
+      for (let offset = 0; offset < 500000; offset += limit) {
+        const data = await this.request('usenet/mylist', { query: { offset, limit, bypass_cache: fresh }, emptyNotFound: true });
+        if (!Array.isArray(data)) throw new Error('TorBox returned unreadable Usenet usage.');
+        const before = rows.size;
+        for (const raw of data) { const n = id(raw?.id); rows.set(n, { id: n, active: raw.active, airlocked: raw.airlocked, size: reportedNumber(raw.size) }); }
+        if (data.length < limit) return [...rows.values()];
+        if (rows.size === before) throw new Error('TorBox repeated a page of Usenet usage.');
+      }
+      throw new Error('TorBox usage exceeded the supported page limit.');
+    }
     async list(type, queued = false, fresh = false) {
       const rows = new Map(), limit = 1000;
       for (let offset = 0; offset < 500000; offset += limit) {
@@ -182,5 +247,5 @@
       return this.request(torrent ? 'torrents/createtorrent' : 'webdl/createwebdownload', { method: 'POST', body });
     }
   }
-  return { API, TYPES, Client, timestamp, dateLabel, bytes, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
+  return { API, TYPES, Client, timestamp, dateLabel, bytes, accountInfo, bandwidthTotal, usageTotals, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
 });
