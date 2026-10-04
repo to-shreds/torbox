@@ -1,12 +1,14 @@
 # TorBox Drop
 
-## 2.1.1 downloads and explorer
+## Android 2.1.1 / web 2.1.2
 
 [Download the Android APK](release/TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
 
 The web page uses the verified free stateless relay at `https://torbox-drop-api.onrender.com`. Sign in with your TorBox API key; it is kept only for the current session. Files download directly from TorBox. See [web/README.md](web/README.md) for use and privacy details.
 
 Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density now uses an explorer table with aligned Name, Added, Cached, Size, Status and action columns. Dates include the year and age. On phones, swipe sideways for more columns; Android keeps the headings above the scrolling rows. Ready rows open the folder browser. This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.
+
+Web 2.1.2 displays an Account & quotas panel prominently above the explorer: plan/expiry, active slots including seeding, AirLock space, rolling 30-day bandwidth with a dynamic fair-use baseline, and queued items. Values refresh in folders, stay independent of search and pagination, and clear with the session. Missing values remain Not reported; failed refreshes show last known usage as stale. See [web verification](release/VERIFICATION-Web-2.1.2.md) for published allowance semantics and checks.
 
 The responsive web client adds session-only API-key login, an explorer with folders/breadcrumbs, natural sorting, dates, search, type filters, multi-file selection, ZIP and individual downloads, queue controls, rename/tags, AirLock, and add/delete/pause/resume/reannounce where TorBox supports them. Native Drive automation and background notifications remain available in the APK.
 
@@ -16,7 +18,7 @@ Ready torrent rows now include a Drive button. It opens a folder-name confirmati
 
 TorBox Drop is a native Android client for TorBox. It keeps the original app's fast share-to-TorBox flow, then adds a dense download manager, completion monitoring, file actions, queue and AirLock management, and a small privacy-focused browser.
 
-The application ID remains `app.jabs.torboxdrop`. The project contains no Usenet UI, filters, queue requests, or management calls.
+The application ID remains `app.jabs.torboxdrop`. The native app contains no Usenet UI, filters, queue requests, or management calls. The web account summary reads Usenet usage for Pro accounts so slot and AirLock totals include it; it does not expose Usenet management.
 
 ## What is included
 

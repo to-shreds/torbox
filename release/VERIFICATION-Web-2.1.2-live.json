@@ -1,0 +1,105 @@
+{
+  "checked_at_utc": "2026-10-04T23:20:31.923931+00:00",
+  "service": "srv-davdjv0u01pc73ec1phg",
+  "results": [
+    {
+      "check": "health",
+      "status": 200,
+      "pass": true,
+      "data": {
+        "ok": true,
+        "version": "2.1.2",
+        "storage": "none",
+        "mediaProxy": false
+      }
+    },
+    {
+      "check": "stats preflight",
+      "status": 204,
+      "pass": true,
+      "data": null
+    },
+    {
+      "check": "Usenet preflight",
+      "status": 204,
+      "pass": true,
+      "data": null
+    },
+    {
+      "check": "standalone preflight",
+      "status": 204,
+      "pass": true,
+      "data": null
+    },
+    {
+      "check": "stats require key",
+      "status": 401,
+      "pass": true,
+      "data": {
+        "success": false,
+        "error": "NO_AUTH",
+        "detail": "Enter your TorBox API key."
+      }
+    },
+    {
+      "check": "Usenet requires key",
+      "status": 401,
+      "pass": true,
+      "data": {
+        "success": false,
+        "error": "NO_AUTH",
+        "detail": "Enter your TorBox API key."
+      }
+    },
+    {
+      "check": "invalid stats key reaches TorBox",
+      "status": 403,
+      "pass": true,
+      "data": {
+        "success": false,
+        "error": "BAD_TOKEN",
+        "detail": "TorBox rejected the API key."
+      }
+    },
+    {
+      "check": "invalid grouping rejected",
+      "status": 400,
+      "pass": true,
+      "data": {
+        "success": false,
+        "error": "DROP_REQUEST_FAILED",
+        "detail": "Invalid bandwidth grouping."
+      }
+    },
+    {
+      "check": "hostile origin rejected",
+      "status": 403,
+      "pass": true,
+      "data": {
+        "success": false,
+        "error": "DROP_REQUEST_FAILED",
+        "detail": "This website is not allowed to use the TorBox Drop API."
+      }
+    },
+    {
+      "check": "read-only Usenet",
+      "status": 405,
+      "pass": true,
+      "data": {
+        "success": false,
+        "error": "DROP_REQUEST_FAILED",
+        "detail": "Method not allowed."
+      }
+    },
+    {
+      "check": "unknown routes rejected",
+      "status": 404,
+      "pass": true,
+      "data": {
+        "success": false,
+        "error": "DROP_REQUEST_FAILED",
+        "detail": "Unknown operation."
+      }
+    }
+  ]
+}
