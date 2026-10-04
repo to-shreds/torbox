@@ -9,11 +9,13 @@ Refresh reads the account and full lists even while browsing a folder. Confirmed
 
 ## Source and versions
 - PR [#9](https://github.com/to-shreds/torbox/pull/9), final source checkpoint `8a8f854133de943d8987b5cd5ca79cb577b1cb95`, merged as `be37ed40f8c237bd36fbcc4b1736f6597e77aa12`.
+- Post-publication numeric hardening source: `34dba2f8e529ece0e9916a98c4d653225a83f963`. The live API relay's routes and behavior are unchanged by this frontend parser correction.
 - Web/package/relay version: 2.1.2. Android remains 2.1.1 / 20101, package app.jabs.torboxdrop. This change does not rebuild or replace the signed APK.
-- Generated self-contained HTML: 77,064 bytes, SHA-256 `6252859b2fccd1a128ae5022e49f3c23ed3590eb40fbae380a9979b56f219db6`.
-- Misc publication commit: `5b89654e7decc53671a2d6b7a643c9e33d47f4b5`. Both HTML copies match the generated source.
+- Generated self-contained HTML: 76,965 bytes, SHA-256 `a698c38c5775cdb159066cca9cf92b356bb6f0ec6ddee5368dbad2eb0836b4be`.
+- Misc publication commit: `bb736b388812d943dfbbd58771b3e21e0aa2bd0a`. Both HTML copies match the generated source.
 
 ## Automated verification
+- Final numeric-hardening [main CI 37243904839](https://github.com/to-shreds/torbox/actions/runs/37243904839) passed deterministic generation, **37 core/API checks** and all **23 browser scenarios** for source `34dba2f8e529ece0e9916a98c4d653225a83f963`. Malformed Boolean/array/object/blank numeric values remain unknown after normalization, while valid zero stays zero. Latest [screenshot artifact 11318651497](https://github.com/to-shreds/torbox/actions/runs/37243904839/artifacts/11318651497), SHA-256 `3e2355e6a3ef1f22d9f9fc4f70a6dd5f89fe64d09e07c14eb667cee723210ac8`, expires 2027-01-02. The earlier reviewed screenshots below show the same unchanged layout.
 - Final PR [web CI 37242984622](https://github.com/to-shreds/torbox/actions/runs/37242984622): deterministic build check, **36 core/API/stress checks**, **23 Chromium scenarios**, all passed without skips.
 - Merged-main [web CI 37243067085](https://github.com/to-shreds/torbox/actions/runs/37243067085): all gates passed again.
 - [Chromium evidence](https://github.com/to-shreds/torbox/actions/runs/37242984622/artifacts/11318570264): eight desktop/mobile/tablet screenshots, reviewed. Artifact SHA-256 `603ba8c3d21b378f0561ae7d0589d1f4140a3ce034317db0f902e61ea44da9c5`; GitHub retention expires 2027-01-02.
@@ -31,6 +33,8 @@ Refresh reads the account and full lists even while browsing a folder. Confirmed
 - Recent Render error logs were empty.
 - Misc [Pages run 37243232913](https://github.com/to-shreds/Misc/actions/runs/37243232913) passed on attempt 2 after an initial deployment OIDC-token timeout. No product code changed for the retry.
 - A live browser confirmed web version 2.1.2, enabled password-style API-key entry, configured relay, the existing Android 2.1.1 link, and zero populated quota cards before authentication.
+
+- Final numeric-hardened HTML [Pages run 37244025258](https://github.com/to-shreds/Misc/actions/runs/37244025258) passed on its first attempt; both current HTML copies match the hash above.
 
 ## Allowance semantics
 Published limits were checked on 2026-10-04 using TorBox's [account restrictions](https://support.torbox.app/en/articles/9836418-account-restrictions), [AirLock guide](https://support.torbox.app/en/articles/15417147-torbox-airlock), [abuse-system guide](https://support.torbox.app/en/articles/10336778-the-torbox-abuse-system), [official user stats response](https://www.postman.com/torbox/torbox-api/request/7wd3xgu/get-user-stats), and [official plan IDs](https://www.postman.com/torbox/torbox-api/request/rf7iu10/get-user-data).

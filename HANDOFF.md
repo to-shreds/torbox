@@ -31,7 +31,7 @@ The live frontend is Misc/TorboxDrop/index.html, because Misc's existing GitHub 
 - Clean native gate passed: 267 tests / 35 suites, zero failures/errors/skips; lint zero errors / 11 warnings; minified release passed. The former 840dp-only-table assertion was removed because it contradicted the new layout.
 - Web CI 36935900633 passed 30 core/relay tests and all 17 Chromium scenarios. Column alignment and contained scrolling were checked at 320/390/740/1024px, with desktop 1440px. Phone, tablet and desktop screenshots were reviewed. Existing real-byte fixture download and stress coverage still passes.
 - Signed APK: release/TorBox-Drop-v2.1.1.apk, SHA-256 `bcac40b3e556bff2c4da25a172e3d85aa9c1c8c0e2d8f270169d49dca83f687f`. Same private certificate as 2.0.7/2.1.0, package app.jabs.torboxdrop / 20101. Signatures, 16 KB alignment, non-debuggable manifest and all 157 unsigned ZIP entries verified.
-- Current web 2.1.2 generated HTML SHA-256 `6252859b2fccd1a128ae5022e49f3c23ed3590eb40fbae380a9979b56f219db6`. Synchronize both Misc HTML copies; source remains in web/.
+- Current web 2.1.2 generated HTML SHA-256 `a698c38c5775cdb159066cca9cf92b356bb6f0ec6ddee5368dbad2eb0836b4be`. Synchronize both Misc HTML copies; source remains in web/.
 - Detailed report, checksums and screenshots/test evidence are in release/. No real TorBox key or physical phone was available. Do not claim live-account or physical-device acceptance.
 
 ## Activation verification
@@ -51,7 +51,9 @@ The live frontend is Misc/TorboxDrop/index.html, because Misc's existing GitHub 
 - Final web CI `37242984622` and main web CI `37243067085` passed 36 core/relay checks and all 23 browser scenarios. Eight final screenshots are in artifact `11318570264`. Main Android CI `37243067216` also passed; no native source or signed APK changes were made.
 - Relay deploy `dep-db1dsdmgekts73dc9ej0` is live from the merge in authorized My Workspace `tea-dakujgmk1f9s73d2v8ng`. A cache-cleared deploy was needed because autoDeploy=yes had left the original 2.1.0 build running. Added allowlisted GET user/stats and GET usenet/mylist only; 11 production smoke checks passed and recent error logs were empty.
 - Both Misc HTML copies are published in `5b89654e7decc53671a2d6b7a643c9e33d47f4b5`. Pages run `37243232913` succeeded on attempt 2 after an initial OIDC-token timeout. Live browser verification confirmed web 2.1.2 and zero populated metrics before authentication.
-- HTML: 77,064 bytes, SHA-256 `6252859b2fccd1a128ae5022e49f3c23ed3590eb40fbae380a9979b56f219db6`. Evidence/semantics: release/VERIFICATION-Web-2.1.2.md and release/VERIFICATION-Web-2.1.2-live.json.
+- HTML: 76,965 bytes, SHA-256 `a698c38c5775cdb159066cca9cf92b356bb6f0ec6ddee5368dbad2eb0836b4be`. Evidence/semantics: release/VERIFICATION-Web-2.1.2.md and release/VERIFICATION-Web-2.1.2-live.json.
+
+- Final numeric hardening in `34dba2f8e529ece0e9916a98c4d653225a83f963` rejects malformed numbers before normalization. Main web CI `37243904839` passed 37 core/relay checks and all 23 browser scenarios; artifact `11318651497`. Current Misc HTML publication is `bb736b388812d943dfbbd58771b3e21e0aa2bd0a`. Pages run `37244025258` passed on its first attempt. Relay behavior and the reviewed layout are unchanged.
 
 ## Next action
 No deployment blocker remains. Jon can open https://to-shreds.github.io/Misc/TorboxDrop/ and enter his API key directly into the page. A successful real-account download and physical-phone acceptance remain user-side live checks, not claimed automated results. Native Google Drive routing and background monitoring remain native-only and are explicitly documented.
