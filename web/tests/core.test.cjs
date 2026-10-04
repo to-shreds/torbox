@@ -134,3 +134,10 @@ test('read-only Usenet account usage paginates fully and retains unknown flags',
  assert.equal((await c.usenetUsage()).length,1001);assert.deepEqual(offsets,[0,1000]);
  const malformed=new C.Client(key,async()=>response([{id:1,size:0}]));assert.deepEqual(C.usageTotals(await malformed.usenetUsage()),{active:null,airlock:null});
 });
+test('malformed sizes cannot become fabricated zero AirLock usage after normalization',()=>{
+ for(const size of [false,true,[],{},' ',null,undefined,-1,Infinity]){
+  const row=C.normalize(raw(1,{size,active:false,airlocked:true}),'torrent');
+  assert.equal(row.size,null);assert.equal(C.usageTotals([row]).airlock,null);assert.equal(C.bytes(size),'Not reported');
+ }
+ const zero=C.normalize(raw(1,{size:0,active:false,airlocked:true}),'torrent');assert.equal(C.usageTotals([zero]).airlock,0);assert.equal(C.bytes(0),'0 B');
+});

@@ -10,7 +10,7 @@
   const RELAY = !API.startsWith('https://api.torbox.app/');
   const TYPES = { torrent: { prefix: 'torrents', id: 'torrent_id', editId: 'torrent_id', control: 'controltorrent', edit: 'edittorrent' }, webdl: { prefix: 'webdl', id: 'web_id', editId: 'webdl_id', control: 'controlwebdownload', edit: 'editwebdownload' } };
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-  const num = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null;
+  const num = reportedNumber;
   const id = v => { if (!/^\d+$/.test(String(v)) || !Number.isSafeInteger(Number(v))) throw new Error('TorBox returned an invalid item ID.'); return Number(v); };
   function timestamp(v) {
     if (v == null || v === '') return null;
