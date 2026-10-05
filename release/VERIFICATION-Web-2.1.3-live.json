@@ -1,0 +1,71 @@
+{
+  "verified_at": "2026-10-05T03:32:56.475Z",
+  "web_version": "2.1.3",
+  "android_version": "2.1.1",
+  "relay_version": "2.1.2",
+  "source_checkpoint": "eee4599c7ec5cf8b1cab0677e2c9d7d034d82959",
+  "source_merge": "3882cbdc6ffbf64293710c899819fb7b60943975",
+  "misc_commit": "ed3c2d106ed9942b283315f49607f9a841497308",
+  "pages_run": 37259650624,
+  "pages_conclusion": "success",
+  "pr_web_run": 37259488088,
+  "main_web_run": 37259648606,
+  "core_tests": 37,
+  "browser_scenarios": 27,
+  "failed": 0,
+  "skipped": 0,
+  "responsive_widths": [
+    320,
+    390,
+    740,
+    1024,
+    1440
+  ],
+  "stress": {
+    "files": 50000,
+    "folders": 500,
+    "api_records": 2500,
+    "max_dom_rows": 100,
+    "isolated_synthetic_accounts": 48
+  },
+  "screenshots": {
+    "artifact_id": 11323738833,
+    "count": 17,
+    "expires": "2027-01-03",
+    "sha256": "c7b552467930d1365a712ff8a5f0f9eec38509520fc5498e27ec591465200fd6"
+  },
+  "public_html": [
+    {
+      "url": "https://to-shreds.github.io/Misc/TorboxDrop/",
+      "status": 200,
+      "bytes": 82067,
+      "sha256": "f9bea683089a9838dfba330fc9852c0c365d7dfb3ac9419e2b17ac03d6dab9b0",
+      "match": true
+    },
+    {
+      "url": "https://to-shreds.github.io/Misc/TorboxDrop/TorBox-Drop.html",
+      "status": 200,
+      "bytes": 82067,
+      "sha256": "f9bea683089a9838dfba330fc9852c0c365d7dfb3ac9419e2b17ac03d6dab9b0",
+      "match": true
+    }
+  ],
+  "live_browser": {
+    "version": "TorBox Drop web 2.1.3",
+    "login_enabled": true,
+    "account_visible": false,
+    "populated_quota_cards": 0,
+    "populated_rows": 0,
+    "spacing": [
+      "compact",
+      "cozy",
+      "detailed"
+    ],
+    "default_spacing": "compact",
+    "relay": "https://torbox-drop-api.onrender.com/api/",
+    "apk": "2.1.1"
+  },
+  "real_account_key_used": false,
+  "native_apk_changed": false,
+  "relay_behavior_changed": false
+}
