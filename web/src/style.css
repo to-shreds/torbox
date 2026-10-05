@@ -39,11 +39,12 @@
 #app[data-density=compact] .library-table .state-column{width:190px}
 #app[data-density=compact] .library-table .actions-column{width:142px}
 #app[data-density=compact] #file-table:not(.library-table){table-layout:fixed;min-width:340px}
+#app[data-density=compact] #file-table:not(.library-table) th,#app[data-density=compact] #file-table:not(.library-table) td{padding-left:6px;padding-right:6px}
 #app[data-density=compact] #file-table:not(.library-table) .name-cell{min-width:0;max-width:none}
 #app[data-density=compact] #file-table:not(.library-table) .check-cell{width:30px}
 #app[data-density=compact] #file-table:not(.library-table) .size-column{width:70px;white-space:nowrap}
 #app[data-density=compact] #file-table:not(.library-table) .state-column{width:72px}
-#app[data-density=compact] #file-table:not(.library-table) .actions-column{width:118px}
+#app[data-density=compact] #file-table:not(.library-table) .actions-column{width:128px}
 #app[data-density=compact] #file-table .file-more{padding:4px 5px;min-width:26px}
 #app[data-density=compact] #file-table .more-label{display:none}
 #app[data-density=compact] #file-table .more-icon{display:inline;font-size:16px;line-height:1}
