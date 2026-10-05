@@ -7,7 +7,7 @@
     $('login-error').textContent = 'The web client is built, but its API relay still needs activation. Use the Android APK below in the meantime.'; $('login-error').hidden = false;
   }
   const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null,
-    account: null, bandwidth: null, usenet: [], loaded: new Set(), quotaUpdated: null, quotaStale: false };
+    account: null, bandwidth: null, usenet: [], loaded: new Set(), quotaUpdated: null, quotaStale: false, density: 'compact' };
   const views = { all: 'All files', active: 'Active', finished: 'Finished', queue: 'Queue', airlock: 'AirLock', downloads: 'Device downloads' };
   function el(tag, attrs = {}, text = '') {
     const n = document.createElement(tag);
@@ -27,6 +27,7 @@
     inFlightDownloads.clear();
     S.rows = []; S.queue = []; S.files = []; S.jobs = []; S.item = null; S.folder = ''; S.selected.clear(); S.deleted.clear(); S.updated = null;
     S.account = null; S.bandwidth = null; S.usenet = []; S.loaded.clear(); S.quotaUpdated = null; S.quotaStale = false;
+    setDensity('compact');
     $('quota-cards').replaceChildren(); $('quota-status').textContent = '';
     $('api-key').value = ''; $('rows').replaceChildren(); $('jobs').replaceChildren(); $('dialog-body').replaceChildren(); $('dialog').close(); $('account').textContent = ''; $('file-meta').textContent = '';
     $('app').hidden = true; $('login').hidden = false; $('login-error').textContent = message; $('login-error').hidden = !message; $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox';
@@ -100,6 +101,11 @@
     S.nav++; S.item = null; S.files = []; S.folder = ''; S.view = b.dataset.view; S.selected.clear(); S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; notice(''); render();
   };
   for (const id of ['search', 'type', 'sort', 'extension']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => { S.page = 0; render(); });
+  function setDensity(value) {
+    S.density = ['compact', 'cozy', 'detailed'].includes(value) ? value : 'compact';
+    $('app').dataset.density = S.density; $('density').value = S.density;
+  }
+  $('density').onchange = () => setDensity($('density').value);
   $('prev').onclick = () => { S.page = Math.max(0, S.page - 1); render(); };
   $('next').onclick = () => { S.page++; render(); };
   $('clear-selection').onclick = () => { S.selected.clear(); render(); };
@@ -159,31 +165,39 @@
     $('page-label').textContent = `${S.page + 1} / ${pages}`; $('prev').disabled = S.page === 0; $('next').disabled = S.page >= pages - 1;
   }
   function itemRow(item) {
-    const tr = el('tr'), name = el('td', { class: 'name-cell' }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
-    text.append(button(item.name, () => item.queued ? details(item) : openFiles(item), 'name-button'), el('span', { class: 'sub' }, (item.type === 'torrent' ? 'Torrent' : 'Web download') + (item.tags.length ? ' · ' + item.tags.join(', ') : '') + (item.airlocked ? ' · AirLocked' : '')));
+    const meta = (item.type === 'torrent' ? 'Torrent' : 'Web download') + (item.tags.length ? ' · ' + item.tags.join(', ') : '') + (item.airlocked ? ' · AirLocked' : '');
+    const tr = el('tr'), name = el('td', { class: 'name-cell', title: item.name + ' · ' + meta }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
+    const open = button(item.name, () => item.queued ? details(item) : openFiles(item), 'name-button'); open.title = item.name;
+    text.append(open, el('span', { class: 'sub', title: meta }, meta));
     entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, '▤'), text); name.append(entry);
-    const state = el('td', { class: 'state-column' }); state.append(el('span', { class: 'state' + (item.ready ? ' ready' : /fail|error|missing|expired/i.test(item.state) ? ' problem' : '') }, item.state));
-    if (!item.ready && !item.queued && item.progress != null) { state.append(el('progress', { max: 1, value: item.progress, 'aria-label': 'Download progress' }), el('span', { class: 'sub' }, Math.round(item.progress * 100) + '%' + (item.download_speed > 0 ? ' · ' + C.bytes(item.download_speed) + '/s' : ''))); }
+    const state = el('td', { class: 'state-column' }), info = el('div', { class: 'status-info', title: item.state }); info.append(el('span', { class: 'state' + (item.ready ? ' ready' : /fail|error|missing|expired/i.test(item.state) ? ' problem' : '') }, item.state));
+    if (!item.ready && !item.queued && item.progress != null) {
+      const summary = Math.round(item.progress * 100) + '%' + (item.download_speed > 0 ? ' · ' + C.bytes(item.download_speed) + '/s' : ''), progress = el('div', { class: 'progress-meta' });
+      info.title = item.state + ' · ' + summary;
+      progress.append(el('progress', { max: 1, value: item.progress, 'aria-label': 'Download progress' }), el('span', { class: 'sub', title: summary }, summary)); info.append(progress);
+    }
+    state.append(info);
     tr.append(name, dateCell(item.added), dateCell(item.cachedAt), el('td', { class: 'size-column' }, C.bytes(item.size)), state);
-    const actions = el('td'), wrap = el('div', { class: 'row-actions' });
+    const actions = el('td', { class: 'actions-column' }), wrap = el('div', { class: 'row-actions' });
     wrap.append(button(item.queued ? 'Start' : 'Files', e => item.queued ? control(item, 'start', e.currentTarget) : openFiles(item)), button('Details', () => details(item)));
     actions.append(wrap); tr.append(actions); return tr;
   }
   function fileRow(file) {
     const tr = el('tr'), select = el('td', { class: 'check-cell' });
     if (!file.folder) { const check = el('input', { type: 'checkbox', 'aria-label': 'Select ' + file.name }); check.checked = S.selected.has(file.id); check.disabled = file.infected; check.onchange = () => { check.checked ? S.selected.add(file.id) : S.selected.delete(file.id); render(); }; select.append(check); }
-    const name = el('td', { class: 'name-cell' }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
-    text.append(file.folder ? button(file.name, () => { S.folder = file.path; S.page = 0; $('search').value = ''; render(); }, 'name-button') : el('span', { class: 'name-button' }, file.name));
-    if ($('search').value || $('extension').value) text.append(el('span', { class: 'sub' }, file.path));
+    const name = el('td', { class: 'name-cell', title: file.path + (file.infected ? ' · TorBox flagged this file as infected' : '') }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
+    const filename = file.folder ? button(file.name, () => { S.folder = file.path; S.page = 0; $('search').value = ''; render(); }, 'name-button') : el('span', { class: 'name-button' }, file.name); filename.title = file.name; text.append(filename);
+    if ($('search').value || $('extension').value) text.append(el('span', { class: 'sub', title: file.path }, file.path));
     if (file.folder) text.append(el('span', { class: 'sub' }, file.count + ' files'));
-    if (file.infected) text.append(el('span', { class: 'state problem' }, 'TorBox flagged this file as infected'));
+    if (file.infected) text.append(el('span', { class: 'state problem', title: 'TorBox flagged this file as infected' }, 'TorBox flagged this file as infected'));
     entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, file.folder ? '▰' : '▤'), text); name.append(entry);
-    tr.append(select, name, el('td', {}, C.bytes(file.size)), el('td', { class: 'state-column' }, file.folder ? 'Folder' : file.extension.toUpperCase() || 'File'));
-    const actions = el('td'), wrap = el('div', { class: 'row-actions' });
+    tr.append(select, name, el('td', { class: 'size-column' }, C.bytes(file.size)), el('td', { class: 'state-column' }, file.folder ? 'Folder' : file.extension.toUpperCase() || 'File'));
+    const actions = el('td', { class: 'actions-column' }), wrap = el('div', { class: 'row-actions' });
     if (file.folder) wrap.append(button('Open', () => { S.folder = file.path; S.page = 0; render(); }));
     else {
       const dl = button('Download', e => startDownload(S.item, file, false, e.currentTarget)); dl.disabled = !S.item.ready; wrap.append(dl);
-      const more = button('More', () => fileDetails(file)); more.disabled = !S.item.ready; wrap.append(more);
+      const more = button('', () => fileDetails(file), 'file-more'); more.setAttribute('aria-label', 'More'); more.title = 'More file actions';
+      more.append(el('span', { class: 'more-label' }, 'More'), el('span', { class: 'more-icon', 'aria-hidden': 'true' }, '⋯')); more.disabled = !S.item.ready; wrap.append(more);
     }
     actions.append(wrap); tr.append(actions); return tr;
   }

@@ -15,6 +15,48 @@
 @media(max-width:1190px){.column-hint{display:block}}
 
 /* Account usage stays above every library and folder view. */
+.more-icon{display:none}
+
+/* Spacing changes the existing table only, without rebuilding rows or losing selection. */
+#app[data-density=compact] #file-table{font-size:12px}
+#app[data-density=compact] #file-table th{padding:7px 8px}
+#app[data-density=compact] #file-table td{padding:5px 8px}
+#app[data-density=compact] #file-table .check-cell{padding-right:0}
+#app[data-density=compact] #file-table .entry{gap:7px}
+#app[data-density=compact] #file-table .entry-icon{width:22px;height:22px;border-radius:4px;font-size:11px}
+#app[data-density=compact] #file-table .entry-name{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden}
+#app[data-density=compact] #file-table .name-button{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app[data-density=compact] #file-table .entry-name>.sub,#app[data-density=compact] #file-table .entry-name>.state{flex:0 1 auto;max-width:45%;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+#app[data-density=compact] #file-table .date .sub{display:inline;margin:0 0 0 6px;font-size:11px;white-space:nowrap}
+#app[data-density=compact] #file-table .state{font-size:11px;padding:1px 5px}
+#app[data-density=compact] #file-table .status-info{display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
+#app[data-density=compact] #file-table .status-info>.state{flex:none;max-width:70%;overflow:hidden;text-overflow:ellipsis}
+#app[data-density=compact] #file-table .progress-meta{min-width:0}
+#app[data-density=compact] #file-table .progress-meta progress{display:none}
+#app[data-density=compact] #file-table .progress-meta .sub{margin:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#app[data-density=compact] #file-table .row-actions{flex-direction:row;gap:4px}
+#app[data-density=compact] #file-table .row-actions button{font-size:12px;padding:4px 6px;min-height:28px}
+#app[data-density=compact] .library-table .state-column{width:190px}
+#app[data-density=compact] .library-table .actions-column{width:142px}
+#app[data-density=compact] #file-table:not(.library-table){table-layout:fixed;min-width:340px}
+#app[data-density=compact] #file-table:not(.library-table) th,#app[data-density=compact] #file-table:not(.library-table) td{padding-left:6px;padding-right:6px}
+#app[data-density=compact] #file-table:not(.library-table) .name-cell{min-width:0;max-width:none}
+#app[data-density=compact] #file-table:not(.library-table) .check-cell{width:30px}
+#app[data-density=compact] #file-table:not(.library-table) .size-column{width:70px;white-space:nowrap}
+#app[data-density=compact] #file-table:not(.library-table) .state-column{width:72px}
+#app[data-density=compact] #file-table:not(.library-table) .actions-column{width:128px}
+#app[data-density=compact] #file-table .file-more{padding:4px 5px;min-width:26px}
+#app[data-density=compact] #file-table .more-label{display:none}
+#app[data-density=compact] #file-table .more-icon{display:inline;font-size:16px;line-height:1}
+#app[data-density=detailed] #file-table{font-size:15px}
+#app[data-density=detailed] #file-table th{padding:12px 14px}
+#app[data-density=detailed] #file-table td{padding:18px 14px}
+#app[data-density=detailed] #file-table .entry-icon{width:36px;height:36px}
+#app[data-density=detailed] #file-table .sub{font-size:13px;margin-top:6px}
+#app[data-density=detailed] #file-table .row-actions button{font-size:14px;padding:8px 12px}
+#app[data-density=detailed] #file-table .state{font-size:13px;padding:4px 8px}
+@media(max-width:740px){#app[data-density=compact] #file-table .row-actions button{min-height:30px}#app[data-density=detailed] #file-table td{padding:16px 9px}}
+
 #app{min-height:100dvh;display:flex;flex-direction:column}.layout{flex:1;min-height:0}
 .account-summary{padding:20px 28px 16px;background:#eaf3f9;border-bottom:1px solid #bfd5e3}
 .quota-heading{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}

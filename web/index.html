@@ -16,6 +16,48 @@
 @media(max-width:1190px){.column-hint{display:block}}
 
 /* Account usage stays above every library and folder view. */
+.more-icon{display:none}
+
+/* Spacing changes the existing table only, without rebuilding rows or losing selection. */
+#app[data-density=compact] #file-table{font-size:12px}
+#app[data-density=compact] #file-table th{padding:7px 8px}
+#app[data-density=compact] #file-table td{padding:5px 8px}
+#app[data-density=compact] #file-table .check-cell{padding-right:0}
+#app[data-density=compact] #file-table .entry{gap:7px}
+#app[data-density=compact] #file-table .entry-icon{width:22px;height:22px;border-radius:4px;font-size:11px}
+#app[data-density=compact] #file-table .entry-name{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden}
+#app[data-density=compact] #file-table .name-button{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app[data-density=compact] #file-table .entry-name>.sub,#app[data-density=compact] #file-table .entry-name>.state{flex:0 1 auto;max-width:45%;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+#app[data-density=compact] #file-table .date .sub{display:inline;margin:0 0 0 6px;font-size:11px;white-space:nowrap}
+#app[data-density=compact] #file-table .state{font-size:11px;padding:1px 5px}
+#app[data-density=compact] #file-table .status-info{display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
+#app[data-density=compact] #file-table .status-info>.state{flex:none;max-width:70%;overflow:hidden;text-overflow:ellipsis}
+#app[data-density=compact] #file-table .progress-meta{min-width:0}
+#app[data-density=compact] #file-table .progress-meta progress{display:none}
+#app[data-density=compact] #file-table .progress-meta .sub{margin:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#app[data-density=compact] #file-table .row-actions{flex-direction:row;gap:4px}
+#app[data-density=compact] #file-table .row-actions button{font-size:12px;padding:4px 6px;min-height:28px}
+#app[data-density=compact] .library-table .state-column{width:190px}
+#app[data-density=compact] .library-table .actions-column{width:142px}
+#app[data-density=compact] #file-table:not(.library-table){table-layout:fixed;min-width:340px}
+#app[data-density=compact] #file-table:not(.library-table) th,#app[data-density=compact] #file-table:not(.library-table) td{padding-left:6px;padding-right:6px}
+#app[data-density=compact] #file-table:not(.library-table) .name-cell{min-width:0;max-width:none}
+#app[data-density=compact] #file-table:not(.library-table) .check-cell{width:30px}
+#app[data-density=compact] #file-table:not(.library-table) .size-column{width:70px;white-space:nowrap}
+#app[data-density=compact] #file-table:not(.library-table) .state-column{width:72px}
+#app[data-density=compact] #file-table:not(.library-table) .actions-column{width:128px}
+#app[data-density=compact] #file-table .file-more{padding:4px 5px;min-width:26px}
+#app[data-density=compact] #file-table .more-label{display:none}
+#app[data-density=compact] #file-table .more-icon{display:inline;font-size:16px;line-height:1}
+#app[data-density=detailed] #file-table{font-size:15px}
+#app[data-density=detailed] #file-table th{padding:12px 14px}
+#app[data-density=detailed] #file-table td{padding:18px 14px}
+#app[data-density=detailed] #file-table .entry-icon{width:36px;height:36px}
+#app[data-density=detailed] #file-table .sub{font-size:13px;margin-top:6px}
+#app[data-density=detailed] #file-table .row-actions button{font-size:14px;padding:8px 12px}
+#app[data-density=detailed] #file-table .state{font-size:13px;padding:4px 8px}
+@media(max-width:740px){#app[data-density=compact] #file-table .row-actions button{min-height:30px}#app[data-density=detailed] #file-table td{padding:16px 9px}}
+
 #app{min-height:100dvh;display:flex;flex-direction:column}.layout{flex:1;min-height:0}
 .account-summary{padding:20px 28px 16px;background:#eaf3f9;border-bottom:1px solid #bfd5e3}
 .quota-heading{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
@@ -31,8 +73,8 @@
 @media(max-width:1050px){.account-summary{padding:16px 18px}.quota-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:740px){.account-summary{padding:14px 12px}.quota-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.quota-card{padding:11px 12px}.quota-value{font-size:21px}.quota-card:last-child{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;column-gap:12px}.quota-card:last-child .quota-value{grid-column:2;grid-row:1/3}.quota-card:last-child .quota-detail{grid-column:1}.quota-heading{gap:4px 10px}.quota-heading h2{font-size:16px}.quota-heading a{font-size:12px}.quota-status{flex-basis:100%;order:3}.quota-note{font-size:11px}}
 </style></head><body>
-<section class="login" id="login"><div class="login-card"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><h1>Your files, within reach.</h1><p class="muted">Sign in with your TorBox API key to browse, download, and manage your files.</p><form id="login-form" autocomplete="off"><label for="api-key">TorBox API key</label><input id="api-key" name="torbox-session-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="Paste your API key"><button class="primary" id="connect" type="submit">Unlock my TorBox</button></form><p id="login-error" class="notice error" role="alert" hidden></p><p class="privacy muted">Your key stays in this tab’s memory. It is cleared on sign out or reload. Your key and file list are not saved by this page. API requests use a stateless TorBox Drop relay; file downloads go directly to TorBox.</p><p class="privacy"><a href="https://torbox.app/settings" target="_blank" rel="noopener noreferrer">Find your API key</a></p><p class="privacy"><a href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk">Download the Android APK</a></p><small>TorBox Drop web 2.1.2</small></div></section>
-<div id="app" hidden><header class="topbar"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><div class="top-actions"><span id="account" class="muted account-label"></span><a class="apk" href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk" rel="noreferrer">Android APK</a><button id="sign-out">Sign out</button></div></header><section id="account-summary" class="account-summary" aria-label="Account limits and usage"><div class="quota-heading"><h2>Account &amp; quotas</h2><span id="quota-status" class="quota-status" role="status"></span><a href="https://torbox.app/dashboard" target="_blank" rel="noopener noreferrer">TorBox dashboard ↗</a></div><div id="quota-cards" class="quota-cards"></div><p class="quota-note">Allowances follow your reported plan. Bandwidth has dynamic fair use, with no fixed remaining quota. <a href="https://support.torbox.app/en/articles/10336778-the-torbox-abuse-system" target="_blank" rel="noopener noreferrer">Fair-use details</a> · <a href="https://support.torbox.app/en/articles/15417147-torbox-airlock" target="_blank" rel="noopener noreferrer">AirLock limits</a></p></section><div class="layout"><aside aria-label="Library navigation"><div class="eyebrow">My TorBox</div><button data-view="all" aria-current="page">All files <span class="count" id="count-all">0</span></button><button data-view="active">Active <span class="count" id="count-active">0</span></button><button data-view="finished">Finished <span class="count" id="count-finished">0</span></button><button data-view="queue">Queue <span class="count" id="count-queue">0</span></button><button data-view="airlock">AirLock <span class="count" id="count-airlock">0</span></button><button data-view="downloads">Device downloads <span class="count" id="count-downloads">0</span></button><div class="side-foot">Session only<br><span>Files download directly from TorBox</span><br><a href="https://github.com/to-shreds/torbox" target="_blank" rel="noopener noreferrer">Web version 2.1.2</a></div></aside><main><div class="heading"><div><h2 id="view-title">All files</h2><p id="view-subtitle">Your torrents and web downloads</p></div><div class="actions"><button id="refresh">Refresh</button><button id="add" class="primary">+ Add</button></div></div><div id="notice" class="notice" role="status" hidden></div><div id="breadcrumbs" class="breadcrumbs" aria-label="Folder location" hidden></div><div id="file-meta" class="file-meta" hidden></div><div id="file-actions" class="actions" hidden></div><div class="toolbar" id="toolbar"><input id="search" class="search" type="search" placeholder="Search names and tags" aria-label="Search files"><select id="type" aria-label="Download type"><option value="">All types</option><option value="torrent">Torrents</option><option value="webdl">Web downloads</option></select><select id="extension" aria-label="File extension" hidden><option value="">All file types</option></select><select id="sort" aria-label="Sort files"><option value="added:desc">Added: newest first</option><option value="added:asc">Added: oldest first</option><option value="cachedAt:desc">Cached: newest first</option><option value="cachedAt:asc">Cached: oldest first</option><option value="name:asc">Name: A to Z</option><option value="name:desc">Name: Z to A</option><option value="size:desc">Size: largest first</option><option value="size:asc">Size: smallest first</option></select></div><div id="selection" class="selection-bar" hidden><span id="selected-count"></span><button id="download-selected">Download selected</button><button id="clear-selection" class="quiet">Clear selection</button></div><div class="panel" id="list-panel"><div id="column-hint" class="column-hint">Swipe sideways for more columns. Name stays in view.</div><div class="table-wrap" tabindex="0" role="region" aria-label="File list, scroll horizontally for more columns"><table id="file-table"><thead id="table-head"></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden></div><div class="footer"><span id="list-summary"></span><div class="pager"><button id="prev" aria-label="Previous page">Previous</button><span id="page-label"></span><button id="next" aria-label="Next page">Next</button></div></div></div><div class="panel" id="jobs" hidden></div><p id="date-note" class="sub">Dates use your local time. Cached is TorBox’s cache date; it may precede the date you added an item.</p></main></div></div>
+<section class="login" id="login"><div class="login-card"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><h1>Your files, within reach.</h1><p class="muted">Sign in with your TorBox API key to browse, download, and manage your files.</p><form id="login-form" autocomplete="off"><label for="api-key">TorBox API key</label><input id="api-key" name="torbox-session-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="Paste your API key"><button class="primary" id="connect" type="submit">Unlock my TorBox</button></form><p id="login-error" class="notice error" role="alert" hidden></p><p class="privacy muted">Your key stays in this tab’s memory. It is cleared on sign out or reload. Your key and file list are not saved by this page. API requests use a stateless TorBox Drop relay; file downloads go directly to TorBox.</p><p class="privacy"><a href="https://torbox.app/settings" target="_blank" rel="noopener noreferrer">Find your API key</a></p><p class="privacy"><a href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk">Download the Android APK</a></p><small>TorBox Drop web 2.1.3</small></div></section>
+<div id="app" data-density="compact" hidden><header class="topbar"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><div class="top-actions"><span id="account" class="muted account-label"></span><a class="apk" href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk" rel="noreferrer">Android APK</a><button id="sign-out">Sign out</button></div></header><section id="account-summary" class="account-summary" aria-label="Account limits and usage"><div class="quota-heading"><h2>Account &amp; quotas</h2><span id="quota-status" class="quota-status" role="status"></span><a href="https://torbox.app/dashboard" target="_blank" rel="noopener noreferrer">TorBox dashboard ↗</a></div><div id="quota-cards" class="quota-cards"></div><p class="quota-note">Allowances follow your reported plan. Bandwidth has dynamic fair use, with no fixed remaining quota. <a href="https://support.torbox.app/en/articles/10336778-the-torbox-abuse-system" target="_blank" rel="noopener noreferrer">Fair-use details</a> · <a href="https://support.torbox.app/en/articles/15417147-torbox-airlock" target="_blank" rel="noopener noreferrer">AirLock limits</a></p></section><div class="layout"><aside aria-label="Library navigation"><div class="eyebrow">My TorBox</div><button data-view="all" aria-current="page">All files <span class="count" id="count-all">0</span></button><button data-view="active">Active <span class="count" id="count-active">0</span></button><button data-view="finished">Finished <span class="count" id="count-finished">0</span></button><button data-view="queue">Queue <span class="count" id="count-queue">0</span></button><button data-view="airlock">AirLock <span class="count" id="count-airlock">0</span></button><button data-view="downloads">Device downloads <span class="count" id="count-downloads">0</span></button><div class="side-foot">Session only<br><span>Files download directly from TorBox</span><br><a href="https://github.com/to-shreds/torbox" target="_blank" rel="noopener noreferrer">Web version 2.1.3</a></div></aside><main><div class="heading"><div><h2 id="view-title">All files</h2><p id="view-subtitle">Your torrents and web downloads</p></div><div class="actions"><button id="refresh">Refresh</button><button id="add" class="primary">+ Add</button></div></div><div id="notice" class="notice" role="status" hidden></div><div id="breadcrumbs" class="breadcrumbs" aria-label="Folder location" hidden></div><div id="file-meta" class="file-meta" hidden></div><div id="file-actions" class="actions" hidden></div><div class="toolbar" id="toolbar"><input id="search" class="search" type="search" placeholder="Search names and tags" aria-label="Search files"><select id="type" aria-label="Download type"><option value="">All types</option><option value="torrent">Torrents</option><option value="webdl">Web downloads</option></select><select id="extension" aria-label="File extension" hidden><option value="">All file types</option></select><select id="sort" aria-label="Sort files"><option value="added:desc">Added: newest first</option><option value="added:asc">Added: oldest first</option><option value="cachedAt:desc">Cached: newest first</option><option value="cachedAt:asc">Cached: oldest first</option><option value="name:asc">Name: A to Z</option><option value="name:desc">Name: Z to A</option><option value="size:desc">Size: largest first</option><option value="size:asc">Size: smallest first</option></select><select id="density" aria-label="List spacing" title="List spacing"><option value="compact">Compact · one line</option><option value="cozy">Cozy</option><option value="detailed">Detailed</option></select></div><div id="selection" class="selection-bar" hidden><span id="selected-count"></span><button id="download-selected">Download selected</button><button id="clear-selection" class="quiet">Clear selection</button></div><div class="panel" id="list-panel"><div id="column-hint" class="column-hint">Swipe sideways for more columns. Name stays in view.</div><div class="table-wrap" tabindex="0" role="region" aria-label="File list, scroll horizontally for more columns"><table id="file-table"><thead id="table-head"></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden></div><div class="footer"><span id="list-summary"></span><div class="pager"><button id="prev" aria-label="Previous page">Previous</button><span id="page-label"></span><button id="next" aria-label="Next page">Next</button></div></div></div><div class="panel" id="jobs" hidden></div><p id="date-note" class="sub">Dates use your local time. Cached is TorBox’s cache date; it may precede the date you added an item.</p></main></div></div>
 <dialog id="dialog"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="close-dialog" aria-label="Close dialog">Close</button></div><div id="dialog-body" class="dialog-body"></div></dialog>
 <script>/* TorBox Drop web 2.1.2. No browser storage, analytics, or third-party script dependencies. */
 (function (root, factory) {
@@ -294,7 +336,7 @@
     $('login-error').textContent = 'The web client is built, but its API relay still needs activation. Use the Android APK below in the meantime.'; $('login-error').hidden = false;
   }
   const S = { client: null, session: 0, revision: 0, nav: 0, refresh: 0, refreshing: false, view: 'all', rows: [], queue: [], item: null, files: [], folder: '', page: 0, selected: new Set(), deleted: new Set(), jobs: [], updated: null,
-    account: null, bandwidth: null, usenet: [], loaded: new Set(), quotaUpdated: null, quotaStale: false };
+    account: null, bandwidth: null, usenet: [], loaded: new Set(), quotaUpdated: null, quotaStale: false, density: 'compact' };
   const views = { all: 'All files', active: 'Active', finished: 'Finished', queue: 'Queue', airlock: 'AirLock', downloads: 'Device downloads' };
   function el(tag, attrs = {}, text = '') {
     const n = document.createElement(tag);
@@ -314,6 +356,7 @@
     inFlightDownloads.clear();
     S.rows = []; S.queue = []; S.files = []; S.jobs = []; S.item = null; S.folder = ''; S.selected.clear(); S.deleted.clear(); S.updated = null;
     S.account = null; S.bandwidth = null; S.usenet = []; S.loaded.clear(); S.quotaUpdated = null; S.quotaStale = false;
+    setDensity('compact');
     $('quota-cards').replaceChildren(); $('quota-status').textContent = '';
     $('api-key').value = ''; $('rows').replaceChildren(); $('jobs').replaceChildren(); $('dialog-body').replaceChildren(); $('dialog').close(); $('account').textContent = ''; $('file-meta').textContent = '';
     $('app').hidden = true; $('login').hidden = false; $('login-error').textContent = message; $('login-error').hidden = !message; $('connect').disabled = false; $('connect').textContent = 'Unlock my TorBox';
@@ -387,6 +430,11 @@
     S.nav++; S.item = null; S.files = []; S.folder = ''; S.view = b.dataset.view; S.selected.clear(); S.page = 0; $('search').value = ''; $('sort').value = 'added:desc'; notice(''); render();
   };
   for (const id of ['search', 'type', 'sort', 'extension']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => { S.page = 0; render(); });
+  function setDensity(value) {
+    S.density = ['compact', 'cozy', 'detailed'].includes(value) ? value : 'compact';
+    $('app').dataset.density = S.density; $('density').value = S.density;
+  }
+  $('density').onchange = () => setDensity($('density').value);
   $('prev').onclick = () => { S.page = Math.max(0, S.page - 1); render(); };
   $('next').onclick = () => { S.page++; render(); };
   $('clear-selection').onclick = () => { S.selected.clear(); render(); };
@@ -446,31 +494,39 @@
     $('page-label').textContent = `${S.page + 1} / ${pages}`; $('prev').disabled = S.page === 0; $('next').disabled = S.page >= pages - 1;
   }
   function itemRow(item) {
-    const tr = el('tr'), name = el('td', { class: 'name-cell' }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
-    text.append(button(item.name, () => item.queued ? details(item) : openFiles(item), 'name-button'), el('span', { class: 'sub' }, (item.type === 'torrent' ? 'Torrent' : 'Web download') + (item.tags.length ? ' · ' + item.tags.join(', ') : '') + (item.airlocked ? ' · AirLocked' : '')));
+    const meta = (item.type === 'torrent' ? 'Torrent' : 'Web download') + (item.tags.length ? ' · ' + item.tags.join(', ') : '') + (item.airlocked ? ' · AirLocked' : '');
+    const tr = el('tr'), name = el('td', { class: 'name-cell', title: item.name + ' · ' + meta }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
+    const open = button(item.name, () => item.queued ? details(item) : openFiles(item), 'name-button'); open.title = item.name;
+    text.append(open, el('span', { class: 'sub', title: meta }, meta));
     entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, '▤'), text); name.append(entry);
-    const state = el('td', { class: 'state-column' }); state.append(el('span', { class: 'state' + (item.ready ? ' ready' : /fail|error|missing|expired/i.test(item.state) ? ' problem' : '') }, item.state));
-    if (!item.ready && !item.queued && item.progress != null) { state.append(el('progress', { max: 1, value: item.progress, 'aria-label': 'Download progress' }), el('span', { class: 'sub' }, Math.round(item.progress * 100) + '%' + (item.download_speed > 0 ? ' · ' + C.bytes(item.download_speed) + '/s' : ''))); }
+    const state = el('td', { class: 'state-column' }), info = el('div', { class: 'status-info', title: item.state }); info.append(el('span', { class: 'state' + (item.ready ? ' ready' : /fail|error|missing|expired/i.test(item.state) ? ' problem' : '') }, item.state));
+    if (!item.ready && !item.queued && item.progress != null) {
+      const summary = Math.round(item.progress * 100) + '%' + (item.download_speed > 0 ? ' · ' + C.bytes(item.download_speed) + '/s' : ''), progress = el('div', { class: 'progress-meta' });
+      info.title = item.state + ' · ' + summary;
+      progress.append(el('progress', { max: 1, value: item.progress, 'aria-label': 'Download progress' }), el('span', { class: 'sub', title: summary }, summary)); info.append(progress);
+    }
+    state.append(info);
     tr.append(name, dateCell(item.added), dateCell(item.cachedAt), el('td', { class: 'size-column' }, C.bytes(item.size)), state);
-    const actions = el('td'), wrap = el('div', { class: 'row-actions' });
+    const actions = el('td', { class: 'actions-column' }), wrap = el('div', { class: 'row-actions' });
     wrap.append(button(item.queued ? 'Start' : 'Files', e => item.queued ? control(item, 'start', e.currentTarget) : openFiles(item)), button('Details', () => details(item)));
     actions.append(wrap); tr.append(actions); return tr;
   }
   function fileRow(file) {
     const tr = el('tr'), select = el('td', { class: 'check-cell' });
     if (!file.folder) { const check = el('input', { type: 'checkbox', 'aria-label': 'Select ' + file.name }); check.checked = S.selected.has(file.id); check.disabled = file.infected; check.onchange = () => { check.checked ? S.selected.add(file.id) : S.selected.delete(file.id); render(); }; select.append(check); }
-    const name = el('td', { class: 'name-cell' }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
-    text.append(file.folder ? button(file.name, () => { S.folder = file.path; S.page = 0; $('search').value = ''; render(); }, 'name-button') : el('span', { class: 'name-button' }, file.name));
-    if ($('search').value || $('extension').value) text.append(el('span', { class: 'sub' }, file.path));
+    const name = el('td', { class: 'name-cell', title: file.path + (file.infected ? ' · TorBox flagged this file as infected' : '') }), entry = el('div', { class: 'entry' }), text = el('div', { class: 'entry-name' });
+    const filename = file.folder ? button(file.name, () => { S.folder = file.path; S.page = 0; $('search').value = ''; render(); }, 'name-button') : el('span', { class: 'name-button' }, file.name); filename.title = file.name; text.append(filename);
+    if ($('search').value || $('extension').value) text.append(el('span', { class: 'sub', title: file.path }, file.path));
     if (file.folder) text.append(el('span', { class: 'sub' }, file.count + ' files'));
-    if (file.infected) text.append(el('span', { class: 'state problem' }, 'TorBox flagged this file as infected'));
+    if (file.infected) text.append(el('span', { class: 'state problem', title: 'TorBox flagged this file as infected' }, 'TorBox flagged this file as infected'));
     entry.append(el('span', { class: 'entry-icon', 'aria-hidden': 'true' }, file.folder ? '▰' : '▤'), text); name.append(entry);
-    tr.append(select, name, el('td', {}, C.bytes(file.size)), el('td', { class: 'state-column' }, file.folder ? 'Folder' : file.extension.toUpperCase() || 'File'));
-    const actions = el('td'), wrap = el('div', { class: 'row-actions' });
+    tr.append(select, name, el('td', { class: 'size-column' }, C.bytes(file.size)), el('td', { class: 'state-column' }, file.folder ? 'Folder' : file.extension.toUpperCase() || 'File'));
+    const actions = el('td', { class: 'actions-column' }), wrap = el('div', { class: 'row-actions' });
     if (file.folder) wrap.append(button('Open', () => { S.folder = file.path; S.page = 0; render(); }));
     else {
       const dl = button('Download', e => startDownload(S.item, file, false, e.currentTarget)); dl.disabled = !S.item.ready; wrap.append(dl);
-      const more = button('More', () => fileDetails(file)); more.disabled = !S.item.ready; wrap.append(more);
+      const more = button('', () => fileDetails(file), 'file-more'); more.setAttribute('aria-label', 'More'); more.title = 'More file actions';
+      more.append(el('span', { class: 'more-label' }, 'More'), el('span', { class: 'more-icon', 'aria-hidden': 'true' }, '⋯')); more.disabled = !S.item.ready; wrap.append(more);
     }
     actions.append(wrap); tr.append(actions); return tr;
   }
