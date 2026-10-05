@@ -1,12 +1,14 @@
 # TorBox Drop
 
-## Android 2.1.1 / web 2.1.2
+## Android 2.1.1 / web 2.1.3
 
 [Download the Android APK](release/TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
 
 The web page uses the verified free stateless relay at `https://torbox-drop-api.onrender.com`. Sign in with your TorBox API key; it is kept only for the current session. Files download directly from TorBox. See [web/README.md](web/README.md) for use and privacy details.
 
 Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density now uses an explorer table with aligned Name, Added, Cached, Size, Status and action columns. Dates include the year and age. On phones, swipe sideways for more columns; Android keeps the headings above the scrolling rows. Ready rows open the folder browser. This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.
+
+Web 2.1.3 adds **List spacing** beside Sort: Compact is the default and keeps rows on one line, Cozy retains familiar spacing, and Detailed adds room for wrapped names and supporting information. It applies to the library, queue and file browser without resetting navigation or selection or refetching data. See [web 2.1.3 verification](release/VERIFICATION-Web-2.1.3.md).
 
 Web 2.1.2 displays an Account & quotas panel prominently above the explorer: plan/expiry, active slots including seeding, AirLock space, rolling 30-day bandwidth with a dynamic fair-use baseline, and queued items. Values refresh in folders, stay independent of search and pagination, and clear with the session. Missing values remain Not reported; failed refreshes show last known usage as stale. See [web verification](release/VERIFICATION-Web-2.1.2.md) for published allowance semantics and checks.
 
