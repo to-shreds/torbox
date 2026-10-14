@@ -26,12 +26,14 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -f app/src/main/java/app/jabs/torboxdrop/util/YouTubeLinks.kt ]; then
+            python3 -c 'from pathlib import Path; p=Path("repair/youtube-1.b64"); p.write_text(p.read_text().replace("Vz13"*9,"Vz13"*8))'
+            test "$(git hash-object repair/youtube-1.b64)" = cc91663e580cb015b97876439b0a8d4beef07842
             cat repair/youtube-0.b64 repair/youtube-1.b64 repair/youtube-2.b64 | base64 -d | gzip -d > /tmp/youtube.patch
             echo '5110390e3c83a5446c773336e9a62d622d6750b4b64efc5d4d2c713ecfec8a28  /tmp/youtube.patch' | sha256sum -c -
             git apply --check /tmp/youtube.patch
             git apply /tmp/youtube.patch
             node web/build.mjs
-            git add app web package.json package-lock.json
+            git add app web package.json package-lock.json repair/youtube-1.b64
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git commit -m 'Fix YouTube preparation and device download flow with regressions'
