@@ -1,12 +1,16 @@
 # TorBox Drop
 
-## Android 2.1.1 / web 2.1.3
+## Web 2.1.4 / Android 2.1.4 preview
 
-[Download the Android APK](release/TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
+[YouTube Android preview](release/TorBox-Drop-v2.1.4-preview.apk) · [Original signed Android 2.1.1](release/TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
+
+**YouTube:** choose YouTube on the website, or paste a single-video URL on Android Add and choose **Download YouTube video**. Both clients normalize share/Shorts/embed links, start immediately, follow the returned TorBox web-download ID until finished and present, then obtain the exact video file. The website shows **Download video** when ready; Android hands it to DownloadManager. Keep the tab or file panel open while preparing. Errors, cancellation and timeouts are visible, and checks never submit duplicate jobs. A paid TorBox plan is required.
+
+**Android preview:** installs separately as `app.jabs.torboxdrop.preview`, labeled TorBox Drop Preview. Enter your key in the preview itself. Do not uninstall the original app. The retained production signing key was unavailable in this environment, so this is a separately signed debug preview, not an in-place production update. Existing Drive OAuth is tied to the production identity and is not verified for this preview. The original signed 2.1.1 APK remains unchanged. See [verification](release/VERIFICATION-YouTube-2.1.4.md) and [HANDOFF](HANDOFF.md).
 
 The web page uses the verified free stateless relay at `https://torbox-drop-api.onrender.com`. Sign in with your TorBox API key; it is kept only for the current session. Files download directly from TorBox. See [web/README.md](web/README.md) for use and privacy details.
 
-Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density now uses an explorer table with aligned Name, Added, Cached, Size, Status and action columns. Dates include the year and age. On phones, swipe sideways for more columns; Android keeps the headings above the scrolling rows. Ready rows open the folder browser. This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.
+Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density now uses an explorer table with aligned Name, Added, Cached, Size, Status and action columns. Dates include the year and age. On phones, swipe sideways for more columns; Android keeps the headings above the scrolling rows. Ready rows open the folder browser. The original signed 2.1.1 APK uses the retained private-use signing certificate; the separately named 2.1.4 preview does not replace it.
 
 Web 2.1.3 adds **List spacing** beside Sort: Compact is the default and keeps rows on one line, Cozy retains familiar spacing, and Detailed adds room for wrapped names and supporting information. It applies to the library, queue and file browser without resetting navigation or selection or refetching data. See [web 2.1.3 verification](release/VERIFICATION-Web-2.1.3.md).
 
@@ -33,7 +37,7 @@ The application ID remains `app.jabs.torboxdrop`. The native app contains no Use
 - Infected files are blocked from Share and Open; Download requires an explicit warning confirmation.
 - The queue is fetched separately for torrent and web-download records and supports Start and Delete.
 - Add accepts magnets, HTTP or HTTPS links, and `.torrent` content URIs from the picker or Android intents.
-- Anything shared or externally opened into TorBox Drop is staged on Add and waits for **Add to TorBox**, so per-item options such as Google Drive can be reviewed before creation.
+- Anything shared or externally opened into TorBox Drop is staged on Add and waits for an explicit Add or YouTube download action, so per-item options such as Google Drive can be reviewed before creation.
 - Completion watches are durable and use a user-started visible foreground service with a slower WorkManager fallback.
 - Google Drive automation can send a torrent's individual files through TorBox directly to one configured Drive folder as soon as TorBox says the torrent is truly ready. The Drive action is durable and independent of the completion-notification toggle.
 - The dedicated browser has native controls, bookmarks, magnet handoff, long-press link actions, download choices, and request-level host blocking from a bundled ruleset.
@@ -107,7 +111,7 @@ From the repository root in a networked build environment:
 
 The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The 2.1.1 distribution artifact is `release/TorBox-Drop-v2.1.1.apk`, minified, resource-shrunk, zip-aligned, and signed with the retained private-use certificate. Private signing keys and passwords are never committed. CI publishes unsigned release builds; signing takes place outside CI.
 
-Package: `app.jabs.torboxdrop`; versionCode: `20101`; minimum Android SDK: 23; target SDK: 36. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
+Production source package: `app.jabs.torboxdrop`; versionCode: `20104`; minimum Android SDK: 23; target SDK: 36. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 
@@ -115,9 +119,7 @@ See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [AC
 
 Android requires an installed package update to be signed by a compatible signing identity. If the matching private key is unavailable, it cannot be recovered from the APK.
 
-For current private-use builds, an unavailable old key is not a build blocker. Generate a replacement signing key, sign the verified APK, uninstall the differently signed installed copy, and install the replacement fresh. Uninstalling removes local app data, so the TorBox API token and preferences must be entered again.
-
-If you still have the signing key for the installed private build, reuse it for an in-place update. If not, fresh-install the newly signed APK and retain its new key when convenient for later private updates. Never commit private signing keys or passwords to this public repository.
+Keep the original installed app and its data. Build a separate preview with `./gradlew -PdropPreview=true assembleDebug`; it uses the separate preview application ID and label. This does not authorize or verify Google Drive for that new identity. For an in-place production update, recover and reuse the existing private signing key from its private location. Do not rotate that identity or uninstall the existing app without an explicit user decision. Never commit private signing keys or passwords.
 
 ## Platform limits
 
