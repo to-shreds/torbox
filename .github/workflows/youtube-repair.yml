@@ -1,0 +1,19 @@
+name: YouTube repair verification
+on:
+  push:
+    branches: [fix/youtube-downloads]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: git archive --format=zip -o /tmp/torbox-source.zip HEAD
+      - uses: actions/upload-artifact@v7
+        with:
+          name: torbox-source
+          path: /tmp/torbox-source.zip
+          retention-days: 3
