@@ -405,7 +405,7 @@ fun AddScreen(
                         } else {
                             Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null)
                             Spacer(Modifier.width(9.dp))
-                            Text(if (youtubeVideo != null && pendingTorrentName == null) "Download YouTube video" else "Add to TorBox")
+                            if (youtubeVideo != null && pendingTorrentName == null) Text("Download YouTube video") else Text("Add to TorBox")
                         }
                     }
                 }
