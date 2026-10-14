@@ -1,111 +1,93 @@
-name: YouTube repair verification
+name: Finalize YouTube repair
 on:
   push:
     branches: [fix/youtube-downloads]
 permissions:
-  contents: read
+  contents: write
+  actions: read
 concurrency:
   group: youtube-repair
   cancel-in-progress: false
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      source: ${{ steps.patch.outputs.source }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - id: patch
-        name: Retain the existing explicit-confirmation source contract
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('app/src/main/java/app/jabs/torboxdrop/ui/screens/AddScreen.kt')
-          old = 'Text(if (youtubeVideo != null && pendingTorrentName == null) "Download YouTube video" else "Add to TorBox")'
-          new = 'if (youtubeVideo != null && pendingTorrentName == null) Text("Download YouTube video") else Text("Add to TorBox")'
-          text = p.read_text()
-          assert old in text or new in text
-          p.write_text(text.replace(old, new))
-          PY
-          if ! git diff --quiet; then
-            git add app/src/main/java/app/jabs/torboxdrop/ui/screens/AddScreen.kt
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'Keep explicit Add button branches without changing YouTube behavior'
-            git push origin HEAD:refs/heads/fix/youtube-downloads
-          fi
-          echo "source=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-  web:
-    needs: prepare
+  finalize:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.source }}
-          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build:web && git diff --exit-code web/index.html
-      - run: npm test
+      - name: Require the completed native and web verification and retain the exact preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/to-shreds/torbox/actions/runs/38654410657 --jq .conclusion)" = success
+          gh run download 38654410657 --repo to-shreds/torbox --name torbox-drop-youtube-apks --dir /tmp/apks
+          gh run download 38654410657 --repo to-shreds/torbox --name youtube-android-reports --dir /tmp/reports
+          (cd /tmp/apks && sha256sum -c SHA256SUMS.txt)
+          cp /tmp/apks/TorBox-Drop-v2.1.4-preview.apk release/
+          cp /tmp/apks/preview-signature.txt release/VERIFICATION-2.1.4-preview-signature.txt
+          cp /tmp/apks/preview-manifest.txt release/VERIFICATION-2.1.4-preview-manifest.txt
+          cp /tmp/apks/preview-alignment.txt release/VERIFICATION-2.1.4-preview-alignment.txt
+      - name: Update only release instructions and the stale login version label
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, xml.etree.ElementTree as ET
+          p=Path('web/index.template.html'); text=p.read_text(); assert 'TorBox Drop web 2.1.3' in text
+          p.write_text(text.replace('TorBox Drop web 2.1.3','TorBox Drop web 2.1.4').replace('>Download the Android APK<','>Download stable Android 2.1.1<').replace('>Android APK<','>Android stable 2.1.1<'))
+          p=Path('README.md'); text=p.read_text(); text=text.replace('## Android 2.1.1 / web 2.1.3','## Web 2.1.4 / Android 2.1.4 preview')
+          text=text.replace('[Download the Android APK](release/TorBox-Drop-v2.1.1.apk)', '[YouTube Android preview](release/TorBox-Drop-v2.1.4-preview.apk) · [Original signed Android 2.1.1](release/TorBox-Drop-v2.1.1.apk)')
+          intro='**YouTube:** choose YouTube on the website, or paste a single-video URL on Android Add and choose **Download YouTube video**. Both clients normalize share/Shorts/embed links, start immediately, follow the returned TorBox web-download ID until finished and present, then obtain the exact video file. The website shows **Download video** when ready; Android hands it to DownloadManager. Keep the tab or file panel open while preparing. Errors, cancellation and timeouts are visible, and checks never submit duplicate jobs. A paid TorBox plan is required.\n\n**Android preview:** installs separately as `app.jabs.torboxdrop.preview`, labeled TorBox Drop Preview. Enter your key in the preview itself. Do not uninstall the original app. The retained production signing key was unavailable in this environment, so this is a separately signed debug preview, not an in-place production update. Existing Drive OAuth is tied to the production identity and is not verified for this preview. The original signed 2.1.1 APK remains unchanged. See [verification](release/VERIFICATION-YouTube-2.1.4.md) and [HANDOFF](HANDOFF.md).\n\n'
+          text=text.replace('The web page uses the verified free stateless relay',intro+'The web page uses the verified free stateless relay',1)
+          text=text.replace('This APK uses the existing private-use signing certificate and can update the matching 2.0.7 build in place.','The original signed 2.1.1 APK uses the retained private-use signing certificate; the separately named 2.1.4 preview does not replace it.')
+          text=text.replace('waits for **Add to TorBox**, so per-item options','waits for an explicit Add or YouTube download action, so per-item options')
+          text=text.replace('Package: `app.jabs.torboxdrop`; versionCode: `20101`;','Production source package: `app.jabs.torboxdrop`; versionCode: `20104`;')
+          start=text.index('For current private-use builds, an unavailable old key is not a build blocker.')
+          end=text.index('## Platform limits',start)
+          text=text[:start]+'Keep the original installed app and its data. Build a separate preview with `./gradlew -PdropPreview=true assembleDebug`; it uses the separate preview application ID and label. This does not authorize or verify Google Drive for that new identity. For an in-place production update, recover and reuse the existing private signing key from its private location. Do not rotate that identity or uninstall the existing app without an explicit user decision. Never commit private signing keys or passwords.\n\n'+text[end:]
+          p.write_text(text)
+          p=Path('web/README.md'); text=p.read_text().replace('Web version 2.1.3; Android APK version 2.1.1.','Web version 2.1.4; Android YouTube preview 2.1.4 and original signed Android 2.1.1.')
+          text=text.replace('## Use\n\n','## YouTube\n\nChoose **YouTube**, paste one video URL, and leave **Prepare YouTube video for saving to this device** enabled. Share, watch, Shorts, live-video and embed links normalize to one video. The client starts immediately rather than queuing, follows the exact returned web-download ID, and requires both finished and present before showing **Download video**. Click that to request a fresh exact-file link and save. Keep the tab open. Check status never re-adds the item, and provider failures are shown instead of a false completion. Playlist-only/channel links are rejected. TorBox requires a paid plan for web downloads; availability of particular videos remains provider-dependent. [Official hoster guidance](https://support.torbox.app/en/articles/9837721-debrid-hosters).\n\n## Use\n\n',1)
+          text=text.replace('The Android APK is linked from the login page and desktop header.','The original signed Android 2.1.1 APK is explicitly labeled and linked from the login page and desktop header; the separate YouTube preview is linked from the source README.')
+          p.write_text(text)
+          totals=dict(tests=0,failures=0,errors=0,skipped=0); suites=[]
+          for p in Path('/tmp/reports').rglob('TEST-*.xml'):
+            root=ET.parse(p).getroot(); suites.append(root.attrib['name'])
+            for key in totals: totals[key]+=int(root.attrib.get(key,0))
+          assert totals['tests']==277 and not any(totals[k] for k in ('failures','errors','skipped')),totals
+          lint=list(Path('/tmp/reports').rglob('lint-results-debug.xml')); assert len(lint)==1,lint
+          issues=ET.parse(lint[0]).getroot().findall('issue'); lint_counts={severity:sum(i.attrib.get('severity')==severity for i in issues) for severity in ('Error','Fatal','Warning')}
+          assert lint_counts['Error']==lint_counts['Fatal']==0,lint_counts
+          apk=Path('release/TorBox-Drop-v2.1.4-preview.apk')
+          report={'nativeSource':'ad9cd8253844fb3a6ab80bb496d5438342712d98','verificationRun':38654410657,'native':{**totals,'suites':len(suites),'lint':lint_counts},'webCoreTests':43,'webBrowserScenarios':31,'previewApkSha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'previewApkBytes':apk.stat().st_size,'realTorBoxAccountTest':False,'physicalDeviceTest':False,'previewDriveOAuthVerified':False}
+          Path('release/VERIFICATION-YouTube-2.1.4.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+          node web/build.mjs
+          sha256sum web/index.html release/TorBox-Drop-v2.1.4-preview.apk > release/SHA256SUMS-YouTube-2.1.4.txt
+      - run: npm ci && npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: youtube-web-verification
-          path: |
-            web/verification/
-            web/index.html
-  android:
-    needs: prepare
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.source }}
-          persist-credentials: false
-      - uses: gradle/actions/wrapper-validation@v6
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4
-        with:
-          log-accepted-android-sdk-licenses: false
-      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-      - uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-read-only: false
-      - name: Native tests, lint, debug and release shrink checks
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: youtube-android-reports
-          path: |
-            app/build/reports/
-            app/build/test-results/
-      - name: Build side-by-side preview without replacing the installed signing identity
+      - name: Retain verified files, with no repair transport in the final source tree
         run: |
-          ./gradlew --no-daemon -PdropPreview=true assembleDebug
-          mkdir -p /tmp/deliverables
-          cp app/build/outputs/apk/debug/app-debug.apk /tmp/deliverables/TorBox-Drop-v2.1.4-preview.apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk /tmp/deliverables/
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs /tmp/deliverables/TorBox-Drop-v2.1.4-preview.apk > /tmp/deliverables/preview-signature.txt
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging /tmp/deliverables/TorBox-Drop-v2.1.4-preview.apk > /tmp/deliverables/preview-manifest.txt
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 /tmp/deliverables/TorBox-Drop-v2.1.4-preview.apk > /tmp/deliverables/preview-alignment.txt
-          sha256sum /tmp/deliverables/*.apk > /tmp/deliverables/SHA256SUMS.txt
+          rm .github/workflows/youtube-repair.yml repair/youtube-0.b64 repair/youtube-1.b64 repair/youtube-2.b64
+          git add README.md web/README.md web/index.template.html web/index.html release/ .github/workflows/youtube-repair.yml repair/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Retain verified YouTube preview and correct release documentation'
+          git push origin HEAD:refs/heads/fix/youtube-downloads
+          mkdir -p /tmp/final
+          git archive --format=zip -o /tmp/final/TorBox-Drop-2.1.4-source.zip HEAD
+          cp release/TorBox-Drop-v2.1.4-preview.apk /tmp/final/
+          cp release/VERIFICATION-YouTube-2.1.4.json /tmp/final/
+          cp release/SHA256SUMS-YouTube-2.1.4.txt /tmp/final/
+          cp web/index.html /tmp/final/TorBox-Drop-Web-v2.1.4.html
+          git rev-parse HEAD > /tmp/final/source-sha.txt
       - uses: actions/upload-artifact@v7
         if: success()
         with:
-          name: torbox-drop-youtube-apks
-          path: /tmp/deliverables/
+          name: torbox-drop-2.1.4-final
+          path: /tmp/final/
