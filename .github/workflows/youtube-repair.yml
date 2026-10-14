@@ -26,7 +26,7 @@ jobs:
           test "$(gh api repos/to-shreds/torbox/actions/runs/38654410657 --jq .conclusion)" = success
           gh run download 38654410657 --repo to-shreds/torbox --name torbox-drop-youtube-apks --dir /tmp/apks
           gh run download 38654410657 --repo to-shreds/torbox --name youtube-android-reports --dir /tmp/reports
-          (cd /tmp/apks && sha256sum -c SHA256SUMS.txt)
+          (cd /tmp/apks && sed 's@/tmp/deliverables/@@g' SHA256SUMS.txt | sha256sum -c -)
           cp /tmp/apks/TorBox-Drop-v2.1.4-preview.apk release/
           cp /tmp/apks/preview-signature.txt release/VERIFICATION-2.1.4-preview-signature.txt
           cp /tmp/apks/preview-manifest.txt release/VERIFICATION-2.1.4-preview-manifest.txt
