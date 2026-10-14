@@ -1,5 +1,7 @@
 package app.jabs.torboxdrop.ui.screens
 
+import app.jabs.torboxdrop.util.InputParser
+import app.jabs.torboxdrop.util.YouTubeLinks
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -107,6 +109,11 @@ fun AddScreen(
     onDismissMessage: () -> Unit = {},
 ) {
     val detection = remember(candidate) { detectCandidate(candidate) }
+    val youtubeVideo = remember(candidate) {
+        InputParser.firstLink(candidate)?.value?.let { link ->
+            runCatching { YouTubeLinks.canonicalVideoUrl(link) }.getOrNull()
+        }
+    }
     var advancedExpanded by rememberSaveable { mutableStateOf(false) }
     val app = LocalContext.current.applicationContext as TorBoxDropApplication
     val drivePreferences = app.container.preferences
@@ -359,6 +366,12 @@ fun AddScreen(
                         )
                     }
 
+                    if (youtubeVideo != null && pendingTorrentName == null) {
+                        Text("Download YouTube starts immediately, regardless of Queue or Cached only. Keep the file panel open while TorBox prepares it; the video then saves to Downloads. A paid TorBox plan is required.", style = MaterialTheme.typography.bodySmall)
+                        TextButton(enabled = !submitting, onClick = {
+                            onSubmit(IncomingAdd.Text(value = detection.value, source = "manual"), options.copy(downloadVideoToDevice = false))
+                        }) { Text("Add only to TorBox using the options above") }
+                    }
                     Button(
                         onClick = {
                             if (pendingTorrentName != null) {
@@ -366,7 +379,7 @@ fun AddScreen(
                             } else {
                                 onSubmit(
                                     IncomingAdd.Text(value = detection.value, source = "manual"),
-                                    options,
+                                    if (youtubeVideo != null) options.copy(queued = false, cachedOnly = false, downloadVideoToDevice = true) else options,
                                 )
                             }
                         },
@@ -392,7 +405,7 @@ fun AddScreen(
                         } else {
                             Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null)
                             Spacer(Modifier.width(9.dp))
-                            Text("Add to TorBox")
+                            if (youtubeVideo != null && pendingTorrentName == null) Text("Download YouTube video") else Text("Add to TorBox")
                         }
                     }
                 }

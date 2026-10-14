@@ -1,0 +1,12 @@
+{
+  "url": "https://to-shreds.github.io/Misc/TorboxDrop/",
+  "version": "2.1.4",
+  "passwordEnabled": true,
+  "jsErrors": [],
+  "authenticatedTorBoxTest": false,
+  "checkedAt": "2026-10-14T23:39:38.965Z",
+  "publicationCommit": "d7d67488f4ca2414cb7cf62cd3544bab09b91998",
+  "verificationRun": 38655276961,
+  "htmlBytes": 91188,
+  "htmlSha256": "e3711ff8db8c1e256d3571dcf30818caa323d5f83355316d7855eac21b524e86"
+}

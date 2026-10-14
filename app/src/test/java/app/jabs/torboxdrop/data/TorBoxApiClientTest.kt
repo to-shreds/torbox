@@ -32,6 +32,30 @@ class TorBoxApiClientTest {
     }
 
     @Test
+    fun youtubeShareLinkIsCanonicalizedWithoutChangingAddOnlyOptions() = runTest {
+        server.enqueue(success("""{"webdownload_id":83}"""))
+        val result = api.createWebDownload("https://youtu.be/BaW_jenozKc?si=tracking", AddOptions(queued = false, cachedOnly = false))
+        val request = server.takeRequest()
+        val body = java.net.URLDecoder.decode(request.body.readUtf8(), "UTF-8")
+        assertThat(request.path).isEqualTo("/v1/api/webdl/createwebdownload")
+        assertThat(body).contains("link=https://www.youtube.com/watch?v=BaW_jenozKc")
+        assertThat(body).doesNotContain("tracking")
+        assertThat(body).contains("as_queued=false")
+        assertThat(result.id).isEqualTo("83")
+    }
+
+    @Test
+    fun videoReadNeverUsesAnotherItemsIdAndFalseErrorIsNotFailure() = runTest {
+        server.enqueue(success("""[{"id":9,"name":"Other","download_finished":true,"download_present":true}, {"id":83,"name":"Video","error":false,"download_state":"downloading"}]"""))
+        val item = api.getDownload(DownloadType.WEB, "83", bypassCache = true)
+        assertThat(item!!.id).isEqualTo("83")
+        assertThat(item.error).isNull()
+        assertThat(item.isProblem).isFalse()
+        server.enqueue(success("""[{"id":9,"download_finished":true,"download_present":true}]"""))
+        assertThat(api.getDownload(DownloadType.WEB, "83", bypassCache = true)).isNull()
+    }
+
+    @Test
     fun bearerAuth_isUsedForNormalCalls_butNeverForRequestDownloadLink() = runTest {
         server.enqueue(success("""{"id":"user-42","email":"person@example.com","plan":2}"""))
         server.enqueue(success(""""https://cdn.example.test/file.mp4?expires=1""""))

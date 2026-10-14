@@ -141,3 +141,44 @@ test('malformed sizes cannot become fabricated zero AirLock usage after normaliz
  }
  const zero=C.normalize(raw(1,{size:0,active:false,airlocked:true}),'torrent');assert.equal(C.usageTotals([zero]).airlock,0);assert.equal(C.bytes(0),'0 B');
 });
+
+test('YouTube normalizes watch, shared, Shorts, live, embedded and music video links',()=>{
+ const expected='https://www.youtube.com/watch?v=BaW_jenozKc';
+ for(const value of ['https://youtu.be/BaW_jenozKc?si=secrettracking','https://youtube.com/watch?v=BaW_jenozKc&t=20&list=PLignored','https://m.youtube.com/watch?v=BaW_jenozKc','https://music.youtube.com/watch?v=BaW_jenozKc','https://youtube.com/shorts/BaW_jenozKc','https://youtube.com/live/BaW_jenozKc','https://www.youtube-nocookie.com/embed/BaW_jenozKc','Watch this https://youtu.be/BaW_jenozKc.'])assert.equal(C.youtubeUrl(value),expected);
+ for(const value of ['https://youtube.com/playlist?list=x','https://youtube.com/@channel','https://youtube.com/watch?v=BaW_jenozKc&v=BaW_jenozKc','https://youtu.be/short','https://u@youtube.com/watch?v=BaW_jenozKc','https://youtube.com:8443/watch?v=BaW_jenozKc'])assert.throws(()=>C.youtubeUrl(value));
+ for(const value of ['https://youtube.com.evil.test/watch?v=BaW_jenozKc','https://youtu.be@evil.test/BaW_jenozKc','https://example.org/f?signature=a%2Bb'])assert.equal(C.youtubeUrl(value),null);
+});
+test('YouTube submission sends the canonical URL once; ordinary signed URLs and magnets stay intact',async()=>{
+ const calls=[];const c=new C.Client(key,async(u,o)=>{calls.push({u,o});return response({webdownload_id:83});});
+ await c.add({value:'https://youtu.be/BaW_jenozKc?si=tracking'});
+ assert.equal(calls[0].o.body.get('link'),'https://www.youtube.com/watch?v=BaW_jenozKc');
+ assert.match(calls[0].u,/webdl\/createwebdownload$/);assert.equal(calls[0].o.body.get('as_queued'),'false');assert.equal(calls.length,1);
+ const signed='https://example.org/f?signature=a%2Bb&download=1';await c.add({value:signed});assert.equal(calls[1].o.body.get('link'),signed);
+});
+test('video preparation waits for the exact returned web ID and both readiness flags',async()=>{
+ const calls=[],progress=[];let i=0;const pages=[[],[raw(999)],[raw(83,{download_finished:true,download_present:false,error:false,download_state:'processing'})],[raw(83,{files:[{id:902,name:'video.mp4',size:16,mimetype:'video/mp4'},{id:903,name:'thumb.jpg'}]})]];
+ const c=new C.Client(key,async(u,o)=>{calls.push({u:new URL(u),o});return response(pages[i++]);});
+ const result=await c.waitForVideo({webdownload_id:83},{sleep:async()=>{},onProgress:s=>progress.push(s.state)});
+ assert.equal(result.item.id,83);assert.equal(result.item.type,'webdl');assert.deepEqual(C.videoFiles(result.files).map(f=>f.id),[902]);
+ assert.deepEqual(progress,['waiting','waiting','waiting','ready']);assert.ok(calls.every(x=>x.o.method==='GET'&&x.u.searchParams.get('id')==='83'&&x.u.searchParams.get('bypass_cache')==='true'));
+});
+test('provider failures, timeout and missing IDs are visible and never resubmit',async()=>{
+ let calls=0;const c=new C.Client(key,async()=>{calls++;return response([raw(83,{download_present:false,error:'Source failed '+key})]);});
+ await assert.rejects(c.waitForVideo({webdownload_id:83}),e=>/Sensitive response details were hidden/.test(e.message)&&!e.message.includes(key));assert.equal(calls,1);
+ for(const value of [{queued_id:12},{torrent_id:83},{},null])await assert.rejects(c.waitForVideo(value));assert.equal(calls,1);
+ let polls=0;const slow=new C.Client(key,async()=>{polls++;return response([]);});
+ await assert.rejects(slow.waitForVideo({webdownload_id:83},{sleep:async()=>{},maxPolls:3}),/preparation window/);assert.equal(polls,3);
+});
+test('cancel and sign-out discard late ready responses without requesting a link',async()=>{
+ for(const signout of [false,true]){
+  let release,calls=0,reported=0;const controller=new AbortController();const c=new C.Client(key,async()=>{calls++;return new Promise(r=>release=r);});
+  const p=c.waitForVideo({webdownload_id:83},{signal:controller.signal,onProgress:()=>reported++});
+  if(signout)c.clear();else controller.abort();release(response([raw(83)]));
+  await assert.rejects(p,/stopped|Session ended/);assert.equal(calls,1);assert.equal(reported,0);
+ }
+});
+test('video readiness, errors and exact file validation cannot be bypassed by status text',()=>{
+ for(const flags of [[true,false],[false,true],[false,false]])assert.notEqual(C.videoPhase(C.normalize(raw(83,{download_finished:flags[0],download_present:flags[1],download_state:'completed'}),'webdl')).state,'ready');
+ assert.equal(C.videoPhase(C.normalize(raw(83,{download_present:false,error:false}),'webdl')).state,'waiting');
+ assert.equal(C.videoPhase(C.normalize(raw(83,{download_present:false,error:true}),'webdl')).state,'failed');
+});

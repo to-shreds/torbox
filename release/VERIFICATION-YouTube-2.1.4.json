@@ -1,0 +1,23 @@
+{
+  "nativeSource": "ad9cd8253844fb3a6ab80bb496d5438342712d98",
+  "verificationRun": 38654410657,
+  "native": {
+    "tests": 277,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": 37,
+    "lint": {
+      "Error": 0,
+      "Fatal": 0,
+      "Warning": 24
+    }
+  },
+  "webCoreTests": 43,
+  "webBrowserScenarios": 31,
+  "previewApkSha256": "2164cb841063b9a33b8cbd3f4540000a867b9e18d28970822711225a80d3604f",
+  "previewApkBytes": 21878774,
+  "realTorBoxAccountTest": false,
+  "physicalDeviceTest": false,
+  "previewDriveOAuthVerified": false
+}

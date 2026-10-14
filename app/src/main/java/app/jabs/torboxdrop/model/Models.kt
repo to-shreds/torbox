@@ -127,6 +127,8 @@ data class AddOptions(
     val allowZip: Boolean = true,
     /** Null inherits the global Drive default; true/false is an explicit per-add choice. */
     val sendToGoogleDrive: Boolean? = null,
+    /** Explicit foreground YouTube save, never inherited by other add routes. */
+    val downloadVideoToDevice: Boolean = false,
 )
 
 data class AddResult(

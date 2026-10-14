@@ -1,10 +1,14 @@
 # TorBox Drop web client
 
-Web version 2.1.3; Android APK version 2.1.1. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
+Web version 2.1.4; Android YouTube preview 2.1.4 and original signed Android 2.1.1. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
+
+## YouTube
+
+Choose **YouTube**, paste one video URL, and leave **Prepare YouTube video for saving to this device** enabled. Share, watch, Shorts, live-video and embed links normalize to one video. The client starts immediately rather than queuing, follows the exact returned web-download ID, and requires both finished and present before showing **Download video**. Click that to request a fresh exact-file link and save. Keep the tab open. Check status never re-adds the item, and provider failures are shown instead of a false completion. Playlist-only/channel links are rejected. TorBox requires a paid plan for web downloads; availability of particular videos remains provider-dependent. [Official hoster guidance](https://support.torbox.app/en/articles/9837721-debrid-hosters).
 
 ## Use
 
-Enter your TorBox API key in the password field. The current-user API validates it before any account lists populate. Sign out or reload to clear the session. Your key is not saved. The Android APK is linked from the login page and desktop header.
+Enter your TorBox API key in the password field. The current-user API validates it before any account lists populate. Sign out or reload to clear the session. Your key is not saved. The original signed Android 2.1.1 APK is explicitly labeled and linked from the login page and desktop header; the separate YouTube preview is linked from the source README.
 
 A prominent Account & quotas panel appears directly under the app header after login. It shows your reported plan and expiry, active slots (including seeding), AirLock storage used and available against the published plan allowance, bandwidth consumed in the past 30 days, and the torrent/web queue. Values cover the full loaded account, independent of filters, pagination and folder navigation. Pro account slot and AirLock totals also include a read-only, paginated Usenet list; Usenet management is not added to the library UI.
 

@@ -182,3 +182,50 @@ test('late quota responses after sign out cannot restore account metrics or cros
  assert.equal(await f.page.locator('#quota-cards').innerText(),'');assert.equal(await f.page.locator('#account').innerText(),'');f.state.override=null;await f.login();assert.equal(await f.page.locator('#quota-bandwidth .quota-value').innerText(),'123 GB');
  await f.page.reload();assert.equal(await f.page.locator('#quota-cards').innerText(),'');assert.equal(await f.page.locator('#account-summary').isVisible(),false);assert.equal(await f.page.evaluate(()=>localStorage.length+sessionStorage.length),0);
 });
+
+function videoFixtureRecord(extra={}) { return base(83,{name:'Fixture YouTube video',files:[{id:902,name:'fixture-video.mp4',size:16,mimetype:'video/mp4'}],...extra}); }
+function videoResponse(data) { return new Response(JSON.stringify({success:true,data}),{headers:{'Content-Type':'application/json'}}); }
+test('YouTube share URL prepares then downloads real bytes with exact web/file IDs',async t=>{
+ let reads=0;
+ const f=await fixture(t,{viewport:{width:390,height:844},override:async(u,o)=>{
+  if(u.pathname.endsWith('/createwebdownload'))return videoResponse({webdownload_id:83});
+  if(u.pathname.endsWith('/webdl/mylist')){
+   if(!u.searchParams.has('id'))return videoResponse([]);
+   reads++;return videoResponse([videoFixtureRecord(reads===1?{download_present:false,download_state:'processing'}:{})]);
+  }
+ }});await f.login();await f.page.locator('#youtube').click();
+ await f.page.getByLabel('Magnet or download link').fill('https://youtu.be/BaW_jenozKc?si=tracking');
+ await f.page.getByRole('button',{name:'Download YouTube video',exact:true}).click();
+ await f.page.getByRole('button',{name:'Download video',exact:true}).waitFor();
+ const creates=f.requests.filter(x=>x.url.includes('/createwebdownload'));assert.equal(creates.length,1);
+ const form=new URLSearchParams(creates[0].body);assert.equal(form.get('link'),'https://www.youtube.com/watch?v=BaW_jenozKc');assert.equal(form.get('as_queued'),'false');assert.equal(form.get('add_only_if_cached'),'false');
+ assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await f.page.screenshot({path:'web/verification/youtube-ready-mobile.png',fullPage:true});
+ const downloaded=nextDownload(f.context);await f.page.getByRole('button',{name:'Download video',exact:true}).click();const download=await downloaded;
+ const chunks=[];for await(const chunk of await download.createReadStream())chunks.push(chunk);assert.equal(Buffer.concat(chunks).toString(),'fixture-download');
+ const linkRequest=f.requests.find(x=>x.url.includes('/webdl/requestdl'));assert.ok(linkRequest);const u=new URL(linkRequest.url);assert.equal(u.searchParams.get('web_id'),'83');assert.equal(u.searchParams.get('file_id'),'902');
+ assert.equal(await f.page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+});
+test('YouTube provider errors remain visible and Check status never adds duplicate jobs',async t=>{
+ const f=await fixture(t,{override:async(u)=>{
+  if(u.pathname.endsWith('/createwebdownload'))return videoResponse({webdownload_id:83});
+  if(u.pathname.endsWith('/webdl/mylist')&&u.searchParams.has('id'))return videoResponse([videoFixtureRecord({download_present:false,error:'YouTube rejected this video'})]);
+ }});await f.login();await f.page.locator('#youtube').click();await f.page.getByLabel('Magnet or download link').fill('https://youtube.com/watch?v=BaW_jenozKc');await f.page.getByRole('button',{name:'Download YouTube video',exact:true}).click();
+ await f.page.getByRole('button',{name:'Check video status',exact:true}).waitFor();assert.match(await f.page.locator('#jobs').innerText(),/YouTube rejected/);
+ await f.page.getByRole('button',{name:'Check video status',exact:true}).click();await f.page.getByRole('button',{name:'Check video status',exact:true}).waitFor();
+ assert.equal(f.requests.filter(x=>x.url.includes('/createwebdownload')).length,1);assert.equal(f.requests.filter(x=>x.url.includes('/requestdl')).length,0);
+});
+test('YouTube free-plan and non-video URL validation prevents misleading acceptance',async t=>{
+ const f=await fixture(t,{account:{id:1,email:'Free test',plan:0}});await f.login();await f.page.locator('#youtube').click();
+ await f.page.getByLabel('Magnet or download link').fill('https://youtube.com/watch?v=BaW_jenozKc');await f.page.getByRole('button',{name:'Download YouTube video',exact:true}).click();
+ assert.match(await f.page.locator('#dialog-body').innerText(),/paid TorBox plan/);assert.equal(f.requests.filter(x=>x.url.includes('/create')).length,0);
+ await f.page.getByLabel('Magnet or download link').fill('https://youtube.com/playlist?list=test');await f.page.getByRole('button',{name:'Download YouTube video',exact:true}).click();assert.match(await f.page.locator('#dialog-body').innerText(),/one YouTube video/);
+});
+test('YouTube cancelled preparation never silently downloads or re-adds the video',async t=>{
+ const f=await fixture(t,{override:async(u)=>{
+  if(u.pathname.endsWith('/createwebdownload'))return videoResponse({webdownload_id:83});
+  if(u.pathname.endsWith('/webdl/mylist')&&u.searchParams.has('id'))return videoResponse([videoFixtureRecord({download_present:false,download_state:'processing'})]);
+ }});await f.login();await f.page.locator('#youtube').click();await f.page.getByLabel('Magnet or download link').fill('https://youtu.be/BaW_jenozKc');await f.page.getByRole('button',{name:'Download YouTube video',exact:true}).click();
+ await f.page.locator('#jobs').getByRole('button',{name:'Cancel',exact:true}).click();await f.page.getByRole('button',{name:'Check video status',exact:true}).waitFor();
+ assert.match(await f.page.locator('#jobs').innerText(),/stopped|cancel/i);assert.equal(f.requests.filter(x=>x.url.includes('/requestdl')).length,0);assert.equal(f.requests.filter(x=>x.url.includes('/createwebdownload')).length,1);
+});
