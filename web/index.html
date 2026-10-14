@@ -74,9 +74,9 @@
 @media(max-width:740px){.account-summary{padding:14px 12px}.quota-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.quota-card{padding:11px 12px}.quota-value{font-size:21px}.quota-card:last-child{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;column-gap:12px}.quota-card:last-child .quota-value{grid-column:2;grid-row:1/3}.quota-card:last-child .quota-detail{grid-column:1}.quota-heading{gap:4px 10px}.quota-heading h2{font-size:16px}.quota-heading a{font-size:12px}.quota-status{flex-basis:100%;order:3}.quota-note{font-size:11px}}
 </style></head><body>
 <section class="login" id="login"><div class="login-card"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><h1>Your files, within reach.</h1><p class="muted">Sign in with your TorBox API key to browse, download, and manage your files.</p><form id="login-form" autocomplete="off"><label for="api-key">TorBox API key</label><input id="api-key" name="torbox-session-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="Paste your API key"><button class="primary" id="connect" type="submit">Unlock my TorBox</button></form><p id="login-error" class="notice error" role="alert" hidden></p><p class="privacy muted">Your key stays in this tab’s memory. It is cleared on sign out or reload. Your key and file list are not saved by this page. API requests use a stateless TorBox Drop relay; file downloads go directly to TorBox.</p><p class="privacy"><a href="https://torbox.app/settings" target="_blank" rel="noopener noreferrer">Find your API key</a></p><p class="privacy"><a href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk">Download the Android APK</a></p><small>TorBox Drop web 2.1.3</small></div></section>
-<div id="app" data-density="compact" hidden><header class="topbar"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><div class="top-actions"><span id="account" class="muted account-label"></span><a class="apk" href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk" rel="noreferrer">Android APK</a><button id="sign-out">Sign out</button></div></header><section id="account-summary" class="account-summary" aria-label="Account limits and usage"><div class="quota-heading"><h2>Account &amp; quotas</h2><span id="quota-status" class="quota-status" role="status"></span><a href="https://torbox.app/dashboard" target="_blank" rel="noopener noreferrer">TorBox dashboard ↗</a></div><div id="quota-cards" class="quota-cards"></div><p class="quota-note">Allowances follow your reported plan. Bandwidth has dynamic fair use, with no fixed remaining quota. <a href="https://support.torbox.app/en/articles/10336778-the-torbox-abuse-system" target="_blank" rel="noopener noreferrer">Fair-use details</a> · <a href="https://support.torbox.app/en/articles/15417147-torbox-airlock" target="_blank" rel="noopener noreferrer">AirLock limits</a></p></section><div class="layout"><aside aria-label="Library navigation"><div class="eyebrow">My TorBox</div><button data-view="all" aria-current="page">All files <span class="count" id="count-all">0</span></button><button data-view="active">Active <span class="count" id="count-active">0</span></button><button data-view="finished">Finished <span class="count" id="count-finished">0</span></button><button data-view="queue">Queue <span class="count" id="count-queue">0</span></button><button data-view="airlock">AirLock <span class="count" id="count-airlock">0</span></button><button data-view="downloads">Device downloads <span class="count" id="count-downloads">0</span></button><div class="side-foot">Session only<br><span>Files download directly from TorBox</span><br><a href="https://github.com/to-shreds/torbox" target="_blank" rel="noopener noreferrer">Web version 2.1.3</a></div></aside><main><div class="heading"><div><h2 id="view-title">All files</h2><p id="view-subtitle">Your torrents and web downloads</p></div><div class="actions"><button id="refresh">Refresh</button><button id="add" class="primary">+ Add</button></div></div><div id="notice" class="notice" role="status" hidden></div><div id="breadcrumbs" class="breadcrumbs" aria-label="Folder location" hidden></div><div id="file-meta" class="file-meta" hidden></div><div id="file-actions" class="actions" hidden></div><div class="toolbar" id="toolbar"><input id="search" class="search" type="search" placeholder="Search names and tags" aria-label="Search files"><select id="type" aria-label="Download type"><option value="">All types</option><option value="torrent">Torrents</option><option value="webdl">Web downloads</option></select><select id="extension" aria-label="File extension" hidden><option value="">All file types</option></select><select id="sort" aria-label="Sort files"><option value="added:desc">Added: newest first</option><option value="added:asc">Added: oldest first</option><option value="cachedAt:desc">Cached: newest first</option><option value="cachedAt:asc">Cached: oldest first</option><option value="name:asc">Name: A to Z</option><option value="name:desc">Name: Z to A</option><option value="size:desc">Size: largest first</option><option value="size:asc">Size: smallest first</option></select><select id="density" aria-label="List spacing" title="List spacing"><option value="compact">Compact · one line</option><option value="cozy">Cozy</option><option value="detailed">Detailed</option></select></div><div id="selection" class="selection-bar" hidden><span id="selected-count"></span><button id="download-selected">Download selected</button><button id="clear-selection" class="quiet">Clear selection</button></div><div class="panel" id="list-panel"><div id="column-hint" class="column-hint">Swipe sideways for more columns. Name stays in view.</div><div class="table-wrap" tabindex="0" role="region" aria-label="File list, scroll horizontally for more columns"><table id="file-table"><thead id="table-head"></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden></div><div class="footer"><span id="list-summary"></span><div class="pager"><button id="prev" aria-label="Previous page">Previous</button><span id="page-label"></span><button id="next" aria-label="Next page">Next</button></div></div></div><div class="panel" id="jobs" hidden></div><p id="date-note" class="sub">Dates use your local time. Cached is TorBox’s cache date; it may precede the date you added an item.</p></main></div></div>
+<div id="app" data-density="compact" hidden><header class="topbar"><div class="brand"><span class="mark" aria-hidden="true">T</span><strong>TorBox Drop</strong></div><div class="top-actions"><span id="account" class="muted account-label"></span><a class="apk" href="https://github.com/to-shreds/torbox/raw/refs/heads/main/release/TorBox-Drop-v2.1.1.apk" rel="noreferrer">Android APK</a><button id="sign-out">Sign out</button></div></header><section id="account-summary" class="account-summary" aria-label="Account limits and usage"><div class="quota-heading"><h2>Account &amp; quotas</h2><span id="quota-status" class="quota-status" role="status"></span><a href="https://torbox.app/dashboard" target="_blank" rel="noopener noreferrer">TorBox dashboard ↗</a></div><div id="quota-cards" class="quota-cards"></div><p class="quota-note">Allowances follow your reported plan. Bandwidth has dynamic fair use, with no fixed remaining quota. <a href="https://support.torbox.app/en/articles/10336778-the-torbox-abuse-system" target="_blank" rel="noopener noreferrer">Fair-use details</a> · <a href="https://support.torbox.app/en/articles/15417147-torbox-airlock" target="_blank" rel="noopener noreferrer">AirLock limits</a></p></section><div class="layout"><aside aria-label="Library navigation"><div class="eyebrow">My TorBox</div><button data-view="all" aria-current="page">All files <span class="count" id="count-all">0</span></button><button data-view="active">Active <span class="count" id="count-active">0</span></button><button data-view="finished">Finished <span class="count" id="count-finished">0</span></button><button data-view="queue">Queue <span class="count" id="count-queue">0</span></button><button data-view="airlock">AirLock <span class="count" id="count-airlock">0</span></button><button data-view="downloads">Device downloads <span class="count" id="count-downloads">0</span></button><div class="side-foot">Session only<br><span>Files download directly from TorBox</span><br><a href="https://github.com/to-shreds/torbox" target="_blank" rel="noopener noreferrer">Web version 2.1.4</a></div></aside><main><div class="heading"><div><h2 id="view-title">All files</h2><p id="view-subtitle">Your torrents and web downloads</p></div><div class="actions"><button id="refresh">Refresh</button><button id="youtube">YouTube</button><button id="add" class="primary">+ Add</button></div></div><div id="notice" class="notice" role="status" hidden></div><div id="breadcrumbs" class="breadcrumbs" aria-label="Folder location" hidden></div><div id="file-meta" class="file-meta" hidden></div><div id="file-actions" class="actions" hidden></div><div class="toolbar" id="toolbar"><input id="search" class="search" type="search" placeholder="Search names and tags" aria-label="Search files"><select id="type" aria-label="Download type"><option value="">All types</option><option value="torrent">Torrents</option><option value="webdl">Web downloads</option></select><select id="extension" aria-label="File extension" hidden><option value="">All file types</option></select><select id="sort" aria-label="Sort files"><option value="added:desc">Added: newest first</option><option value="added:asc">Added: oldest first</option><option value="cachedAt:desc">Cached: newest first</option><option value="cachedAt:asc">Cached: oldest first</option><option value="name:asc">Name: A to Z</option><option value="name:desc">Name: Z to A</option><option value="size:desc">Size: largest first</option><option value="size:asc">Size: smallest first</option></select><select id="density" aria-label="List spacing" title="List spacing"><option value="compact">Compact · one line</option><option value="cozy">Cozy</option><option value="detailed">Detailed</option></select></div><div id="selection" class="selection-bar" hidden><span id="selected-count"></span><button id="download-selected">Download selected</button><button id="clear-selection" class="quiet">Clear selection</button></div><div class="panel" id="list-panel"><div id="column-hint" class="column-hint">Swipe sideways for more columns. Name stays in view.</div><div class="table-wrap" tabindex="0" role="region" aria-label="File list, scroll horizontally for more columns"><table id="file-table"><thead id="table-head"></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty" hidden></div><div class="footer"><span id="list-summary"></span><div class="pager"><button id="prev" aria-label="Previous page">Previous</button><span id="page-label"></span><button id="next" aria-label="Next page">Next</button></div></div></div><div class="panel" id="jobs" hidden></div><p id="date-note" class="sub">Dates use your local time. Cached is TorBox’s cache date; it may precede the date you added an item.</p></main></div></div>
 <dialog id="dialog"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="close-dialog" aria-label="Close dialog">Close</button></div><div id="dialog-body" class="dialog-body"></div></dialog>
-<script>/* TorBox Drop web 2.1.2. No browser storage, analytics, or third-party script dependencies. */
+<script>/* TorBox Drop web 2.1.4. No browser storage, analytics, or third-party script dependencies. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -229,6 +229,40 @@
     if (containsKey(s, key)) return 'TorBox could not complete this request. Sensitive response details were hidden.';
     return s.replace(/https?:\/\/\S+/g, '[link]').replace(/(?:bearer\s+|(?:api[_-]?key|token|authorization)["'\s:=]+)\S+/gi, '[redacted]').slice(0, 350);
   }
+  function youtubeUrl(value) {
+    const text = String(value || '').trim();
+    // Accept YouTube's share text too, without changing arbitrary signed download URLs.
+    const match = text.match(/https?:\/\/[^\s<>"']+/i);
+    let u; try { u = new URL(match ? match[0].replace(/[.,;!?\)\]}]+$/, '') : text); } catch { return null; }
+    const host = u.hostname.toLowerCase().replace(/\.$/, '');
+    if (!['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be', 'www.youtu.be', 'youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host)) return null;
+    if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || (u.port && !['80', '443'].includes(u.port))) throw new Error('Use a normal HTTPS YouTube video link.');
+    const path = u.pathname.replace(/\/+$/, ''), parts = path.replace(/^\//, '').split('/');
+    let video;
+    if (host === 'youtu.be' || host === 'www.youtu.be') video = parts.length === 1 ? parts[0] : null;
+    else if (path === '/watch' && u.searchParams.getAll('v').length === 1) video = u.searchParams.get('v');
+    else if (parts.length === 2 && ['shorts', 'live', 'embed', 'v'].includes(parts[0])) video = decodeURIComponent(parts[1]);
+    if (!/^[A-Za-z0-9_-]{11}$/.test(video || '')) throw new Error('Paste a link to one YouTube video (watch, share, Shorts or recorded live video), not a playlist or channel.');
+    return 'https://www.youtube.com/watch?v=' + video;
+  }
+  function videoPhase(item) {
+    if (!item) return { state: 'waiting', message: 'Waiting for the video to appear on TorBox…' };
+    if (item.ready) return { state: 'ready', message: 'Video prepared on TorBox.' };
+    const detail = typeof item.error === 'string' ? item.error : item.error?.detail || item.error?.message || item.error_message;
+    const state = String(item.download_state || item.state || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (detail || item.error === true || /^(error|failed|failed_processing|missing|missingfiles|not_present|expired|stalled|inactive|incomplete)$/.test(state))
+      return { state: 'failed', message: 'TorBox could not prepare this video: ' + String(detail || state || 'Download error') + '. Check the existing item before retrying.' };
+    const percent = item.progress == null ? '' : ' · ' + Math.floor(item.progress * 100) + '%';
+    return { state: 'waiting', message: 'Preparing on TorBox: ' + (item.state || 'Waiting') + percent };
+  }
+  const videoFiles = list => list.filter(f => /^video\//i.test(f.mime || f.mimetype || '') || /\.(mp4|m4v|webm|mkv|mov|avi|mpeg|mpg|ts)$/i.test(f.name || ''));
+  function pause(ms, signal) {
+    return new Promise((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); reject(new Error('Video preparation stopped. The TorBox item was not deleted.')); };
+      const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, ms);
+      signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
+    });
+  }
   class Client {
     #key; #fetch; #controllers = new Set(); #epoch = 0;
     retryAt = 0;
@@ -296,6 +330,25 @@
       if (!raw) throw new Error('This item is no longer available on TorBox.');
       return { item: normalize(raw, item.type), files: files(raw.files) };
     }
+    async waitForVideo(result, { signal, onProgress = () => {}, sleep = pause, interval = 5000, timeout = 600000, maxPolls = 120 } = {}) {
+      if (result?.queued_id != null) throw new Error('TorBox queued this video. Open Queue and use Start when a slot is available. Nothing has been saved yet.');
+      const n = result?.webdownload_id ?? result?.web_id ?? result?.id;
+      if (n == null) throw new Error('TorBox accepted the URL but did not return a video ID. Refresh the library before retrying; it was not added again.');
+      const itemId = id(n), epoch = this.#epoch, deadline = Date.now() + timeout;
+      for (let i = 0; i < maxPolls && Date.now() < deadline; i++) {
+        if (signal?.aborted || epoch !== this.#epoch) throw new Error('Video preparation stopped. The TorBox item was not deleted.');
+        const data = await this.request('webdl/mylist', { query: { id: itemId, bypass_cache: true }, emptyNotFound: true });
+        if (signal?.aborted || epoch !== this.#epoch) throw new Error('Video preparation stopped. The TorBox item was not deleted.');
+        const raw = (Array.isArray(data) ? data : data ? [data] : []).find(r => String(r.id) === String(itemId));
+        const item = raw ? normalize(raw, 'webdl') : null, phase = videoPhase(item);
+        phase.message = redact(phase.message, this.#key);
+        onProgress(phase, item);
+        if (phase.state === 'failed') throw new Error(phase.message);
+        if (phase.state === 'ready') return { item, files: files(raw.files) };
+        await sleep(interval, signal);
+      }
+      throw new Error('TorBox has not made this video ready within the preparation window. Check status below or on the TorBox dashboard. The existing item was not deleted or added again.');
+    }
     async link(item, file = null, zip = false) {
       if (!item.ready) throw new Error('This content is not complete and present on TorBox yet.');
       if (zip && (item.type !== 'torrent' || item.allow_zipped !== true)) throw new Error('TorBox does not offer a ZIP for this item.');
@@ -314,7 +367,8 @@
       await this.request(t.prefix + '/' + t.edit, { method: 'PUT', body: { [t.editId]: id(item.id), name, tags, airlocked, alternative_hashes: Array.isArray(current.alternative_hashes) ? current.alternative_hashes : [] } });
       return { ...current, name, tags, airlocked };
     }
-    add({ value, file, name, queued = false, cached = false, seed = 1 }) {
+    add({ value, file, name = '', queued = false, cached = false, seed = 1 }) {
+      if (!file) value = youtubeUrl(value) || value;
       const torrent = !!file || /^magnet:\?/i.test(value);
       if (!torrent) { let u; try { u = new URL(value); } catch { throw new Error('Enter a magnet, an HTTP(S) link, or choose a .torrent file.'); } if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw new Error('Enter a valid HTTP(S) download link.'); }
       const body = torrent ? new FormData() : new URLSearchParams();
@@ -325,7 +379,7 @@
       return this.request(torrent ? 'torrents/createtorrent' : 'webdl/createwebdownload', { method: 'POST', body });
     }
   }
-  return { API, TYPES, Client, timestamp, dateLabel, bytes, accountInfo, bandwidthTotal, usageTotals, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
+  return { API, TYPES, Client, youtubeUrl, videoPhase, videoFiles, timestamp, dateLabel, bytes, accountInfo, bandwidthTotal, usageTotals, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
 });
 </script><script>(function () {
   'use strict';
@@ -589,21 +643,70 @@
   async function editItem(item, changes, node, errorNode) {
     await guarded(async (client, active) => { const updated = await client.edit(item, changes); if (!active()) return; S.revision++; S.rows = S.rows.map(r => r.key === item.key ? updated : r); if (S.item?.key === item.key) S.item = updated; $('dialog').close(); notice('Saved on TorBox.', 'success'); render(); refresh(true); }, { node, errorNode });
   }
-  $('add').onclick = () => {
-    const body = modal('Add to TorBox'), form = el('form'); body.append(form);
+  $('add').onclick = () => addDialog();
+  $('youtube').onclick = () => addDialog(true);
+  function addDialog(youtubeOnly = false) {
+    const body = modal(youtubeOnly ? 'Download a YouTube video' : 'Add to TorBox'), form = el('form'); body.append(form);
     const value = labeled(form, 'Magnet or download link', el('textarea', { placeholder: 'magnet:?… or https://…', spellcheck: false }));
     const file = labeled(form, 'Or choose a .torrent file', el('input', { type: 'file', accept: '.torrent,application/x-bittorrent' }));
     const name = labeled(form, 'Custom name (optional)', el('input', { maxlength: 500 }));
     const seed = el('select'); for (const [v, t] of [[1, 'Automatic seeding'], [0, 'Do not seed'], [2, 'Seed until stopped']]) seed.append(el('option', { value: v }, t)); labeled(form, 'Torrent seeding', seed);
     const queued = el('input', { type: 'checkbox' }), cached = el('input', { type: 'checkbox' });
     for (const [input, text] of [[queued, 'Add to queue'], [cached, 'Only add if cached']]) { const l = el('label', { class: 'check' }); l.append(input, document.createTextNode(text)); form.append(l); }
-    const error = modalError(form), submit = el('button', { type: 'submit', class: 'primary' }, 'Add to TorBox'); form.append(submit);
+    const save = el('input', { type: 'checkbox', checked: true });
+    const saveLabel = el('label', { class: 'check', hidden: !youtubeOnly }); saveLabel.append(save, document.createTextNode('Prepare YouTube video for saving to this device')); form.append(saveLabel);
+    const hint = el('p', { class: 'muted', hidden: !youtubeOnly }, 'A paid TorBox plan is required. Starts immediately without Queue or Cached only, then shows a Download video button. Keep this tab open.'); form.append(hint);
+    const error = modalError(form), submit = el('button', { type: 'submit', class: 'primary' }, youtubeOnly ? 'Download YouTube video' : 'Add to TorBox'); form.append(submit);
+    function updateVideo() {
+      let video = null; try { video = !file.files.length && C.youtubeUrl(value.value); } catch { /* Validate on submit. */ }
+      saveLabel.hidden = hint.hidden = !(youtubeOnly || video);
+      const immediate = !!(video && save.checked);
+      queued.disabled = cached.disabled = immediate;
+      submit.textContent = immediate || youtubeOnly ? 'Download YouTube video' : 'Add to TorBox';
+    }
+    value.addEventListener('input', updateVideo); file.addEventListener('change', updateVideo); save.addEventListener('change', updateVideo);
     form.onsubmit = e => { e.preventDefault(); if (file.files.length && value.value.trim()) { error.textContent = 'Choose either a link or a .torrent file.'; error.hidden = false; return; }
-      guarded(async (client, active) => { const result = await client.add({ value: value.value.trim(), file: file.files[0], name: name.value, queued: queued.checked, cached: cached.checked, seed: Number(seed.value) }); if (!active()) return; S.revision++;
+      guarded(async (client, active) => {
+        const video = !file.files.length && C.youtubeUrl(value.value), immediate = !!(video && save.checked);
+        if (youtubeOnly && !video) throw new Error('Paste a link to one YouTube video.');
+        if (video && S.account?.code === 0) throw new Error('YouTube web downloads require a paid TorBox plan. Your account reports the Free plan.');
+        const result = await client.add({ value: video || value.value.trim(), file: file.files[0], name: name.value, queued: immediate ? false : queued.checked, cached: immediate ? false : cached.checked, seed: Number(seed.value) }); if (!active()) return; S.revision++;
         const n = result?.torrent_id ?? result?.webdownload_id ?? result?.web_id ?? result?.id; if (n != null) { S.deleted.delete('torrent:' + n); S.deleted.delete('webdl:' + n); }
-        $('dialog').close(); notice('TorBox accepted the addition. Refresh if it does not appear immediately.', 'success'); refresh(true);
+        $('dialog').close();
+        if (immediate) trackVideo(result, name.value.trim() || 'YouTube video');
+        else notice(result?.queued_id != null || queued.checked ? 'Added to Queue. It has not been downloaded to this device. Use Start when a slot is available.' : 'Added to TorBox, not saved to this device. Open its files when ready and choose Download.', 'success');
+        refresh(true);
       }, { node: submit, errorNode: error }); };
-  };
+  }
+  function trackVideo(result, name) {
+    const job = addJob(name), session = S.session, client = S.client;
+    job.status = 'Waiting for TorBox to prepare the video. Keep this tab open.';
+    job.checkAgain = () => {
+      if (job.busy) return;
+      job.controller = new AbortController(); job.failed = false; job.busy = true; job.videoReady = null; run();
+    };
+    S.view = 'downloads'; S.item = null; S.files = []; S.selected.clear(); render();
+    async function run() {
+      try {
+        const ready = await client.waitForVideo(result, { signal: job.controller.signal, onProgress: phase => {
+          if (live(session, client)) { job.status = phase.message; if (S.view === 'downloads') renderJobs(); }
+        } });
+        if (!live(session, client) || job.controller.signal.aborted) return;
+        const videos = C.videoFiles(ready.files);
+        if (!videos.length) throw new Error('TorBox returned no identifiable video file. Open the item in All files to review it.');
+        if (videos.some(f => f.infected)) throw new Error('TorBox flagged a video as infected. Automatic preparation was blocked; review the item in All files.');
+        job.name = ready.item.name;
+        job.videoReady = ready;
+        job.status = videos.length === 1 ? 'Video ready on TorBox. Click Download video to save it to this device.' : 'Multiple video files are ready. Browse files and choose which to save.';
+      } catch (error) {
+        if (live(session, client)) {
+          if (error.auth) { clearSession(error.message); return; }
+          job.status = error.message; job.failed = true;
+        }
+      } finally { job.busy = false; if (live(session, client) && S.view === 'downloads') renderJobs(); }
+    }
+    run();
+  }
   function fileDetails(file) {
     const item = S.item, body = modal(file.name); body.append(el('p', { class: 'muted' }, file.path), el('p', {}, C.bytes(file.size))); const error = modalError(body);
     if (file.infected) { body.append(el('p', { class: 'notice error' }, 'TorBox flagged this file as infected. Open, copy, and share are disabled.')); return; }
@@ -687,6 +790,12 @@
     if (!S.jobs.length) { const empty = el('div', { class: 'empty' }); empty.append(el('strong', {}, 'No device downloads yet'), el('span', { class: 'muted' }, 'Choose a file, then Download.')); $('jobs').append(empty); return; }
     for (const job of S.jobs) {
       const row = el('div', { class: 'download-job' }), actions = el('div', { class: 'actions' }); row.append(el('strong', {}, job.name), el('p', { class: 'status', role: 'status' }, job.status));
+      if (job.videoReady) {
+        const ready = job.videoReady, videos = C.videoFiles(ready.files);
+        if (videos.length === 1) actions.append(button('Download video', e => { S.jobs = S.jobs.filter(j => j !== job); startDownload(ready.item, videos[0], false, e.currentTarget); }));
+        actions.append(button('Browse video files', () => openFiles(ready.item)));
+      }
+      if (!job.busy && !job.videoReady && job.checkAgain) actions.append(button('Check video status', job.checkAgain));
       if (job.busy) actions.append(button('Cancel', () => { job.controller.abort(); job.status = 'Cancelling…'; renderJobs(); }));
       else if (job.needsConsent) actions.append(button('Continue with browser download', () => { browserSave(job); renderJobs(); }));
       else if (job.link && !job.failed) actions.append(el('a', { class: 'button', href: job.link.url, download: job.name, target: '_blank', rel: 'noopener noreferrer' }, 'Save file'));

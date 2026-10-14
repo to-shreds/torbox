@@ -1,4 +1,4 @@
-/* TorBox Drop web 2.1.2. No browser storage, analytics, or third-party script dependencies. */
+/* TorBox Drop web 2.1.4. No browser storage, analytics, or third-party script dependencies. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -151,6 +151,40 @@
     if (containsKey(s, key)) return 'TorBox could not complete this request. Sensitive response details were hidden.';
     return s.replace(/https?:\/\/\S+/g, '[link]').replace(/(?:bearer\s+|(?:api[_-]?key|token|authorization)["'\s:=]+)\S+/gi, '[redacted]').slice(0, 350);
   }
+  function youtubeUrl(value) {
+    const text = String(value || '').trim();
+    // Accept YouTube's share text too, without changing arbitrary signed download URLs.
+    const match = text.match(/https?:\/\/[^\s<>"']+/i);
+    let u; try { u = new URL(match ? match[0].replace(/[.,;!?\)\]}]+$/, '') : text); } catch { return null; }
+    const host = u.hostname.toLowerCase().replace(/\.$/, '');
+    if (!['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be', 'www.youtu.be', 'youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host)) return null;
+    if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || (u.port && !['80', '443'].includes(u.port))) throw new Error('Use a normal HTTPS YouTube video link.');
+    const path = u.pathname.replace(/\/+$/, ''), parts = path.replace(/^\//, '').split('/');
+    let video;
+    if (host === 'youtu.be' || host === 'www.youtu.be') video = parts.length === 1 ? parts[0] : null;
+    else if (path === '/watch' && u.searchParams.getAll('v').length === 1) video = u.searchParams.get('v');
+    else if (parts.length === 2 && ['shorts', 'live', 'embed', 'v'].includes(parts[0])) video = decodeURIComponent(parts[1]);
+    if (!/^[A-Za-z0-9_-]{11}$/.test(video || '')) throw new Error('Paste a link to one YouTube video (watch, share, Shorts or recorded live video), not a playlist or channel.');
+    return 'https://www.youtube.com/watch?v=' + video;
+  }
+  function videoPhase(item) {
+    if (!item) return { state: 'waiting', message: 'Waiting for the video to appear on TorBox…' };
+    if (item.ready) return { state: 'ready', message: 'Video prepared on TorBox.' };
+    const detail = typeof item.error === 'string' ? item.error : item.error?.detail || item.error?.message || item.error_message;
+    const state = String(item.download_state || item.state || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (detail || item.error === true || /^(error|failed|failed_processing|missing|missingfiles|not_present|expired|stalled|inactive|incomplete)$/.test(state))
+      return { state: 'failed', message: 'TorBox could not prepare this video: ' + String(detail || state || 'Download error') + '. Check the existing item before retrying.' };
+    const percent = item.progress == null ? '' : ' · ' + Math.floor(item.progress * 100) + '%';
+    return { state: 'waiting', message: 'Preparing on TorBox: ' + (item.state || 'Waiting') + percent };
+  }
+  const videoFiles = list => list.filter(f => /^video\//i.test(f.mime || f.mimetype || '') || /\.(mp4|m4v|webm|mkv|mov|avi|mpeg|mpg|ts)$/i.test(f.name || ''));
+  function pause(ms, signal) {
+    return new Promise((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); reject(new Error('Video preparation stopped. The TorBox item was not deleted.')); };
+      const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, ms);
+      signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
+    });
+  }
   class Client {
     #key; #fetch; #controllers = new Set(); #epoch = 0;
     retryAt = 0;
@@ -218,6 +252,25 @@
       if (!raw) throw new Error('This item is no longer available on TorBox.');
       return { item: normalize(raw, item.type), files: files(raw.files) };
     }
+    async waitForVideo(result, { signal, onProgress = () => {}, sleep = pause, interval = 5000, timeout = 600000, maxPolls = 120 } = {}) {
+      if (result?.queued_id != null) throw new Error('TorBox queued this video. Open Queue and use Start when a slot is available. Nothing has been saved yet.');
+      const n = result?.webdownload_id ?? result?.web_id ?? result?.id;
+      if (n == null) throw new Error('TorBox accepted the URL but did not return a video ID. Refresh the library before retrying; it was not added again.');
+      const itemId = id(n), epoch = this.#epoch, deadline = Date.now() + timeout;
+      for (let i = 0; i < maxPolls && Date.now() < deadline; i++) {
+        if (signal?.aborted || epoch !== this.#epoch) throw new Error('Video preparation stopped. The TorBox item was not deleted.');
+        const data = await this.request('webdl/mylist', { query: { id: itemId, bypass_cache: true }, emptyNotFound: true });
+        if (signal?.aborted || epoch !== this.#epoch) throw new Error('Video preparation stopped. The TorBox item was not deleted.');
+        const raw = (Array.isArray(data) ? data : data ? [data] : []).find(r => String(r.id) === String(itemId));
+        const item = raw ? normalize(raw, 'webdl') : null, phase = videoPhase(item);
+        phase.message = redact(phase.message, this.#key);
+        onProgress(phase, item);
+        if (phase.state === 'failed') throw new Error(phase.message);
+        if (phase.state === 'ready') return { item, files: files(raw.files) };
+        await sleep(interval, signal);
+      }
+      throw new Error('TorBox has not made this video ready within the preparation window. Check status below or on the TorBox dashboard. The existing item was not deleted or added again.');
+    }
     async link(item, file = null, zip = false) {
       if (!item.ready) throw new Error('This content is not complete and present on TorBox yet.');
       if (zip && (item.type !== 'torrent' || item.allow_zipped !== true)) throw new Error('TorBox does not offer a ZIP for this item.');
@@ -236,7 +289,8 @@
       await this.request(t.prefix + '/' + t.edit, { method: 'PUT', body: { [t.editId]: id(item.id), name, tags, airlocked, alternative_hashes: Array.isArray(current.alternative_hashes) ? current.alternative_hashes : [] } });
       return { ...current, name, tags, airlocked };
     }
-    add({ value, file, name, queued = false, cached = false, seed = 1 }) {
+    add({ value, file, name = '', queued = false, cached = false, seed = 1 }) {
+      if (!file) value = youtubeUrl(value) || value;
       const torrent = !!file || /^magnet:\?/i.test(value);
       if (!torrent) { let u; try { u = new URL(value); } catch { throw new Error('Enter a magnet, an HTTP(S) link, or choose a .torrent file.'); } if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw new Error('Enter a valid HTTP(S) download link.'); }
       const body = torrent ? new FormData() : new URLSearchParams();
@@ -247,5 +301,5 @@
       return this.request(torrent ? 'torrents/createtorrent' : 'webdl/createwebdownload', { method: 'POST', body });
     }
   }
-  return { API, TYPES, Client, timestamp, dateLabel, bytes, accountInfo, bandwidthTotal, usageTotals, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
+  return { API, TYPES, Client, youtubeUrl, videoPhase, videoFiles, timestamp, dateLabel, bytes, accountInfo, bandwidthTotal, usageTotals, normalize, sortRows, files, browse, cleanPath, safeDownload, containsKey, redact };
 });

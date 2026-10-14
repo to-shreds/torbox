@@ -1,5 +1,7 @@
 package app.jabs.torboxdrop
 
+import app.jabs.torboxdrop.util.VideoPreparation
+import app.jabs.torboxdrop.util.YouTubeLinks
 import android.app.Application
 import android.net.Uri
 import android.os.Bundle
@@ -1461,11 +1463,76 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     fallbackName = parsed.value,
                     navigateAfterSuccess = !remainInBrowser,
                 )
+                if (options.downloadVideoToDevice && parsed.kind == InputParser.Kind.HTTP_URL &&
+                    YouTubeLinks.canonicalVideoUrl(parsed.value) != null
+                ) {
+                    prepareYouTubeDownload(result)
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
                 finishFailedAdd(error)
                 if (remainInBrowser) emitMessage(safeMessage(error))
+            }
+        }
+    }
+
+    private fun prepareYouTubeDownload(result: AddResult) {
+        val id = result.id
+        if (id == null || result.queued) {
+            emitMessage(if (result.queued) "TorBox queued this video instead of starting it. Open Queue and use Start when a slot is available. Nothing has been saved to your device yet."
+                else "TorBox accepted the link but did not return a video ID. Refresh Downloads before retrying; nothing has been saved to your device yet.")
+            return
+        }
+        val item = DownloadItem(id = id, type = DownloadType.WEB, name = result.name ?: "YouTube video")
+        val generation = ++fileLoadGeneration
+        fileLoadJob?.cancel()
+        _uiState.update { it.copy(fileSheet = FileSheetState(download = item, loading = false,
+            fileActionBusy = true, fileActionMessage = "Preparing YouTube video on TorBox. Keep this panel open; closing it stops the device save, not the TorBox download.")) }
+        fileLoadJob = launchAccountWork {
+            fun current() = generation == fileLoadGeneration && _uiState.value.fileSheet?.download?.key == item.key
+            try {
+                val ready = VideoPreparation.awaitReady(
+                    fetch = { repository.getDownload(DownloadType.WEB, id, bypassCache = true) },
+                    onStatus = { remote ->
+                        if (current()) _uiState.update { state -> state.copy(fileSheet = state.fileSheet?.copy(
+                            download = remote ?: item,
+                            fileActionMessage = "Preparing on TorBox: ${remote?.friendlyState ?: "Waiting for the video to appear"}. Keep this panel open to save when ready.",
+                        )) }
+                    },
+                )
+                if (!current()) return@launchAccountWork
+                val files = repository.getFiles(DownloadType.WEB, id, forceRefresh = true)
+                if (!current()) return@launchAccountWork
+                _uiState.update { state -> state.copy(
+                    downloads = state.downloads.copy(downloads = RecentAdditions.mergeDownloads(state.downloads.downloads, listOf(ready))),
+                    loadedFiles = state.loadedFiles + (item.key to files),
+                    fileSheet = state.fileSheet?.copy(download = ready, files = files, loading = false),
+                ) }
+                val videos = files.filter { it.inferredMimeType().startsWith("video/") }
+                if (videos.size != 1) {
+                    completeFileAction(item.key, message = if (videos.isEmpty()) "TorBox returned no identifiable video file. Review its files below; nothing was downloaded automatically."
+                        else "The video is ready. Choose the video file to download below.")
+                    return@launchAccountWork
+                }
+                val video = videos.single()
+                if (video.infected) error("TorBox flagged this video as infected. Automatic saving was blocked.")
+                // Do not deliver a late save while the Activity is stopped. The same account scope
+                // and file generation still control the handoff when the user returns.
+                while (!isForeground) delay(500)
+                if (!current()) return@launchAccountWork
+                val link = repository.requestTemporaryDownloadUrl(DownloadType.WEB, id, fileId = video.id, appendName = true)
+                if (!current()) return@launchAccountWork
+                val safe = UrlSafety.requireSafeToShare(link, container.tokenStore.read())
+                eventChannel.send(MainEvent.DownloadToDevice(safe, video.name, video.inferredMimeType(),
+                    requiresTorBoxUrlSafety = true, sourceKey = item.key))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (current()) {
+                    recordOperationalFailure(error)
+                    completeFileAction(item.key, error = safeMessage(error))
+                }
             }
         }
     }

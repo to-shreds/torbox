@@ -236,7 +236,8 @@ class TorBoxApiClient(
     }
 
     suspend fun createWebDownload(url: String, options: AddOptions = AddOptions()): AddResult {
-        val parsed = runCatching { url.trim().toHttpUrl() }.getOrNull()
+        val canonical = app.jabs.torboxdrop.util.YouTubeLinks.canonicalVideoUrl(url) ?: url.trim()
+        val parsed = runCatching { canonical.toHttpUrl() }.getOrNull()
         require(parsed?.scheme == "https" || parsed?.scheme == "http") { "An HTTP or HTTPS URL is required" }
         val body = FormBody.Builder()
             .add("link", parsed.toString())
@@ -396,7 +397,8 @@ class TorBoxApiClient(
             ),
             itemNotFoundAsEmpty = true,
         )
-        envelope.data.asObjectList().firstOrNull()?.let { parseDownload(type, it, includeFiles) }
+        envelope.data.asObjectList().firstOrNull { it["id"].asStringOrNull() == id }
+            ?.let { parseDownload(type, it, includeFiles) }
     }
 
     private suspend fun getQueuedType(
@@ -448,8 +450,12 @@ class TorBoxApiClient(
             emptyList()
         }
         val name = rawName ?: hash ?: "Unnamed ${if (type == DownloadType.TORRENT) "torrent" else "web download"}"
-        val error = source["error"].asStringOrNull()
-            ?: source.obj("error")?.let { it.string("detail") ?: it.string("message") }
+        val error = when (val value = source["error"]) {
+            is JsonValue.StringValue -> value.value.takeIf(String::isNotBlank)
+            is JsonValue.Object -> value.string("detail") ?: value.string("message")
+            is JsonValue.BooleanValue -> if (value.value) "TorBox reported a download error." else null
+            else -> null
+        } ?: source.string("error_message")?.takeIf(String::isNotBlank)
         val sanitizingToken = tokenProvider()?.trim()?.takeIf(String::isNotEmpty)
         val item = DownloadItem(
             id = id,

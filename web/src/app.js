@@ -260,21 +260,70 @@
   async function editItem(item, changes, node, errorNode) {
     await guarded(async (client, active) => { const updated = await client.edit(item, changes); if (!active()) return; S.revision++; S.rows = S.rows.map(r => r.key === item.key ? updated : r); if (S.item?.key === item.key) S.item = updated; $('dialog').close(); notice('Saved on TorBox.', 'success'); render(); refresh(true); }, { node, errorNode });
   }
-  $('add').onclick = () => {
-    const body = modal('Add to TorBox'), form = el('form'); body.append(form);
+  $('add').onclick = () => addDialog();
+  $('youtube').onclick = () => addDialog(true);
+  function addDialog(youtubeOnly = false) {
+    const body = modal(youtubeOnly ? 'Download a YouTube video' : 'Add to TorBox'), form = el('form'); body.append(form);
     const value = labeled(form, 'Magnet or download link', el('textarea', { placeholder: 'magnet:?… or https://…', spellcheck: false }));
     const file = labeled(form, 'Or choose a .torrent file', el('input', { type: 'file', accept: '.torrent,application/x-bittorrent' }));
     const name = labeled(form, 'Custom name (optional)', el('input', { maxlength: 500 }));
     const seed = el('select'); for (const [v, t] of [[1, 'Automatic seeding'], [0, 'Do not seed'], [2, 'Seed until stopped']]) seed.append(el('option', { value: v }, t)); labeled(form, 'Torrent seeding', seed);
     const queued = el('input', { type: 'checkbox' }), cached = el('input', { type: 'checkbox' });
     for (const [input, text] of [[queued, 'Add to queue'], [cached, 'Only add if cached']]) { const l = el('label', { class: 'check' }); l.append(input, document.createTextNode(text)); form.append(l); }
-    const error = modalError(form), submit = el('button', { type: 'submit', class: 'primary' }, 'Add to TorBox'); form.append(submit);
+    const save = el('input', { type: 'checkbox', checked: true });
+    const saveLabel = el('label', { class: 'check', hidden: !youtubeOnly }); saveLabel.append(save, document.createTextNode('Prepare YouTube video for saving to this device')); form.append(saveLabel);
+    const hint = el('p', { class: 'muted', hidden: !youtubeOnly }, 'A paid TorBox plan is required. Starts immediately without Queue or Cached only, then shows a Download video button. Keep this tab open.'); form.append(hint);
+    const error = modalError(form), submit = el('button', { type: 'submit', class: 'primary' }, youtubeOnly ? 'Download YouTube video' : 'Add to TorBox'); form.append(submit);
+    function updateVideo() {
+      let video = null; try { video = !file.files.length && C.youtubeUrl(value.value); } catch { /* Validate on submit. */ }
+      saveLabel.hidden = hint.hidden = !(youtubeOnly || video);
+      const immediate = !!(video && save.checked);
+      queued.disabled = cached.disabled = immediate;
+      submit.textContent = immediate || youtubeOnly ? 'Download YouTube video' : 'Add to TorBox';
+    }
+    value.addEventListener('input', updateVideo); file.addEventListener('change', updateVideo); save.addEventListener('change', updateVideo);
     form.onsubmit = e => { e.preventDefault(); if (file.files.length && value.value.trim()) { error.textContent = 'Choose either a link or a .torrent file.'; error.hidden = false; return; }
-      guarded(async (client, active) => { const result = await client.add({ value: value.value.trim(), file: file.files[0], name: name.value, queued: queued.checked, cached: cached.checked, seed: Number(seed.value) }); if (!active()) return; S.revision++;
+      guarded(async (client, active) => {
+        const video = !file.files.length && C.youtubeUrl(value.value), immediate = !!(video && save.checked);
+        if (youtubeOnly && !video) throw new Error('Paste a link to one YouTube video.');
+        if (video && S.account?.code === 0) throw new Error('YouTube web downloads require a paid TorBox plan. Your account reports the Free plan.');
+        const result = await client.add({ value: video || value.value.trim(), file: file.files[0], name: name.value, queued: immediate ? false : queued.checked, cached: immediate ? false : cached.checked, seed: Number(seed.value) }); if (!active()) return; S.revision++;
         const n = result?.torrent_id ?? result?.webdownload_id ?? result?.web_id ?? result?.id; if (n != null) { S.deleted.delete('torrent:' + n); S.deleted.delete('webdl:' + n); }
-        $('dialog').close(); notice('TorBox accepted the addition. Refresh if it does not appear immediately.', 'success'); refresh(true);
+        $('dialog').close();
+        if (immediate) trackVideo(result, name.value.trim() || 'YouTube video');
+        else notice(result?.queued_id != null || queued.checked ? 'Added to Queue. It has not been downloaded to this device. Use Start when a slot is available.' : 'Added to TorBox, not saved to this device. Open its files when ready and choose Download.', 'success');
+        refresh(true);
       }, { node: submit, errorNode: error }); };
-  };
+  }
+  function trackVideo(result, name) {
+    const job = addJob(name), session = S.session, client = S.client;
+    job.status = 'Waiting for TorBox to prepare the video. Keep this tab open.';
+    job.checkAgain = () => {
+      if (job.busy) return;
+      job.controller = new AbortController(); job.failed = false; job.busy = true; job.videoReady = null; run();
+    };
+    S.view = 'downloads'; S.item = null; S.files = []; S.selected.clear(); render();
+    async function run() {
+      try {
+        const ready = await client.waitForVideo(result, { signal: job.controller.signal, onProgress: phase => {
+          if (live(session, client)) { job.status = phase.message; if (S.view === 'downloads') renderJobs(); }
+        } });
+        if (!live(session, client) || job.controller.signal.aborted) return;
+        const videos = C.videoFiles(ready.files);
+        if (!videos.length) throw new Error('TorBox returned no identifiable video file. Open the item in All files to review it.');
+        if (videos.some(f => f.infected)) throw new Error('TorBox flagged a video as infected. Automatic preparation was blocked; review the item in All files.');
+        job.name = ready.item.name;
+        job.videoReady = ready;
+        job.status = videos.length === 1 ? 'Video ready on TorBox. Click Download video to save it to this device.' : 'Multiple video files are ready. Browse files and choose which to save.';
+      } catch (error) {
+        if (live(session, client)) {
+          if (error.auth) { clearSession(error.message); return; }
+          job.status = error.message; job.failed = true;
+        }
+      } finally { job.busy = false; if (live(session, client) && S.view === 'downloads') renderJobs(); }
+    }
+    run();
+  }
   function fileDetails(file) {
     const item = S.item, body = modal(file.name); body.append(el('p', { class: 'muted' }, file.path), el('p', {}, C.bytes(file.size))); const error = modalError(body);
     if (file.infected) { body.append(el('p', { class: 'notice error' }, 'TorBox flagged this file as infected. Open, copy, and share are disabled.')); return; }
@@ -358,6 +407,12 @@
     if (!S.jobs.length) { const empty = el('div', { class: 'empty' }); empty.append(el('strong', {}, 'No device downloads yet'), el('span', { class: 'muted' }, 'Choose a file, then Download.')); $('jobs').append(empty); return; }
     for (const job of S.jobs) {
       const row = el('div', { class: 'download-job' }), actions = el('div', { class: 'actions' }); row.append(el('strong', {}, job.name), el('p', { class: 'status', role: 'status' }, job.status));
+      if (job.videoReady) {
+        const ready = job.videoReady, videos = C.videoFiles(ready.files);
+        if (videos.length === 1) actions.append(button('Download video', e => { S.jobs = S.jobs.filter(j => j !== job); startDownload(ready.item, videos[0], false, e.currentTarget); }));
+        actions.append(button('Browse video files', () => openFiles(ready.item)));
+      }
+      if (!job.busy && !job.videoReady && job.checkAgain) actions.append(button('Check video status', job.checkAgain));
       if (job.busy) actions.append(button('Cancel', () => { job.controller.abort(); job.status = 'Cancelling…'; renderJobs(); }));
       else if (job.needsConsent) actions.append(button('Continue with browser download', () => { browserSave(job); renderJobs(); }));
       else if (job.link && !job.failed) actions.append(el('a', { class: 'button', href: job.link.url, download: job.name, target: '_blank', rel: 'noopener noreferrer' }, 'Save file'));
