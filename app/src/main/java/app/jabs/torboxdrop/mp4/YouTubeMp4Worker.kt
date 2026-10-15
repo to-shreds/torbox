@@ -333,9 +333,10 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
             val location = response.header("Location")
             val resolved = location?.let { response.request.url.resolve(it) }
             response.close()
-            val next = resolved?.toString()
+            val verified = resolved
                 ?: throw IOException("TorBox storage returned an invalid redirect.")
-            val host = resolved.host
+            val next = verified.toString()
+            val host = verified.host
             if (host.endsWith(".onrender.com") ||
                 !UrlSafety.isSafeForDeviceDownload(next, token)
             ) {
