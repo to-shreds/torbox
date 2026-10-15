@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-${{ github.ref }}
@@ -27,7 +27,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
         with:
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
@@ -88,3 +88,27 @@ jobs:
           name: torbox-drop-unsigned-release
           path: app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
+
+      - name: Build separately installable preview APK
+        run: ./gradlew --no-daemon assembleDebug -PdropPreview --rerun-tasks
+
+      - name: Upload preview APK
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: torbox-drop-2.1.5-preview
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Publish preview APK in release directory
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk release/TorBox-Drop-v2.1.5-preview.apk
+          sha256sum release/TorBox-Drop-v2.1.5-preview.apk > release/SHA256SUMS-Preview-2.1.5.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release/TorBox-Drop-v2.1.5-preview.apk release/SHA256SUMS-Preview-2.1.5.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish separately installable TorBox Drop 2.1.5 preview"
+            git push origin HEAD:main
+          fi
