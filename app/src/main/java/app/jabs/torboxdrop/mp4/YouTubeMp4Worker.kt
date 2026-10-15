@@ -55,6 +55,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 
 /**
  * Each explicit Save as MP4 starts one durable WorkManager job. Only identifiers and a
@@ -265,11 +266,7 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
             if (!partial.renameTo(output)) throw IOException("Could not finish the resumed local download.")
             return@withContext
         }
-        val request = Request.Builder().url(link)
-            .header("Accept", "application/octet-stream")
-            .apply { if (start > 0) header("Range", "bytes=" + start + "-") }
-            .build()
-        client.newCall(request).execute().use { response ->
+        openVerifiedStorageResponse(client, link, application.container.tokenStore.read(), start).use { response ->
             if (response.code !in listOf(200, 206)) {
                 throw IOException("TorBox storage returned HTTP " + response.code + ".")
             }
@@ -320,6 +317,35 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
                 throw IOException("Could not finish the local video download.")
             }
         }
+    }
+
+    private fun openVerifiedStorageResponse(
+        client: OkHttpClient, rawLink: String, token: String?, offset: Long,
+    ): Response {
+        var target = rawLink
+        repeat(5) {
+            val request = Request.Builder().url(target)
+                .header("Accept", "application/octet-stream")
+                .apply { if (offset > 0) header("Range", "bytes=" + offset + "-") }
+                .build()
+            val response = client.newCall(request).execute()
+            if (response.code !in 300..399) return response
+            val location = response.header("Location")
+            val resolved = location?.let { response.request.url.resolve(it) }
+            response.close()
+            val next = resolved?.toString()
+                ?: throw IOException("TorBox storage returned an invalid redirect.")
+            val host = resolved.host
+            if (host.endsWith(".onrender.com") ||
+                !UrlSafety.isSafeForDeviceDownload(next, token)
+            ) {
+                throw IOException("TorBox storage attempted an unsafe redirect.")
+            }
+            // Redirects are followed only after validating the full destination.
+            // Credential-bearing URLs remain restricted to TorBox storage domains.
+            target = next
+        }
+        throw IOException("Too many TorBox storage redirects.")
     }
 
     private suspend fun transcode(source: File, output: File, label: String) {
