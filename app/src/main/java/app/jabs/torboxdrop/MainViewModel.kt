@@ -2,6 +2,8 @@ package app.jabs.torboxdrop
 
 import app.jabs.torboxdrop.util.VideoPreparation
 import app.jabs.torboxdrop.util.YouTubeLinks
+import app.jabs.torboxdrop.util.YouTubeMp4Policy
+import app.jabs.torboxdrop.mp4.YouTubeMp4Worker
 import android.app.Application
 import android.net.Uri
 import android.os.Bundle
@@ -532,7 +534,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeDetail() = _uiState.update { it.copy(selectedDownload = null) }
 
-    fun openFiles(item: DownloadItem, shareIfSingle: Boolean = false, downloadIfSingle: Boolean = false) {
+    fun openFiles(item: DownloadItem, shareIfSingle: Boolean = false, downloadIfSingle: Boolean = false, mp4IfSingle: Boolean = false) {
         val requestGeneration = ++fileLoadGeneration
         fileLoadJob?.cancel()
         _uiState.update { it.copy(fileSheet = FileSheetState(download = item), actionInProgress = false) }
@@ -561,6 +563,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             completeFileAction(item.key, error = "TorBox flagged this file as infected. Review its warning before downloading.")
                         files.size == 1 -> downloadFile(files.single())
                         else -> completeFileAction(item.key, message = "Choose a file below to download it to this device.")
+                    }
+                }
+                if (mp4IfSingle) {
+                    val eligible = files.filter { YouTubeMp4Policy.eligible(item, it) }
+                    if (eligible.size == 1) {
+                        saveAsMp4(item, eligible.single())
+                    } else {
+                        completeFileAction(item.key, message = "Choose the YouTube video file below and tap Save as MP4.")
                     }
                 }
                 if (shareIfSingle && files.size == 1 && !files.first().infected &&
@@ -734,6 +744,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun copyTemporaryLink(file: DownloadFile) = requestFileUrl(file, FileUrlAction.COPY, infectedConfirmed = false)
+
+    fun saveAsMp4(file: DownloadFile) {
+        val item = _uiState.value.fileSheet?.download?.takeIf {
+            it.type == file.downloadType && it.id == file.downloadId
+        } ?: _uiState.value.downloads.downloads.firstOrNull {
+            it.type == file.downloadType && it.id == file.downloadId
+        }
+        if (item == null) {
+            emitMessage("Open the finished YouTube item to save it as MP4.")
+            return
+        }
+        saveAsMp4(item, file)
+    }
+
+    private fun saveAsMp4(item: DownloadItem, file: DownloadFile) {
+        if (!YouTubeMp4Policy.eligible(item, file)) {
+            emitMessage("Save as MP4 is available only for a finished, safe YouTube video.")
+            return
+        }
+        val scope = driveAccountScope(container.tokenStore.read())
+        if (scope == null) {
+            emitMessage("Sign in to TorBox again before saving this MP4.")
+            return
+        }
+        try {
+            YouTubeMp4Worker.enqueue(
+                context = app,
+                accountScope = scope,
+                downloadId = item.id,
+                fileId = file.id,
+                filename = file.name,
+            )
+            completeFileAction(item.key, message = "MP4 job queued. You can leave TorBox Drop; Android will download and convert it in the background.")
+            emitMessage("Save as MP4 queued. You can close the app.")
+        } catch (error: RuntimeException) {
+            completeFileAction(item.key, error = "Could not queue the MP4 job. Please retry.")
+            emitMessage("Could not queue the MP4 job.")
+        }
+    }
 
     fun downloadFile(file: DownloadFile, infectedConfirmed: Boolean = false) {
         if (file.infected && !infectedConfirmed) {
@@ -1463,9 +1512,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         launchAccountWork {
             try {
                 requireToken()
+                val explicitMp4 = if (options.saveVideoAsMp4) {
+                    require(parsed.kind == InputParser.Kind.HTTP_URL) { "Save as MP4 is available only for YouTube videos." }
+                    requireNotNull(YouTubeMp4Policy.canonicalSource(parsed.value)) { "Save as MP4 requires one YouTube video URL." }
+                } else null
                 val result = when (parsed.kind) {
                     InputParser.Kind.MAGNET -> repository.createMagnet(parsed.value, options, source)
                     InputParser.Kind.HTTP_URL -> repository.createWebDownload(parsed.value, options, source)
+                }
+                // Persist the requested background work as soon as TorBox returns an ID,
+                // before slower UI refreshes. Closing the activity does not stop WorkManager.
+                if (explicitMp4 != null) {
+                    if (result.id != null && !result.queued) {
+                        val account = requireNotNull(driveAccountScope(container.tokenStore.read()))
+                        YouTubeMp4Worker.enqueue(
+                            context = app,
+                            accountScope = account,
+                            downloadId = result.id,
+                            youtubeSourceFromAdd = explicitMp4,
+                            filename = result.name ?: "YouTube video",
+                        )
+                        emitMessage("MP4 job queued. You may close TorBox Drop; saving will finish in the background.")
+                    } else {
+                        emitMessage("TorBox queued this video without an active ID. Start it in Queue, then select Save as MP4 once ready.")
+                    }
                 }
                 finishSuccessfulAdd(
                     result = result,
