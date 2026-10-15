@@ -408,6 +408,31 @@ fun AddScreen(
                             if (youtubeVideo != null && pendingTorrentName == null) Text("Download YouTube video") else Text("Add to TorBox")
                         }
                     }
+                    if (youtubeVideo != null && pendingTorrentName == null) {
+                        OutlinedButton(
+                            onClick = {
+                                onSubmit(
+                                    IncomingAdd.Text(value = detection.value, source = "manual"),
+                                    options.copy(
+                                        queued = false,
+                                        cachedOnly = false,
+                                        downloadVideoToDevice = false,
+                                        saveVideoAsMp4 = true,
+                                    ),
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = detection.isValid && !submitting,
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Text("Save as MP4 (background)")
+                        }
+                        Text(
+                            "Only for this YouTube video. Android will download from TorBox, convert locally, and save the MP4 to Downloads. You can leave the app once the MP4 job is queued.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
