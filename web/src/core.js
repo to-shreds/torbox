@@ -193,7 +193,7 @@
     async request(path, { query = {}, method = 'GET', body, download = false, emptyNotFound = false } = {}) {
       if (!this.#key) throw new Error('Sign in again.');
       if (Date.now() < this.retryAt) throw new Error(`TorBox asked us to wait. Try again in ${Math.ceil((this.retryAt - Date.now()) / 1000)} seconds.`);
-      if (!/^[a-z0-9/]+$/.test(path)) throw new Error('Invalid API operation.');
+      if (!/^[a-z0-9/-]+$/.test(path)) throw new Error('Invalid API operation.');
       const url = new URL(path, API), epoch = this.#epoch, controller = new AbortController();
       for (const [k, v] of Object.entries(query)) if (v != null) url.searchParams.set(k, String(v));
       const headers = { Accept: 'application/json' };
