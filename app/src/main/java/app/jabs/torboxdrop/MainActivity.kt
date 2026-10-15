@@ -362,7 +362,7 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             onBack = viewModel::closeDetail,
             onFiles = { viewModel.openFiles(item) },
             onShare = { viewModel.openFiles(item, shareIfSingle = true) },
-            onDownload = { viewModel.openFiles(item) },
+            onDownload = { viewModel.openFiles(item, downloadIfSingle = true) },
             onOpen = { viewModel.openFiles(item) },
             onRename = if (item.isReady) {
                 { name -> viewModel.rename(item, name) }
@@ -413,7 +413,7 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
                         onSearchChanged = viewModel::setSearch,
                         onSortChanged = viewModel::setSort,
                         onFilterChanged = viewModel::setFilter,
-                        onDownloadClick = { item -> if (item.isReady) viewModel.openFiles(item) else viewModel.openDetail(item) },
+                        onDownloadClick = { item -> if (item.isReady) viewModel.openFiles(item, downloadIfSingle = true) else viewModel.openDetail(item) },
                         onToggleNotification = { item ->
                             if ("${item.type.name}:${item.id}" in state.watchedKeys) {
                                 viewModel.toggleWatch(item)
