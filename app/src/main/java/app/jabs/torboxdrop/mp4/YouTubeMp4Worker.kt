@@ -404,6 +404,10 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
 
     private suspend fun publishToDownloads(source: File, filename: String): Uri =
         withContext(Dispatchers.IO) {
+            // MediaStore.Downloads and pending publishing were introduced on API 29.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                throw IOException("Saving MP4 to Downloads requires Android 10 or newer.")
+            }
             val resolver = application.contentResolver
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
