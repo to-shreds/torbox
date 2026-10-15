@@ -1,4 +1,4 @@
-/* TorBox Drop web 2.1.4. No browser storage, analytics, or third-party script dependencies. */
+/* TorBox Drop web 2.1.5. No browser storage, analytics, or third-party script dependencies. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -270,6 +270,23 @@
         await sleep(interval, signal);
       }
       throw new Error('TorBox has not made this video ready within the preparation window. Check status below or on the TorBox dashboard. The existing item was not deleted or added again.');
+    }
+    async ticket(item, file = null, zip = false, filename = '') {
+      if (!RELAY) throw new Error('Secure web downloading needs the TorBox Drop relay.');
+      if (!item.ready) throw new Error('This content is not complete and present on TorBox yet.');
+      if (!file && !zip) throw new Error('Choose a file to download.');
+      if (zip && (item.type !== 'torrent' || item.allow_zipped !== true))
+        throw new Error('TorBox does not offer a ZIP for this item.');
+      const data = await this.request('download-ticket', {
+        method: 'POST', body: { type: item.type, id: id(item.id), file_id: file ? id(file.id) : null,
+          zip: Boolean(zip), file_name: filename || (zip ? item.name + '.zip' : file.name) },
+      });
+      let url;
+      try { url = new URL(data.url, API); } catch { throw new Error('The secure download service returned an invalid link.'); }
+      if (url.origin !== new URL(API).origin || !/^\\/media\\/[A-Za-z0-9_-]{45,12000}$/.test(url.pathname) ||
+          url.search || url.hash || containsKey(url.href, this.#key))
+        throw new Error('The secure download service returned an unsafe link.');
+      return { url: url.href, credentialBearing: false, expiresAt: Date.now() + 120000 };
     }
     async link(item, file = null, zip = false) {
       if (!item.ready) throw new Error('This content is not complete and present on TorBox yet.');
