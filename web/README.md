@@ -1,6 +1,6 @@
 # TorBox Drop web client
 
-Web version 2.1.4; Android YouTube preview 2.1.4 and original signed Android 2.1.1. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
+Web version 2.1.5; Android download preview 2.1.5 and original signed Android 2.1.1. Source belongs to `to-shreds/torbox`; the GitHub Pages entry is `https://to-shreds.github.io/Misc/TorboxDrop/`.
 
 ## YouTube
 
@@ -22,7 +22,7 @@ Open a collection, then folders. Use breadcrumbs or Backspace to go up; search i
 
 Use **List spacing** beside Sort to choose **Compact · one line**, **Cozy**, or **Detailed**. Compact is the default: tighter rows with name/type/tags, date/age and status/progress inline. Cozy uses the familiar spacing; Detailed gives wrapped names and supporting information more room. The same choice applies to the library, queue and file browser. Switching spacing preserves filters, sort, page, folder and file selection without refetching data. Long text retains its full accessible name and hover text; item/file details also show it in full. The choice lasts only for this tab session and resets to Compact on sign out or reload, with no browser storage. All date and action columns remain available.
 
-Download uses the browser's streaming file picker when supported. The stream is written in chunks without loading the whole file into memory, and a failed partial write is aborted. Otherwise the browser receives a direct TorBox link and retains a visible Save file fallback. Some TorBox storage URLs include your key, so browser-history disclosure must be confirmed first. Multi-file selection prepares one save link per file instead of triggering blocked download storms. Device downloads only tracks this tab's actions; the browser owns progress after a normal download handoff.
+Download obtains an authenticated, short-lived, encrypted ticket from TorBox Drop's Render relay. The browser then streams the file through that relay rather than receiving the TorBox CDN URL, which may contain your API key. File-system picker downloads are written chunk by chunk without buffering the entire file; ordinary browser downloads offer a visible **Save file** fallback. Multi-file selection prepares one link per file. The relay does not persist files or keys; a download link expires after two minutes and must be regenerated if needed. Device downloads records actions from the current tab; after a normal download handoff the browser owns progress. Browser download traffic now passes through Render and may be affected by its network availability and limits.
 
 ## Features and scope
 
@@ -42,13 +42,13 @@ No live TorBox API key is included in fixtures or source. Tests use deterministi
 
 ## Hosting and maintenance
 
-Live TorBox CORS checks on 2026-10-01 rejected GitHub Pages origins. A static page alone cannot authenticate. `relay/server.mjs` is a dependency-free Node 22 relay with a fixed upstream, route/method allowlists, per-request bearer authentication, bounded request/response sizes, timeout, strict origins, and no storage or media proxy. `render.yaml` specifies a free Render service.
+Live TorBox CORS checks on 2026-10-01 rejected GitHub Pages origins. A static page alone cannot authenticate. `relay/server.mjs` is a dependency-free Node 22 relay with a fixed upstream, route/method allowlists, per-request bearer authentication, bounded request/response sizes, timeout, strict origins, no persistent storage, and a secure media-streaming route based on opaque two-minute tickets. API keys and credential-bearing TorBox CDN URLs never appear in browser download links. `render.yaml` specifies a Render service.
 
 Jon confirmed **My Workspace** on 2026-10-01. The free service `srv-davdjv0u01pc73ec1phg` is live at `https://torbox-drop-api.onrender.com`, deployed from this repository's main branch. Health, GitHub Pages/file-origin preflight, missing-key and real upstream invalid-key rejection, hostile-origin rejection, and unknown-route rejection were verified. No TorBox key is configured on the server.
 
 The verified `/api/` address is in the template's torbox-api meta value. After edits, run `node web/build.mjs` and synchronize `web/index.html` to `Misc/TorboxDrop/index.html` and `Misc/TorboxDrop/TorBox-Drop.html`. If this service is ever removed/replaced, empty that meta value to disable key entry until the new deployment URL is verified. Never guess an unclaimed relay hostname.
 
-No TorBox key belongs in Render environment variables. The relay accepts the key only on the current user's request and forwards it to TorBox. Default allowed origin is `https://to-shreds.github.io`; file-origin HTML is supported with `Origin: null` and still requires authentication. A free service may need a minute to wake up.
+No TorBox key belongs in Render environment variables. The relay accepts the key only on the current user's request and forwards it to TorBox. Default allowed origin is `https://to-shreds.github.io`; file-origin HTML is supported with `Origin: null` and still requires authentication. A sleeping free service may need a minute to wake up; streaming large files also depends on Render and TorBox connectivity.
 
 ## Development and verification
 
