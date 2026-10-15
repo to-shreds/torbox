@@ -85,6 +85,7 @@ fun DownloadDetailScreen(
     onFiles: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
+    onSaveAsMp4: (() -> Unit)? = null,
     onOpen: (() -> Unit)? = null,
     onRename: ((String) -> Unit)? = null,
     onUpdateTags: ((List<String>) -> Unit)? = null,
@@ -134,6 +135,7 @@ fun DownloadDetailScreen(
                     onFiles = onFiles,
                     onShare = onShare,
                     onDownload = onDownload,
+                    onSaveAsMp4 = onSaveAsMp4,
                     onOpen = onOpen,
                 )
             }
@@ -347,6 +349,7 @@ private fun ContentActions(
     onFiles: (() -> Unit)?,
     onShare: (() -> Unit)?,
     onDownload: (() -> Unit)?,
+    onSaveAsMp4: (() -> Unit)?,
     onOpen: (() -> Unit)?,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -369,6 +372,14 @@ private fun ContentActions(
                 enabled = !busy && ready && onDownload != null,
                 onClick = { onDownload?.invoke() },
             )
+            if (onSaveAsMp4 != null) {
+                ActionButton(
+                    label = "Save as MP4",
+                    icon = Icons.Outlined.Download,
+                    enabled = !busy && ready,
+                    onClick = onSaveAsMp4,
+                )
+            }
             ActionButton(
                 label = "Share",
                 icon = Icons.Outlined.Share,
