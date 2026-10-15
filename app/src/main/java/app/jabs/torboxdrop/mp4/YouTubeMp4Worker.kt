@@ -96,11 +96,15 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
         try {
             val item = application.container.api.getDownload(DownloadType.WEB, downloadId, bypassCache = true)
                 ?: return failure("The TorBox video is no longer available.")
-            val source = YouTubeMp4Policy.canonicalSource(item.originalSource)
+            // A present, non-YouTube source is NEVER replaced with the user-submitted
+            // value. This guards against an unexpected/recycled TorBox record ID.
+            val actual = YouTubeMp4Policy.canonicalSource(item.originalSource)
+            if (!item.originalSource.isNullOrBlank() && actual == null) {
+                return failure("TorBox returned a non-YouTube source; no MP4 was saved.")
+            }
+            val source = actual
                 ?: YouTubeMp4Policy.canonicalSource(sourceFromAdd)
                 ?: return failure("This item is not an identifiable YouTube video.")
-            // If TorBox supplied a different source, never save the wrong video by ID.
-            val actual = YouTubeMp4Policy.canonicalSource(item.originalSource)
             if (actual != null && sourceFromAdd != null && actual != sourceFromAdd) {
                 return failure("The TorBox video identity changed; nothing was saved.")
             }
@@ -138,7 +142,9 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
                 File(directory, "source.mp4")
             } else original
 
-            if (!sourceFile.exists() || sourceFile.length() <= 0L) {
+            val isAlreadyConverted = completeMarker.exists() && converted.length() > 0L &&
+                !video.name.endsWith(".mp4", ignoreCase = true)
+            if (!isAlreadyConverted && (!sourceFile.exists() || sourceFile.length() <= 0L)) {
                 val link = application.container.api.requestTemporaryDownloadUrl(
                     DownloadType.WEB, downloadId, fileId = video.id, appendName = true,
                 )
@@ -165,6 +171,9 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
             if (driveAccountScope(application.container.tokenStore.read()) != account) {
                 return failure("TorBox account changed during conversion. The MP4 was not published.")
             }
+            // Discard the downloaded WebM after conversion. This halves the storage
+            // required while Android copies the MP4 into public Downloads.
+            if (output != sourceFile) sourceFile.delete()
             setForeground(foreground("Saving " + label + " to Downloads", 99))
             val uri = publishToDownloads(output, label)
             setProgress(workDataOf(KEY_PHASE to "Saved to Downloads", KEY_PERCENT to 100, KEY_OUTPUT_URI to uri.toString()))
@@ -176,10 +185,13 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
             throw cancelled
         } catch (error: Exception) {
             val retryable = error is IOException && runAttemptCount < MAX_NETWORK_ATTEMPTS
+            val detail = UrlSafety.redact(error.message ?: "Media processing error", token)
+                .replace(Regex("https?://\\S+"), "[private link]")
+                .take(240)
             val safe = when (error) {
-                is IOException -> "Could not download or save this video: " + (error.message ?: "I/O error")
-                else -> "MP4 conversion failed: " + (error.message ?: "Unsupported video codec or Android media encoder")
-            }.take(300)
+                is IOException -> "Could not download or save this video: " + detail
+                else -> "MP4 conversion failed: " + detail
+            }
             if (retryable) {
                 setProgress(workDataOf(KEY_PHASE to "Retrying: " + safe))
                 return Result.retry()
@@ -189,6 +201,10 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
     }
 
     private suspend fun failure(message: String): Result {
+        // Finished failures must not strand multi-gigabyte partial files forever.
+        withContext(Dispatchers.IO) {
+            File(application.filesDir, "youtube-mp4/" + id).deleteRecursively()
+        }
         setProgress(workDataOf(KEY_PHASE to message))
         notifyFinished(message, success = false)
         return Result.failure(workDataOf(KEY_PHASE to message))
@@ -245,6 +261,10 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
             .followRedirects(false)
             .build()
         val start = partial.takeIf { it.exists() }?.length() ?: 0L
+        if (start > 0 && expectedSize != null && start == expectedSize) {
+            if (!partial.renameTo(output)) throw IOException("Could not finish the resumed local download.")
+            return@withContext
+        }
         val request = Request.Builder().url(link)
             .header("Accept", "application/octet-stream")
             .apply { if (start > 0) header("Range", "bytes=" + start + "-") }
@@ -270,7 +290,7 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
             if (total != null) {
                 val free = StatFs(application.filesDir.absolutePath).availableBytes
                 val remaining = (total - if (append) start else 0).coerceAtLeast(0)
-                if (free < remaining + total / 2 + 256L * 1024 * 1024) {
+                if (free < remaining + total + 256L * 1024 * 1024) {
                     throw IOException("Not enough device storage for download and MP4 conversion.")
                 }
             }
@@ -291,7 +311,6 @@ class YouTubeMp4Worker(context: Context, parameters: WorkerParameters) : Corouti
                         } ?: 0
                         showProgress("Downloading " + label, progress)
                     }
-                    file.fd.sync()
                 }
             }
             if (total != null && partial.length() != total) {
