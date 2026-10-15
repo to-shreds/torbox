@@ -96,20 +96,20 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v7
         with:
-          name: torbox-drop-2.1.5-preview
+          name: torbox-drop-2.1.6-preview
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
       - name: Publish preview APK in release directory
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk release/TorBox-Drop-v2.1.5-preview.apk
-          sha256sum release/TorBox-Drop-v2.1.5-preview.apk > release/SHA256SUMS-Preview-2.1.5.txt
+          cp app/build/outputs/apk/debug/app-debug.apk release/TorBox-Drop-v2.1.6-preview.apk
+          sha256sum release/TorBox-Drop-v2.1.6-preview.apk > release/SHA256SUMS-Preview-2.1.6.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add release/TorBox-Drop-v2.1.5-preview.apk release/SHA256SUMS-Preview-2.1.5.txt
+          git add release/TorBox-Drop-v2.1.6-preview.apk release/SHA256SUMS-Preview-2.1.6.txt
           if ! git diff --cached --quiet; then
-            git commit -m "Publish separately installable TorBox Drop 2.1.5 preview"
+            git commit -m "Publish separately installable TorBox Drop 2.1.6 preview"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
