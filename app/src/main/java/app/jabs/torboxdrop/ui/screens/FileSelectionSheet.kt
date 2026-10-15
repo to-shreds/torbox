@@ -82,6 +82,7 @@ import app.jabs.torboxdrop.model.DownloadItem
 import app.jabs.torboxdrop.util.FileBrowserEntry
 import app.jabs.torboxdrop.util.FileBrowserResult
 import app.jabs.torboxdrop.util.FileSort
+import app.jabs.torboxdrop.util.YouTubeMp4Policy
 import app.jabs.torboxdrop.util.browseDownloadFiles
 import app.jabs.torboxdrop.util.parentFolder
 import java.util.Locale
@@ -111,6 +112,7 @@ fun FileSelectionSheet(
     onRetry: (() -> Unit)? = null,
     onOpenFile: ((DownloadFile) -> Unit)? = null,
     onDownloadFile: ((DownloadFile) -> Unit)? = null,
+    onSaveAsMp4: ((DownloadFile) -> Unit)? = null,
     onShareFile: ((DownloadFile) -> Unit)? = null,
     onCopyTemporaryLink: ((DownloadFile) -> Unit)? = null,
     onShareFiles: ((List<DownloadFile>) -> Unit)? = null,
@@ -263,6 +265,7 @@ fun FileSelectionSheet(
                     .weight(1f),
             ) {
                 FileSheetBody(
+                    download = download,
                     browser = browser,
                     allFilesEmpty = files.isEmpty(),
                     query = query,
@@ -290,6 +293,7 @@ fun FileSelectionSheet(
                             if (file.infected) infectedDownload = file else callback(file)
                         }
                     },
+                    onSaveAsMp4 = onSaveAsMp4,
                     onShareFile = onShareFile,
                     onCopyTemporaryLink = onCopyTemporaryLink,
                 )
@@ -565,6 +569,7 @@ private fun InfectedFilesBanner(count: Int) {
 
 @Composable
 private fun FileSheetBody(
+    download: DownloadItem,
     browser: FileBrowserResult,
     allFilesEmpty: Boolean,
     query: String,
@@ -580,6 +585,7 @@ private fun FileSheetBody(
     onOpenFolder: (String) -> Unit,
     onOpenFile: ((DownloadFile) -> Unit)?,
     onDownloadFile: ((DownloadFile) -> Unit)?,
+    onSaveAsMp4: ((DownloadFile) -> Unit)?,
     onShareFile: ((DownloadFile) -> Unit)?,
     onCopyTemporaryLink: ((DownloadFile) -> Unit)?,
 ) {
@@ -628,6 +634,9 @@ private fun FileSheetBody(
                             onOpen = onOpenFile?.let { callback -> { callback(file) } },
                             onDownload = onDownloadFile?.let { callback -> { callback(file) } },
                             downloadActionAvailable = contentReady && onDownloadFile != null,
+                            onSaveAsMp4 = if (onSaveAsMp4 != null && YouTubeMp4Policy.eligible(download, file)) {
+                                { onSaveAsMp4(file) }
+                            } else null,
                             onShare = onShareFile?.let { callback -> { callback(file) } },
                             shareInProgress = shareInProgress,
                             onCopyTemporaryLink = onCopyTemporaryLink?.let { callback -> { callback(file) } },
@@ -704,6 +713,7 @@ private fun FileRow(
     onOpen: (() -> Unit)?,
     onDownload: (() -> Unit)?,
     downloadActionAvailable: Boolean,
+    onSaveAsMp4: (() -> Unit)?,
     onShare: (() -> Unit)?,
     shareInProgress: Boolean,
     onCopyTemporaryLink: (() -> Unit)?,
@@ -832,6 +842,11 @@ private fun FileRow(
                         enabled = downloadActionAvailable,
                         onClick = onDownload,
                     )
+                }
+                if (onSaveAsMp4 != null) {
+                    TextButton(onClick = onSaveAsMp4, enabled = contentReady && safe) {
+                        Text("Save as MP4")
+                    }
                 }
                 if (onShare != null) {
                     FileActionButton(
