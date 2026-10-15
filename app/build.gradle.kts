@@ -10,12 +10,12 @@ android {
     buildToolsVersion = "36.0.0"
 
     defaultConfig {
-        applicationId = if (providers.gradleProperty("dropPreview").isPresent) "app.jabs.torboxdrop.preview215" else "app.jabs.torboxdrop"
+        applicationId = if (providers.gradleProperty("dropPreview").isPresent) "app.jabs.torboxdrop.preview216" else "app.jabs.torboxdrop"
         minSdk = 23
         targetSdk = 36
-        versionCode = 20105
-        versionName = "2.1.5"
-        manifestPlaceholders["dropAppLabel"] = if (providers.gradleProperty("dropPreview").isPresent) "TorBox Drop Preview 2.1.5" else "@string/app_name"
+        versionCode = 20106
+        versionName = "2.1.6"
+        manifestPlaceholders["dropAppLabel"] = if (providers.gradleProperty("dropPreview").isPresent) "TorBox Drop Preview 2.1.6" else "@string/app_name"
 
         vectorDrawables.useSupportLibrary = true
     }
@@ -75,6 +75,9 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
+    implementation("androidx.media3:media3-common:1.11.1")
     // AuthorizationClient is available here without dropping this app's API 23 support.
     implementation("com.google.android.gms:play-services-auth:21.4.0")
 
