@@ -532,7 +532,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeDetail() = _uiState.update { it.copy(selectedDownload = null) }
 
-    fun openFiles(item: DownloadItem, shareIfSingle: Boolean = false) {
+    fun openFiles(item: DownloadItem, shareIfSingle: Boolean = false, downloadIfSingle: Boolean = false) {
         val requestGeneration = ++fileLoadGeneration
         fileLoadJob?.cancel()
         _uiState.update { it.copy(fileSheet = FileSheetState(download = item), actionInProgress = false) }
@@ -551,6 +551,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         ),
                         loadedFiles = updatedMap,
                     )
+                }
+                if (downloadIfSingle) {
+                    // The main Download action must actually save a single ready file.
+                    // Multiple-file items still require choosing the correct file.
+                    when {
+                        files.isEmpty() -> completeFileAction(item.key, error = "TorBox reported no files for this download. Refresh and retry.")
+                        files.size == 1 && files.first().infected ->
+                            completeFileAction(item.key, error = "TorBox flagged this file as infected. Review its warning before downloading.")
+                        files.size == 1 -> downloadFile(files.single())
+                        else -> completeFileAction(item.key, message = "Choose a file below to download it to this device.")
+                    }
                 }
                 if (shareIfSingle && files.size == 1 && !files.first().infected &&
                     requestGeneration == fileLoadGeneration &&
