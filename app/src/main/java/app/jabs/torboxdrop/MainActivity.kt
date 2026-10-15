@@ -82,6 +82,7 @@ import app.jabs.torboxdrop.ui.screens.FileSelectionSheet
 import app.jabs.torboxdrop.ui.screens.SettingsScreen
 import app.jabs.torboxdrop.ui.theme.TorBoxDropTheme
 import app.jabs.torboxdrop.util.UrlSafety
+import app.jabs.torboxdrop.util.YouTubeMp4Policy
 import java.util.Locale
 import kotlin.coroutines.resume
 import kotlinx.coroutines.flow.collect
@@ -363,6 +364,9 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             onFiles = { viewModel.openFiles(item) },
             onShare = { viewModel.openFiles(item, shareIfSingle = true) },
             onDownload = { viewModel.openFiles(item, downloadIfSingle = true) },
+            onSaveAsMp4 = if (item.isReady && YouTubeMp4Policy.isYouTube(item)) {
+                { viewModel.openFiles(item, mp4IfSingle = true) }
+            } else null,
             onOpen = { viewModel.openFiles(item) },
             onRename = if (item.isReady) {
                 { name -> viewModel.rename(item, name) }
@@ -559,6 +563,7 @@ private fun TorBoxDropRoot(viewModel: MainViewModel) {
             onRetry = viewModel::retryFiles,
             onOpenFile = viewModel::openFile,
             onDownloadFile = { viewModel.downloadFile(it, infectedConfirmed = it.infected) },
+            onSaveAsMp4 = viewModel::saveAsMp4,
             onShareFile = viewModel::shareFile,
             onCopyTemporaryLink = viewModel::copyTemporaryLink,
             onDownloadZip = if (sheet.download.type == DownloadType.TORRENT && sheet.download.allowZip == true) {
