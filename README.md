@@ -1,16 +1,16 @@
 # TorBox Drop
 
-## Web 2.1.4 / Android 2.1.4 preview
+## Web 2.1.5 / Android 2.1.5 preview
 
-[YouTube Android preview](release/TorBox-Drop-v2.1.4-preview.apk) · [Original signed Android 2.1.1](release/TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
+[Download-fix Android preview](release/TorBox-Drop-v2.1.5-preview.apk) · [Original signed Android 2.1.1](release/TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Standalone HTML](web/index.html)
 
 **YouTube:** choose YouTube on the website, or paste a single-video URL on Android Add and choose **Download YouTube video**. Both clients normalize share/Shorts/embed links, start immediately, follow the returned TorBox web-download ID until finished and present, then obtain the exact video file. The website shows **Download video** when ready; Android hands it to DownloadManager. Keep the tab or file panel open while preparing. Errors, cancellation and timeouts are visible, and checks never submit duplicate jobs. A paid TorBox plan is required.
 
-**Android preview:** installs separately as `app.jabs.torboxdrop.preview`, labeled TorBox Drop Preview. Enter your key in the preview itself. Do not uninstall the original app. The retained production signing key was unavailable in this environment, so this is a separately signed debug preview, not an in-place production update. Existing Drive OAuth is tied to the production identity and is not verified for this preview. The original signed 2.1.1 APK remains unchanged. See [verification](release/VERIFICATION-YouTube-2.1.4.md) and [HANDOFF](HANDOFF.md).
+**Android 2.1.5 preview:** installs separately as `app.jabs.torboxdrop.preview215`, labeled TorBox Drop Preview 2.1.5. Enter your key in the preview itself. Do not uninstall the original app. The retained production signing key was unavailable in this environment, so this is a separately signed debug preview, not an in-place production update. Existing Drive OAuth is tied to the production identity and is not verified for this preview. The original signed 2.1.1 APK remains unchanged. See [verification](release/VERIFICATION-YouTube-2.1.4.md) and [HANDOFF](HANDOFF.md).
 
-The web page uses the verified free stateless relay at `https://torbox-drop-api.onrender.com`. Sign in with your TorBox API key; it is kept only for the current session. Files download directly from TorBox. See [web/README.md](web/README.md) for use and privacy details.
+The web page uses the stateless relay at `https://torbox-drop-api.onrender.com`. Sign in with your TorBox API key, which is held only for the current browser session. Browser downloads are streamed through the relay using encrypted two-minute tickets; no API key or TorBox CDN URL is exposed in the browser download URL, and the relay does not store the files. See [web/README.md](web/README.md) for use and privacy details.
 
-Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density now uses an explorer table with aligned Name, Added, Cached, Size, Status and action columns. Dates include the year and age. On phones, swipe sideways for more columns; Android keeps the headings above the scrolling rows. Ready rows open the folder browser. The original signed 2.1.1 APK uses the retained private-use signing certificate; the separately named 2.1.4 preview does not replace it.
+Android Download now accepts validated TorBox storage links, displays preparation and errors inside the file panel, and tracks the Android DownloadManager handoff. Every list density now uses an explorer table with aligned Name, Added, Cached, Size, Status and action columns. Dates include the year and age. On phones, swipe sideways for more columns; Android keeps the headings above the scrolling rows. Ready rows with one file now start the device download after resolving the file; rows with multiple files open the folder chooser. The original signed 2.1.1 APK uses the retained private-use signing certificate; the separately named 2.1.5 preview does not replace it.
 
 Web 2.1.3 adds **List spacing** beside Sort: Compact is the default and keeps rows on one line, Cozy retains familiar spacing, and Detailed adds room for wrapped names and supporting information. It applies to the library, queue and file browser without resetting navigation or selection or refetching data. See [web 2.1.3 verification](release/VERIFICATION-Web-2.1.3.md).
 
@@ -111,7 +111,7 @@ From the repository root in a networked build environment:
 
 The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The 2.1.1 distribution artifact is `release/TorBox-Drop-v2.1.1.apk`, minified, resource-shrunk, zip-aligned, and signed with the retained private-use certificate. Private signing keys and passwords are never committed. CI publishes unsigned release builds; signing takes place outside CI.
 
-Production source package: `app.jabs.torboxdrop`; versionCode: `20104`; minimum Android SDK: 23; target SDK: 36. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
+Production source package: `app.jabs.torboxdrop`; versionCode: `20105`; minimum Android SDK: 23; target SDK: 36. Certificate SHA-1: `6A:A2:64:52:85:F1:38:A3:83:F4:40:9E:C4:88:88:9C:73:46:48:B8`.
 
 See [BUILD_NOTES.md](BUILD_NOTES.md) for environment and signing details and [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) for the current verification matrix.
 
@@ -135,4 +135,4 @@ Android references: [foreground-service types](https://developer.android.com/dev
 
 ## Privacy
 
-TorBox Drop has no analytics or tracking SDK. The native app encrypts its saved token with Android Keystore. The web client retains its token only in tab memory, clears it on sign-out/reload, and uses no localStorage, sessionStorage, cookies, analytics, or database. Its relay keeps credentials only while forwarding the current TorBox API request and never proxies file bytes. Direct TorBox links can include your key; Android/browser download history can retain those URLs. External sharing requires the existing native confirmation; the web client refuses credential-bearing copy/open/share actions.
+TorBox Drop has no analytics or tracking SDK. The native app encrypts its saved token with Android Keystore. The web client retains its token only in tab memory, clears it on sign-out/reload, and uses no localStorage, sessionStorage, cookies, analytics, or database. Its relay keeps credentials only while processing each authenticated request. For browser downloads, a two-minute encrypted ticket lets the relay stream a TorBox file without exposing the TorBox CDN link or key in the browser's download history; the relay does not persist media. Native Android DownloadManager may retain the TorBox download URL, which can contain a token, in Android's private download records. External sharing requires the existing native confirmation; the web client refuses credential-bearing copy/open/share actions.
