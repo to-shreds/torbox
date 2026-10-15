@@ -110,5 +110,6 @@ jobs:
           git add release/TorBox-Drop-v2.1.5-preview.apk release/SHA256SUMS-Preview-2.1.5.txt
           if ! git diff --cached --quiet; then
             git commit -m "Publish separately installable TorBox Drop 2.1.5 preview"
+            git pull --rebase origin main
             git push origin HEAD:main
           fi
