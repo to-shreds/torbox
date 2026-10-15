@@ -50,3 +50,36 @@ test('account bandwidth and read-only Usenet usage are allowlisted with strict q
   assert.equal((await fetch(f.url+'/api/usenet/controlusenet',{headers,method:'POST'})).status,404);assert.equal(seen.length,2);
  }finally{f.close();}
 });
+
+test('secure browser ticket streams exact bytes without revealing the master API key',async()=>{
+ const seen=[]; const f=await fixture(async(u,o)=>{
+  seen.push({url:u.href,method:o.method,range:o.headers.Range});
+  if(u.pathname.endsWith('/requestdl')) { assert.equal(u.searchParams.get('token'),KEY);assert.equal(u.searchParams.get('web_id'),'83');assert.equal(u.searchParams.get('file_id'),'902');return ok(`https://storage.torbox.app/video.mp4?token=${KEY}`); }
+  if(u.hostname==='storage.torbox.app') return new Response('fixture-download',{headers:{'Content-Length':'16','Accept-Ranges':'bytes'}});
+  throw Error('Unexpected upstream '+u.hostname);
+ });
+ try {
+  const response=await fetch(f.url+'/api/download-ticket',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({type:'webdl',id:83,file_id:902,zip:false,file_name:'YouTube video.mp4'})});
+  assert.equal(response.status,200);const text=await response.text();assert.ok(!text.includes(KEY));assert.ok(!text.includes('storage.torbox.app'));
+  const data=JSON.parse(text).data;assert.match(data.url,/^\/media\/[A-Za-z0-9_-]+$/);
+  const downloaded=await fetch(f.url+data.url,{headers:{Origin:'https://to-shreds.github.io'}});
+  assert.equal(downloaded.status,200);assert.equal(await downloaded.text(),'fixture-download');
+  assert.match(downloaded.headers.get('Content-Disposition'),/attachment;.*YouTube/);
+  assert.equal(downloaded.headers.get('Cache-Control'),'no-store, private');
+  assert.equal(downloaded.headers.get('Access-Control-Allow-Origin'),headers.Origin);
+  assert.equal(seen.length,2);
+  const invalid=await fetch(f.url+'/media/not-a-valid-ticket');assert.equal(invalid.status,404);
+ }finally{f.close();}
+});
+test('download ticket fails closed for hostile CDN hosts and invalid actions',async()=>{
+ let calls=0;const f=await fixture(async(u)=>{calls++;return ok(`https://storage.torbox.app.attacker.invalid/video?token=${KEY}`);});
+ try{
+  const header={...headers,'Content-Type':'application/json'};
+  for(const bad of [{type:'webdl',id:83,file_id:902,zip:true,file_name:'a.mp4'}, {type:'webdl',id:83,file_id:null,zip:false,file_name:'a.mp4'}, {type:'torrent',id:-1,file_id:1,file_name:'a.mp4'}]){
+   const response=await fetch(f.url+'/api/download-ticket',{method:'POST',headers:header,body:JSON.stringify(bad)});assert.equal(response.status,502);
+  }
+  assert.equal(calls,0);
+  const r=await fetch(f.url+'/api/download-ticket',{method:'POST',headers:header,body:JSON.stringify({type:'webdl',id:83,file_id:902,file_name:'a.mp4'})});
+  assert.equal(r.status,502);assert.ok(!(await r.text()).includes(KEY));assert.equal(calls,1);
+ }finally{f.close();}
+});
