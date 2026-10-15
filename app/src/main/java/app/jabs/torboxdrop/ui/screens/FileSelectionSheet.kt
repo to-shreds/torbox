@@ -818,7 +818,7 @@ private fun FileRow(
 
         if (!selectionMode) {
             Row(
-                modifier = Modifier.padding(start = 48.dp, top = 2.dp),
+                modifier = Modifier.padding(start = 48.dp, top = 2.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
