@@ -363,7 +363,7 @@
       if (file && !freshFile) throw new Error('This file is no longer available. Refresh its folder.');
       if (freshFile?.infected && !file.infected) throw new Error('TorBox now flags this file as infected. Refresh and review the warning before downloading.');
       if (zip && fresh.files.some(f => f.infected)) throw new Error('ZIP download is blocked because a file was flagged as infected.');
-      const link = await client.link(fresh.item, freshFile, zip); if (!live(session, client)) return;
+      const link = await client.ticket(fresh.item, freshFile, zip, name); if (!live(session, client)) return;
       if (job.controller.signal.aborted) { job.status = 'Cancelled.'; return; }
       job.link = link; job.retry = () => startDownload(item, file, zip, null, true);
       if (handle) {
@@ -389,18 +389,17 @@
         }
       } else {
         // No in-memory Blob: large files go straight from TorBox to the browser download manager.
-        if (link.credentialBearing) {
-          job.status = 'Ready. TorBox included your API key in the file link. Your browser may retain that link in its download history.';
-          job.needsConsent = true;
-        } else { browserSave(job); }
+        // This same-origin browser download is backed by an encrypted, short-lived
+        // ticket on our relay. No CDN URL or API key is placed in browser history.
+        browserSave(job);
       }
       if (live(session, client)) { notice(job.done ? 'Saved “' + name + '”.' : 'Download ready. Open Device downloads to save the file and view its status.', 'success'); S.view = 'downloads'; S.item = null; S.files = []; S.selected.clear(); render(); }
     } catch (error) { if (live(session, client)) { job.status = error.message; job.failed = true; job.retry ||= () => startDownload(item, file, zip, null, true); if (error.auth) clearSession(error.message); else { notice(error.message, 'error'); S.view = 'downloads'; S.item = null; render(); } } }
     finally { inFlightDownloads.delete(downloadKey); job.busy = false; if (node?.isConnected) node.disabled = false; if (live(session, client)) { counts(); if (S.view === 'downloads') renderJobs(); } }
   }
   function browserSave(job) {
-    const a = el('a', { href: job.link.url, download: job.name, target: '_blank', rel: 'noopener noreferrer' }); document.body.append(a); a.click(); a.remove();
-    job.needsConsent = false; job.status = 'Sent to your browser. Check its download list for progress. If it did not start, use Save file below.';
+    const a = el('a', { href: job.link.url, download: job.name, rel: 'noopener noreferrer' }); document.body.append(a); a.click(); a.remove();
+    job.needsConsent = false; job.status = 'Secure download sent to your browser. Check Downloads; if it did not start, tap Save file below.';
   }
   function renderJobs() {
     $('jobs').replaceChildren();
@@ -415,7 +414,7 @@
       if (!job.busy && !job.videoReady && job.checkAgain) actions.append(button('Check video status', job.checkAgain));
       if (job.busy) actions.append(button('Cancel', () => { job.controller.abort(); job.status = 'Cancelling…'; renderJobs(); }));
       else if (job.needsConsent) actions.append(button('Continue with browser download', () => { browserSave(job); renderJobs(); }));
-      else if (job.link && !job.failed) actions.append(el('a', { class: 'button', href: job.link.url, download: job.name, target: '_blank', rel: 'noopener noreferrer' }, 'Save file'));
+      else if (job.link && !job.failed) actions.append(el('a', { class: 'button', href: job.link.url, download: job.name, rel: 'noopener noreferrer' }, 'Save file'));
       if (!job.busy && !job.done && job.retry) actions.append(button(job.failed ? 'Browser download' : 'Get a fresh link', job.retry));
       row.append(actions); $('jobs').append(row);
     }
@@ -431,7 +430,7 @@
         if (!live(session, client)) break;
         const actual = fresh.files.find(x => x.id === f.id); if (!actual || actual.infected) throw new Error('A selected file changed or was flagged as infected. Refresh and review it.');
         const job = addJob(actual.name);
-        try { job.link = await client.link(fresh.item, actual); if (!live(session, client)) break; job.needsConsent = job.link.credentialBearing; job.status = job.needsConsent ? 'TorBox included your API key in this link. Browser download history may retain it.' : 'Ready to save. Use Save file.'; job.retry = () => startDownload(item, actual, false, null, true); }
+        try { job.link = await client.ticket(fresh.item, actual, false, actual.name); if (!live(session, client)) break; job.needsConsent = false; job.status = 'Secure link ready for two minutes. Tap Save file to download.'; job.retry = () => startDownload(item, actual, false, null, true); }
         catch (error) { job.status = error.message; job.failed = true; throw error; }
         finally { job.busy = false; }
       }
