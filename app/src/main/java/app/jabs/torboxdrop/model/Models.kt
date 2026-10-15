@@ -129,6 +129,8 @@ data class AddOptions(
     val sendToGoogleDrive: Boolean? = null,
     /** Explicit foreground YouTube save, never inherited by other add routes. */
     val downloadVideoToDevice: Boolean = false,
+    /** Only a dedicated user tap can request background YouTube-to-MP4 processing. */
+    val saveVideoAsMp4: Boolean = false,
 )
 
 data class AddResult(
