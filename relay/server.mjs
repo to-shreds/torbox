@@ -1,10 +1,12 @@
 import http from 'node:http';
+import { createTicket, streamTicket } from './downloads.mjs';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-export const VERSION = '2.1.2';
+export const VERSION = '2.1.5';
 const UPSTREAM = 'https://api.torbox.app/v1/api/';
 const MAX_BODY = 21 * 1024 * 1024, MAX_RESPONSE = 16 * 1024 * 1024;
 const routes = new Map([
+ ['download-ticket', ['POST']],
  ['user/me', ['GET']], ['user/stats', ['GET']], ['usenet/mylist', ['GET']], ['torrents/mylist', ['GET']], ['webdl/mylist', ['GET']], ['queued/getqueued', ['GET']],
  ['torrents/requestdl', ['GET']], ['webdl/requestdl', ['GET']], ['torrents/createtorrent', ['POST']], ['webdl/createwebdownload', ['POST']],
  ['torrents/controltorrent', ['POST']], ['webdl/controlwebdownload', ['POST']], ['queued/controlqueued', ['POST']],
@@ -29,10 +31,14 @@ export function createServer({ fetchFn = fetch, origins = ['https://to-shreds.gi
   if (origin) { res.setHeader('Access-Control-Allow-Origin',origin); res.setHeader('Vary','Origin'); }
   res.setHeader('Access-Control-Expose-Headers','Retry-After');
   let incoming; try { incoming = new URL(req.url,'http://drop.invalid'); } catch { return failure(res,400,'Invalid request.'); }
-  if (req.method === 'GET' && incoming.pathname === '/healthz') return json(res,200,{ok:true,version:VERSION,storage:'none',mediaProxy:false});
+  if (req.method === 'GET' && incoming.pathname === '/healthz') return json(res,200,{ok:true,version:VERSION,storage:'none',mediaProxy:true});
   if (req.method === 'GET' && incoming.pathname === '/' && serveWeb) {
    try { const html = await readFile(new URL('../web/index.html',import.meta.url),'utf8'); res.setHeader('Content-Type','text/html; charset=utf-8'); return res.end(local ? html.replace(/<meta name="torbox-api"[^>]*>/,'<meta name="torbox-api" content="/api/">') : html); }
    catch { return failure(res,503,'The web client has not been built.'); }
+  }
+  if (incoming.pathname.startsWith('/media/')) {
+   if (!/^\/media\/[A-Za-z0-9_-]{45,12000}$/.test(incoming.pathname)) return failure(res,404,'Invalid download ticket.');
+   return streamTicket(req, res, fetchFn, incoming.pathname.slice('/media/'.length));
   }
   const path = incoming.pathname.slice('/api/'.length);
   if (!incoming.pathname.startsWith('/api/') || !routes.has(path)) return failure(res,404,'Unknown operation.');
@@ -44,6 +50,11 @@ export function createServer({ fetchFn = fetch, origins = ['https://to-shreds.gi
   let key = /^Bearer ([^\s]{1,512})$/.exec(req.headers.authorization || '')?.[1];
   if (!key) return json(res,401,{success:false,error:'NO_AUTH',detail:'Enter your TorBox API key.'});
   if (inFlight >= 64) { res.setHeader('Retry-After','5'); return failure(res,429,'The relay is busy. Try again in a few seconds.'); }
+  if (path === 'download-ticket') {
+   inFlight++;
+   try { return await createTicket(req, res, fetchFn, key); }
+   finally { inFlight--; key = ''; }
+  }
   const url = new URL(path,UPSTREAM);
   for (const [name,value] of incoming.searchParams) {
    if (!allowedQuery.has(name) || url.searchParams.has(name) || value.length>100) return failure(res,400,'Invalid request parameter.');
