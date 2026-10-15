@@ -283,7 +283,8 @@
       });
       let url;
       try { url = new URL(data.url, API); } catch { throw new Error('The secure download service returned an invalid link.'); }
-      if (url.origin !== new URL(API).origin || !/^\\/media\\/[A-Za-z0-9_-]{45,12000}$/.test(url.pathname) ||
+      if (url.origin !== new URL(API).origin || !url.pathname.startsWith('/media/') ||
+          !/^[A-Za-z0-9_-]{45,12000}$/.test(url.pathname.slice(7)) ||
           url.search || url.hash || containsKey(url.href, this.#key))
         throw new Error('The secure download service returned an unsafe link.');
       return { url: url.href, credentialBearing: false, expiresAt: Date.now() + 120000 };
