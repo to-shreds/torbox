@@ -1,4 +1,16 @@
-# TorBox Drop 2.1.1
+# TorBox Drop release downloads
+
+## Android 2.1.7 download-fix preview
+
+[Download Android 2.1.7 preview](TorBox-Drop-v2.1.7-preview.apk) · [Verification](VERIFICATION-Android-2.1.7.md) · [Checksums](SHA256SUMS-Preview-2.1.7.txt)
+
+Fixes the native security check that rejected credential-bearing links from TorBox's documented regional CDN domains before Android Downloads could start. Ordinary files and whole-torrent ZIPs remain direct TorBox-to-device downloads, without Render media routing or conversion. The explicit YouTube-only background Save as MP4 feature from 2.1.6 is preserved.
+
+This installs separately as **TorBox Drop Preview 2.1.7**, package `app.jabs.torboxdrop.preview217`, versionCode `20107`. Open the new preview and enter your API key there. Keep the original app installed; this does not update its package or verify preview Google Drive OAuth. The production private signing key is unavailable. All earlier binaries remain intact.
+
+Verified: 287 Android tests passed, lint and APK builds passed, and 193 local URL-safety checks passed. A real download on Jon's phone remains the final acceptance check. APK SHA-256: `48a8ad6677ac95e217e26bf43003a5ffb4a93c750ac14f6c2d23f348200b994a`.
+
+## Retained production 2.1.1
 
 [Android APK](TorBox-Drop-v2.1.1.apk) · [Web client](https://to-shreds.github.io/Misc/TorboxDrop/) · [Verification](VERIFICATION-2.1.1.md)
 
