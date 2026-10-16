@@ -10,11 +10,11 @@ object UrlSafety {
     const val REDACTED = "[REDACTED]"
 
     private val credentialQuery = Regex(
-        "(?i)([?&](?:api[_-]?(?:key|token)|access[_-]?token|authorization)=)[^&#\\s]*",
+        "(?i)([?&](?:api[_-]?(?:key|token)|access[_-]?token|authorization)=)[^&#\s]*",
     )
-    private val bearer = Regex("(?i)(bearer\\s+)[A-Za-z0-9._~+/%=-]+")
+    private val bearer = Regex("(?i)(bearer\s+)[A-Za-z0-9._~+/%=-]+")
     private val credentialAssignment = Regex(
-        "(?i)((?:\\\"|')?(?:api[_-]?(?:key|token)|access[_-]?token|authorization)(?:\\\"|')?\\s*[:=]\\s*(?:\\\"|')?)(?!bearer\\b)[^\\\"',\\s}&]+",
+        "(?i)((?:\"|')?(?:api[_-]?(?:key|token)|access[_-]?token|authorization)(?:\"|')?\s*[:=]\s*(?:\"|')?)(?!bearer\b)[^\"',\s}&]+",
     )
 
     /**
@@ -152,7 +152,16 @@ object UrlSafety {
             host == "storage-zip.torbox.app" ||
             (host.startsWith("storage-") && host.endsWith(".torbox.app")) ||
             host == "cdn.torbox.app" ||
-            host.endsWith(".cdn.torbox.app")
+            host.endsWith(".cdn.torbox.app") ||
+            TORBOX_CDN_DOMAINS.any { domain -> host == domain || host.endsWith(".$domain") }
+
+    // Official TorBox CDN domains, including regional and ZIP nodes. Match the DNS label
+    // boundary, never a substring such as tb-cdn.io.evil.test or evil-tb-cdn.io.
+    // https://support.torbox.app/en/articles/13181686-accessing-torbox-with-nextdns
+    private val TORBOX_CDN_DOMAINS = setOf(
+        "tb-cdn.cx", "tb-cdn.io", "tb-cdn.pw", "tb-cdn.sh",
+        "tb-cdn.st", "tb-cdn.to", "tb-cdn.earth",
+    )
 
     private fun decodePercentPreservingPlus(value: String): String = runCatching {
         URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
