@@ -10,12 +10,12 @@ android {
     buildToolsVersion = "36.0.0"
 
     defaultConfig {
-        applicationId = if (providers.gradleProperty("dropPreview").isPresent) "app.jabs.torboxdrop.preview216" else "app.jabs.torboxdrop"
+        applicationId = if (providers.gradleProperty("dropPreview").isPresent) "app.jabs.torboxdrop.preview217" else "app.jabs.torboxdrop"
         minSdk = 23
         targetSdk = 36
-        versionCode = 20106
-        versionName = "2.1.6"
-        manifestPlaceholders["dropAppLabel"] = if (providers.gradleProperty("dropPreview").isPresent) "TorBox Drop Preview 2.1.6" else "@string/app_name"
+        versionCode = 20107
+        versionName = "2.1.7"
+        manifestPlaceholders["dropAppLabel"] = if (providers.gradleProperty("dropPreview").isPresent) "TorBox Drop Preview 2.1.7" else "@string/app_name"
 
         vectorDrawables.useSupportLibrary = true
     }
