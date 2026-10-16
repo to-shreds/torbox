@@ -10,11 +10,11 @@ object UrlSafety {
     const val REDACTED = "[REDACTED]"
 
     private val credentialQuery = Regex(
-        "(?i)([?&](?:api[_-]?(?:key|token)|access[_-]?token|authorization)=)[^&#\s]*",
+        "(?i)([?&](?:api[_-]?(?:key|token)|access[_-]?token|authorization)=)[^&#\\s]*",
     )
-    private val bearer = Regex("(?i)(bearer\s+)[A-Za-z0-9._~+/%=-]+")
+    private val bearer = Regex("(?i)(bearer\\s+)[A-Za-z0-9._~+/%=-]+")
     private val credentialAssignment = Regex(
-        "(?i)((?:\"|')?(?:api[_-]?(?:key|token)|access[_-]?token|authorization)(?:\"|')?\s*[:=]\s*(?:\"|')?)(?!bearer\b)[^\"',\s}&]+",
+        "(?i)((?:\\\"|')?(?:api[_-]?(?:key|token)|access[_-]?token|authorization)(?:\\\"|')?\\s*[:=]\\s*(?:\\\"|')?)(?!bearer\\b)[^\\\"',\\s}&]+",
     )
 
     /**
